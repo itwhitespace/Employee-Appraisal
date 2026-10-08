@@ -20,7 +20,7 @@ const ROLE_CHIPS: Record<Role, string> = {
 };
 
 const NO_TEAM = "ไม่ระบุทีม";
-const COLUMNS = 9;
+const COLUMNS = 8;
 
 const segment = (active: boolean) =>
   `rounded-full px-3.5 py-1.5 text-sm transition ${
@@ -173,16 +173,15 @@ export default function EmployeesPage() {
 
       <section className="card overflow-hidden">
         <div className="overflow-x-auto">
-          <table className="sheet min-w-[920px] table-fixed">
+          <table className="sheet min-w-[1000px] table-fixed">
             <thead>
               <tr>
                 <th className="w-16">รหัส</th>
                 <th>ชื่อ-สกุล / ตำแหน่ง</th>
                 <th className="w-24">สิทธิ์</th>
-                <th className="w-40">ฝ่าย / Level</th>
-                <th className="w-24">ประเภท</th>
-                <th className="w-40">ผู้ประเมิน</th>
-                <th className="w-24">วันเริ่มงาน</th>
+                <th className="w-44">ฝ่าย / Level · ประเภท</th>
+                <th className="w-48">ผู้ประเมิน</th>
+                <th className="w-28">วันเริ่มงาน</th>
                 <th className="w-36">แบบประเมิน</th>
                 <th className="w-[108px]" aria-label="จัดการ" />
               </tr>
@@ -222,12 +221,15 @@ export default function EmployeesPage() {
                       <td>
                         {DEPARTMENTS.find((d) => d.id === user.departmentId)?.name ?? "–"}
                         <div className="text-xs text-muted">
-                          {findLevel(data.levels, user.departmentId, user.level)?.name}
+                          {[findLevel(data.levels, user.departmentId, user.level)?.name, user.appraisalType]
+                            .filter(Boolean)
+                            .join(" · ")}
                         </div>
                       </td>
-                      <td>{user.appraisalType}</td>
-                      <td>{data.users.find((u) => u.id === user.supervisorId)?.name ?? "–"}</td>
-                      <td className="text-muted">{formatDate(user.startDate)}</td>
+                      <td className="truncate whitespace-nowrap">
+                        {data.users.find((u) => u.id === user.supervisorId)?.name ?? "–"}
+                      </td>
+                      <td className="whitespace-nowrap text-muted">{formatDate(user.startDate)}</td>
                       <td>
                         {appraised ? (
                           <StatusBadge status={data.evaluations[user.id]?.status ?? "not_started"} />

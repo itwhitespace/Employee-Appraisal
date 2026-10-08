@@ -107,11 +107,11 @@ export const SECTION_CONFIG: Record<SectionKey, SectionConfig> = {
 };
 
 export const RATING_SCALE: { score: number; label: string }[] = [
-  { score: 1, label: "ต่ำกว่าความคาดหวังมาก" },
-  { score: 2, label: "ต่ำกว่าความคาดหวัง" },
-  { score: 3, label: "ตามความคาดหวัง" },
-  { score: 4, label: "สูงกว่าความคาดหวัง" },
-  { score: 5, label: "โดดเด่น" },
+  { score: 5, label: "เกินความคาดหวังอย่างมาก สม่ำเสมอ เป็นแบบอย่างได้" },
+  { score: 4, label: "เกินเป้าหมายในหลายด้าน ทำงานได้ดีโดยไม่ต้องกำกับ" },
+  { score: 3, label: "บรรลุเป้าหมายครบถ้วน สม่ำเสมอตามมาตรฐาน" },
+  { score: 2, label: "ผ่านบางส่วน ยังไม่สม่ำเสมอ ต้องได้รับคำแนะนำ" },
+  { score: 1, label: "ต่ำกว่าเกณฑ์มาก ต้องปรับปรุงอย่างเร่งด่วน" },
 ];
 
 /**

@@ -315,14 +315,16 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
         </div>
       </section>
 
-      <ul className="flex flex-wrap gap-x-4 gap-y-1 px-1 text-xs text-muted">
-        <li className="font-medium text-ink">เกณฑ์คะแนน</li>
-        {RATING_SCALE.map((item) => (
-          <li key={item.score}>
-            <span className="font-semibold text-ink">{item.score}</span> {item.label}
-          </li>
-        ))}
-      </ul>
+      <section className="card px-5 py-4">
+        <h2 className="text-sm font-semibold">เกณฑ์คะแนน</h2>
+        <ul className="mt-2 space-y-1 text-[13px] text-muted">
+          {RATING_SCALE.map((item) => (
+            <li key={item.score}>
+              <span className="font-semibold tabular-nums text-ink">{item.score}</span> = {item.label}
+            </li>
+          ))}
+        </ul>
+      </section>
 
       {/* Sections A-F */}
       {ALL_SECTIONS.map((key) => (
