@@ -1,11 +1,14 @@
 import Link from "next/link";
-import { DEPARTMENTS, LEVELS } from "@/lib/constants";
+import { DEPARTMENTS } from "@/lib/constants";
+import { findLevel } from "@/lib/evaluation";
 import { formatScore } from "@/lib/format";
 import type { OverviewRow } from "@/lib/overview";
+import type { JobLevel } from "@/lib/types";
 import StatusBadge from "./StatusBadge";
 
 interface OverviewTableProps {
   rows: OverviewRow[];
+  levels: JobLevel[];
   /** Label of the link to each form, by who is looking. */
   viewer: "supervisor" | "admin";
 }
@@ -16,7 +19,7 @@ function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"]): st
 }
 
 /** Appraisal status and scores per employee; shared by the admin dashboard and the supervisor's team page. */
-export default function OverviewTable({ rows, viewer }: OverviewTableProps) {
+export default function OverviewTable({ rows, levels, viewer }: OverviewTableProps) {
   return (
     <div className="overflow-x-auto">
       <table className="sheet min-w-[1040px]">
@@ -53,9 +56,7 @@ export default function OverviewTable({ rows, viewer }: OverviewTableProps) {
                   <div className="text-xs text-muted">{employee.position}</div>
                 </td>
                 <td className="whitespace-nowrap">{DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}</td>
-                <td>
-                  L{employee.level} · {LEVELS.find((l) => l.id === employee.level)?.name}
-                </td>
+                <td>{findLevel(levels, employee.departmentId, employee.level)?.name ?? "–"}</td>
                 {viewer === "admin" && <td className="whitespace-nowrap">{row.supervisorName ?? "–"}</td>}
                 <td>
                   <StatusBadge status={row.status} />

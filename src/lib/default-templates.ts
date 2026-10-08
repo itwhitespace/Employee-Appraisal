@@ -1,8 +1,9 @@
-import { DEFAULT_WEIGHTS, DEPARTMENTS, LEVELS } from "./constants";
+import { DEFAULT_WEIGHTS } from "./constants";
 import type {
   DepartmentId,
   ExpectedLevel,
   FormTemplate,
+  JobLevel,
   Level,
   Question,
   SectionKey,
@@ -14,6 +15,7 @@ import type {
  */
 
 type PerLevel<T> = [T, T, T];
+const SEEDED_LEVELS = 3;
 
 interface KpiSeed {
   title: string;
@@ -309,47 +311,45 @@ const POTENTIAL: Seed[] = [
   },
 ];
 
-export function buildDefaultTemplates(): FormTemplate[] {
-  const templates: FormTemplate[] = [];
-  for (const { id: departmentId } of DEPARTMENTS) {
-    for (const { id: level } of LEVELS) {
-      const withIds = (section: SectionKey, seeds: Seed[]): Question[] =>
-        seeds.map((seed, i) => ({ id: `${departmentId}-L${level}-${section}${i + 1}`, ...seed }));
+export function buildDefaultTemplates(levels: JobLevel[]): FormTemplate[] {
+  return levels.map(({ departmentId, level }) => {
+    // The built-in content covers three levels; higher levels start from the level 3 content.
+    const seedLevel = Math.min(level, SEEDED_LEVELS);
+    const withIds = (section: SectionKey, seeds: Seed[]): Question[] =>
+      seeds.map((seed, i) => ({ id: `${departmentId}-L${level}-${section}${i + 1}`, ...seed }));
 
-      templates.push({
-        departmentId,
-        level,
-        weights: { ...DEFAULT_WEIGHTS },
-        sections: {
-          A: withIds(
-            "A",
-            kpiSeeds(departmentId).map((seed) => ({
+    return {
+      departmentId,
+      level,
+      weights: { ...DEFAULT_WEIGHTS },
+      sections: {
+        A: withIds(
+          "A",
+          kpiSeeds(departmentId).map((seed) => ({
+            title: seed.title,
+            description: seed.description,
+            target: seed.targets[seedLevel - 1],
+          })),
+        ),
+        B: withIds(
+          "B",
+          COMPETENCIES[departmentId]
+            .filter((seed) => !seed.levels || seed.levels.includes(seedLevel))
+            .map((seed) => ({
               title: seed.title,
               description: seed.description,
-              target: seed.targets[level - 1],
+              expectedLevel: seed.expected[seedLevel - 1],
             })),
-          ),
-          B: withIds(
-            "B",
-            COMPETENCIES[departmentId]
-              .filter((seed) => !seed.levels || seed.levels.includes(level))
-              .map((seed) => ({
-                title: seed.title,
-                description: seed.description,
-                expectedLevel: seed.expected[level - 1],
-              })),
-          ),
-          C: withIds("C", CORE_VALUES),
-          D: withIds(
-            "D",
-            LEADERSHIP.map((seed) => ({ ...seed, expectedLevel: LEADERSHIP_EXPECTED[level - 1] })),
-          ),
-          E: withIds("E", digitalSeeds(departmentId)),
-          F: withIds("F", POTENTIAL),
-        },
-        updatedAt: null,
-      });
-    }
-  }
-  return templates;
+        ),
+        C: withIds("C", CORE_VALUES),
+        D: withIds(
+          "D",
+          LEADERSHIP.map((seed) => ({ ...seed, expectedLevel: LEADERSHIP_EXPECTED[seedLevel - 1] })),
+        ),
+        E: withIds("E", digitalSeeds(departmentId)),
+        F: withIds("F", POTENTIAL),
+      },
+      updatedAt: null,
+    };
+  });
 }

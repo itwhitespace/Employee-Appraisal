@@ -34,6 +34,14 @@ body {
     @apply w-full rounded-lg border border-transparent bg-canvas px-2.5 py-1.5 text-[13px] text-ink outline-none transition placeholder:text-faint hover:bg-[#ececf0] focus:border-accent focus:bg-white focus:ring-4 focus:ring-accent/15 disabled:cursor-not-allowed disabled:bg-transparent disabled:px-0 disabled:text-muted disabled:resize-none disabled:hover:bg-transparent;
   }
 
+  /* Appraisal form: the cells the viewer can fill in stand out from the read-only ones. */
+  .fillable .field:enabled {
+    @apply border-amber-300 bg-amber-50 hover:bg-amber-100;
+  }
+  .fillable .field:enabled:focus {
+    @apply border-accent bg-white;
+  }
+
   .btn {
     @apply inline-flex items-center justify-center gap-1.5 rounded-full px-4 py-2 text-sm font-medium transition focus:outline-none focus-visible:ring-4 focus-visible:ring-accent/25 disabled:cursor-not-allowed disabled:opacity-40;
   }

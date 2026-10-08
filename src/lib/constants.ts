@@ -1,7 +1,7 @@
 import type {
+  AppraisalType,
   DepartmentId,
   ExpectedLevel,
-  Level,
   Role,
   SectionKey,
   WeightedSectionKey,
@@ -11,7 +11,6 @@ import type {
 export const COMPANY_NAME = "Whitespace Partners";
 export const CURRENT_CYCLE = "FY2026/27";
 export const CYCLE_PERIOD = "ต.ค. 2026 – ก.ย. 2027";
-export const APPRAISAL_TYPE = "Annual";
 
 export const DEPARTMENTS: { id: DepartmentId; name: string }[] = [
   { id: "interior-designer", name: "Interior Designer" },
@@ -20,11 +19,7 @@ export const DEPARTMENTS: { id: DepartmentId; name: string }[] = [
   { id: "business-administration", name: "Business Administration" },
 ];
 
-export const LEVELS: { id: Level; name: string }[] = [
-  { id: 1, name: "Junior" },
-  { id: 2, name: "Mid" },
-  { id: 3, name: "Senior" },
-];
+export const APPRAISAL_TYPES: AppraisalType[] = ["Annual", "Mid-year", "Probation"];
 
 export const ROLE_NAMES: Record<Role, string> = {
   employee: "พนักงาน",

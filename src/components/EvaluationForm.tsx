@@ -6,10 +6,8 @@ import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   ALL_SECTIONS,
-  APPRAISAL_TYPE,
   CYCLE_PERIOD,
   DEPARTMENTS,
-  LEVELS,
   RATING_SCALE,
   SECTION_CONFIG,
 } from "@/lib/constants";
@@ -85,7 +83,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
     return <div className="card p-8 text-center text-muted">กำลังโหลดแบบประเมิน…</div>;
   }
 
-  const { employee, template, supervisorName, supervisorHidden } = context;
+  const { employee, jobLevel, template, supervisorName, supervisorHidden } = context;
   const shown = evaluation;
   const isOwner = user.id === employee.id;
   const isSupervisor = user.id === employee.supervisorId;
@@ -107,7 +105,6 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
   const questions = getSectionQuestions(template, evaluation);
   const personalIds = new Set(evaluation.personalKpis.map((q) => q.id));
   const department = DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name;
-  const levelName = LEVELS.find((l) => l.id === employee.level)?.name;
   const yearsInLevel = yearsSince(employee.levelSince);
 
   const patch = (fn: (prev: Evaluation) => Evaluation) => {
@@ -198,11 +195,11 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
     ["รหัสพนักงาน", employee.code],
     ["ตำแหน่ง", employee.position],
     ["ฝ่าย", department],
-    ["Level", `Level ${employee.level} · ${levelName}`],
+    ["Level", jobLevel ? `${jobLevel.name} · ${jobLevel.title}` : undefined],
     ["Studio / Team", employee.team],
     ["ผู้ประเมิน", supervisorName ?? undefined],
     ["รอบประเมิน", `${evaluation.cycle} (${CYCLE_PERIOD})`],
-    ["ประเภท", APPRAISAL_TYPE],
+    ["ประเภท", employee.appraisalType],
     ["วันเริ่มงาน", formatDate(employee.startDate)],
     ["อายุงานในระดับปัจจุบัน", yearsInLevel ? `${yearsInLevel} ปี` : undefined],
     ["วันที่ประเมิน", formatDate(evaluation.completedAt)],
@@ -231,7 +228,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
   ];
 
   return (
-    <div className="space-y-6 pb-28">
+    <div className="fillable space-y-6 pb-28">
       {/* Employee header */}
       <section className="card overflow-hidden">
         <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-4 pt-5">
@@ -250,6 +247,12 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
           ))}
         </dl>
         <p className="border-t border-line bg-accent-soft/60 px-5 py-2.5 text-sm text-ink">{stageHint}</p>
+        {canEditAnything && (
+          <p className="flex items-center gap-2 border-t border-line px-5 py-2.5 text-xs text-muted print:hidden">
+            <span className="h-4 w-7 shrink-0 rounded border border-amber-300 bg-amber-50" aria-hidden="true" />
+            ช่องพื้นสีเหลืองคือช่องที่คุณกรอกได้
+          </p>
+        )}
       </section>
 
       {/* Real-time summary */}

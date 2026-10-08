@@ -48,7 +48,7 @@ export default function TeamPage() {
       </section>
 
       <section className="card overflow-hidden">
-        <OverviewTable rows={rows} viewer="supervisor" />
+        <OverviewTable rows={rows} levels={data.levels} viewer="supervisor" />
       </section>
     </div>
   );

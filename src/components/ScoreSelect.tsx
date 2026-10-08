@@ -25,9 +25,17 @@ export default function ScoreSelect({ label, value, onChange, disabled, flagMiss
       disabled={disabled}
       onChange={(e) => onChange(e.target.value === "" ? null : Number(e.target.value))}
       className={`w-full rounded-lg border px-1 py-1.5 text-center text-[13px] font-semibold tabular-nums outline-none transition focus:border-accent focus:ring-4 focus:ring-accent/15 disabled:cursor-not-allowed ${
-        value === null ? "bg-canvas text-faint" : TINTS[value]
-      } ${missing ? "border-red-400 ring-4 ring-red-100" : "border-transparent"} ${
-        disabled && value === null ? "bg-transparent" : ""
+        value !== null
+          ? TINTS[value]
+          : disabled
+            ? "bg-transparent text-faint"
+            : "bg-amber-50 text-faint hover:bg-amber-100"
+      } ${
+        missing
+          ? "border-red-400 ring-4 ring-red-100"
+          : disabled
+            ? "border-transparent"
+            : "border-amber-300"
       }`}
     >
       <option value="">–</option>

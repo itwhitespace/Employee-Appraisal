@@ -21,6 +21,7 @@ const ICONS = {
   team: "M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm6.5 0a2 2 0 1 0 0-4M2.5 16c0-2.2 2-4 4.5-4s4.5 1.8 4.5 4m2-3.8c1.9.3 3.5 1.8 3.5 3.8",
   dashboard: "M3.5 3.5h5.5v5.5H3.5zM11 3.5h5.5v5.5H11zM3.5 11h5.5v5.5H3.5zM11 11h5.5v5.5H11z",
   people: "M10 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 16.5c0-2.8 2.7-5 6-5s6 2.2 6 5",
+  levels: "M3.5 16.5h4v-4h4v-4h4v-4h1",
   builder: "M4 6h7m4 0h1M4 10h2m4 0h6M4 14h8m4 0h0M13 4.5v3M8 8.5v3M14 12.5v3",
 };
 
@@ -32,6 +33,7 @@ function navItems(user: User): NavItem[] {
     return [
       { href: "/admin/dashboard", label: "Dashboard", icon: ICONS.dashboard },
       { href: "/admin/employees", label: "ข้อมูลพนักงาน", icon: ICONS.people },
+      { href: "/admin/levels", label: "ฝ่ายและ Level", icon: ICONS.levels },
       { href: "/admin/forms", label: "Form Builder", icon: ICONS.builder },
       ...ownForm,
     ];

@@ -6,8 +6,8 @@ import EmployeeDialog from "@/components/EmployeeDialog";
 import StatusBadge from "@/components/StatusBadge";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
-import { DEPARTMENTS, LEVELS, ROLE_NAMES } from "@/lib/constants";
-import { isEmployee } from "@/lib/evaluation";
+import { DEPARTMENTS, ROLE_NAMES } from "@/lib/constants";
+import { findLevel, isEmployee } from "@/lib/evaluation";
 import { formatDate } from "@/lib/format";
 import { useOverview } from "@/lib/overview";
 import type { EmployeeInput, Role, User } from "@/lib/types";
@@ -106,7 +106,7 @@ export default function EmployeesPage() {
                 <th className="min-w-[220px]">ชื่อ-สกุล / ตำแหน่ง</th>
                 <th className="w-28">สิทธิ์</th>
                 <th>ฝ่าย</th>
-                <th className="w-28">Level</th>
+                <th className="w-32">Level / ประเภท</th>
                 <th>Studio / Team</th>
                 <th>ผู้ประเมิน</th>
                 <th className="w-28">วันเริ่มงาน</th>
@@ -138,9 +138,8 @@ export default function EmployeesPage() {
                       {DEPARTMENTS.find((d) => d.id === user.departmentId)?.name ?? "–"}
                     </td>
                     <td>
-                      {user.level
-                        ? `L${user.level} · ${LEVELS.find((l) => l.id === user.level)?.name}`
-                        : "–"}
+                      {findLevel(data.levels, user.departmentId, user.level)?.name ?? "–"}
+                      <div className="text-xs text-muted">{user.appraisalType}</div>
                     </td>
                     <td>{user.team || "–"}</td>
                     <td className="whitespace-nowrap">
@@ -182,6 +181,7 @@ export default function EmployeesPage() {
           key={dialog === "new" ? "new" : dialog.id}
           editing={dialog === "new" ? null : dialog}
           users={data.users}
+          levels={data.levels}
           onSave={save}
           onClose={() => setDialog(null)}
         />

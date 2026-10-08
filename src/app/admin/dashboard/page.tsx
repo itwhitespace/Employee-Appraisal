@@ -99,7 +99,7 @@ export default function DashboardPage() {
           <p className="text-xs text-muted">{visible.length} คน</p>
         </header>
         <div className="border-t border-line">
-          <OverviewTable rows={visible} viewer="admin" />
+          <OverviewTable rows={visible} levels={data.levels} viewer="admin" />
         </div>
       </section>
     </div>

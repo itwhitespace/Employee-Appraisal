@@ -14,20 +14,32 @@ create table if not exists public.employees (
   -- Null department/level/supervisor = this person has no appraisal form (e.g. HR admin).
   department_id text check (department_id in
                   ('interior-designer', '3d-visualizer', 'business-development', 'business-administration')),
-  level         smallint check (level between 1 and 3),
+  level         smallint check (level >= 1),
   supervisor_id uuid references public.employees (id) on delete set null,
   start_date    date,
   level_since   date,
+  appraisal_type text not null default 'Annual'
+                  check (appraisal_type in ('Annual', 'Mid-year', 'Probation')),
   created_at    timestamptz not null default now()
 );
 
 create index if not exists employees_supervisor_idx on public.employees (supervisor_id);
 
+-- Levels of each department, edited by admin. `level` is the rank within the department
+-- (1 = most junior); `name` is the grade ("Level 1", "Director") and `title` the job title.
+create table if not exists public.job_levels (
+  department_id text not null,
+  level         smallint not null check (level >= 1),
+  name          text not null,
+  title         text not null default '',
+  primary key (department_id, level)
+);
+
 -- Form templates edited by admin, one per department x level.
 -- A missing row means "use the built-in default template".
 create table if not exists public.form_templates (
   department_id text not null,
-  level         smallint not null check (level between 1 and 3),
+  level         smallint not null check (level >= 1),
   weights       jsonb not null,
   sections      jsonb not null,
   updated_at    timestamptz not null default now(),
@@ -54,6 +66,45 @@ create table if not exists public.evaluations (
 alter table public.employees      enable row level security;
 alter table public.form_templates enable row level security;
 alter table public.evaluations    enable row level security;
+alter table public.job_levels     enable row level security;
+
+-- Upgrade a database created by an earlier version of this file (levels were fixed at 1-3).
+alter table public.employees add column if not exists appraisal_type text not null default 'Annual';
+alter table public.employees drop constraint if exists employees_appraisal_type_check;
+alter table public.employees add constraint employees_appraisal_type_check
+  check (appraisal_type in ('Annual', 'Mid-year', 'Probation'));
+alter table public.employees drop constraint if exists employees_level_check;
+alter table public.employees add constraint employees_level_check check (level >= 1);
+alter table public.form_templates drop constraint if exists form_templates_level_check;
+alter table public.form_templates add constraint form_templates_level_check check (level >= 1);
+
+-- Levels in use. Admin can add, rename and remove them later in the web app.
+insert into public.job_levels (department_id, level, name, title) values
+  ('interior-designer', 1, 'Level 1', 'Junior Interior Designer'),
+  ('interior-designer', 2, 'Level 2', 'Interior Designer'),
+  ('interior-designer', 3, 'Level 3', 'Senior Interior Designer'),
+  ('interior-designer', 4, 'Level 4', 'Associate / Lead Designer'),
+  ('interior-designer', 5, 'Director', 'Studio Director'),
+  ('interior-designer', 6, 'Senior Director', 'Senior Director'),
+  ('3d-visualizer', 1, 'Level 1', 'Junior 3D Visualizer'),
+  ('3d-visualizer', 2, 'Level 2', '3D Visualizer'),
+  ('3d-visualizer', 3, 'Level 3', 'Senior 3D Visualizer'),
+  ('3d-visualizer', 4, 'Level 4', 'Lead 3D Visualizer'),
+  ('3d-visualizer', 5, 'Director', 'Visualization Director'),
+  ('3d-visualizer', 6, 'Senior Director', 'Senior Director, Creative Technology'),
+  ('business-development', 1, 'Level 1', 'BD Coordinator / Junior BD'),
+  ('business-development', 2, 'Level 2', 'BD Executive'),
+  ('business-development', 3, 'Level 3', 'Senior BD Executive'),
+  ('business-development', 4, 'Level 4', 'BD Manager / Associate'),
+  ('business-development', 5, 'Director', 'BD Director (Deputy)'),
+  ('business-development', 6, 'Senior Director', 'Senior Director, Business Development'),
+  ('business-administration', 1, 'Level 1', 'Admin / Accounting Officer'),
+  ('business-administration', 2, 'Level 2', 'Senior Officer (AP / AR / HR-Admin)'),
+  ('business-administration', 3, 'Level 3', 'Supervisor / Senior Accountant'),
+  ('business-administration', 4, 'Level 4', 'Finance & Admin Manager'),
+  ('business-administration', 5, 'Director', 'Finance & Administration Director'),
+  ('business-administration', 6, 'Senior Director', 'Senior Director, Finance & Corporate Services')
+on conflict (department_id, level) do nothing;
 
 -- Test accounts: Admin 33333, Supervisor 22222, User 11111.
 insert into public.employees (code, name, role, position, team, start_date, level_since)

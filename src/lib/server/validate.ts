@@ -1,11 +1,18 @@
 import "server-only";
-import { ALL_SECTIONS, DEPARTMENTS, EXPECTED_LEVELS, WEIGHTED_SECTIONS } from "../constants";
+import {
+  ALL_SECTIONS,
+  APPRAISAL_TYPES,
+  DEPARTMENTS,
+  EXPECTED_LEVELS,
+  WEIGHTED_SECTIONS,
+} from "../constants";
 import { validateTemplate } from "../evaluation";
 import type {
   DepartmentId,
   EmployeeInput,
   ExpectedLevel,
   FormTemplate,
+  JobLevel,
   Level,
   Question,
   Role,
@@ -28,7 +35,18 @@ function departmentOf(value: unknown): DepartmentId | null {
 }
 
 function levelOf(value: unknown): Level | null {
-  return value === 1 || value === 2 || value === 3 ? value : null;
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 99
+    ? value
+    : null;
+}
+
+export function parseJobLevel(body: Record<string, unknown>): JobLevel {
+  const departmentId = departmentOf(body.departmentId);
+  const level = levelOf(body.level);
+  if (!departmentId || !level) throw new HttpError(400, "ฝ่ายหรือ Level ไม่ถูกต้อง");
+  const name = trimmed(body.name, 60);
+  if (!name) throw new HttpError(400, "กรุณากรอกชื่อระดับ");
+  return { departmentId, level, name, title: trimmed(body.title) };
 }
 
 function dateOf(value: unknown, label: string): string | null {
@@ -63,6 +81,7 @@ export function parseEmployeeInput(body: Record<string, unknown>): EmployeeInput
     supervisorId,
     startDate: dateOf(body.startDate, "วันเริ่มงาน"),
     levelSince: dateOf(body.levelSince, "วันที่เริ่มระดับปัจจุบัน"),
+    appraisalType: APPRAISAL_TYPES.find((t) => t === body.appraisalType) ?? "Annual",
   };
 }
 

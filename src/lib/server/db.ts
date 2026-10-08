@@ -1,12 +1,13 @@
 import "server-only";
 import { CURRENT_CYCLE } from "../constants";
 import { buildDefaultTemplates } from "../default-templates";
-import { findTemplate } from "../evaluation";
+import { findLevel } from "../evaluation";
 import type {
   DepartmentId,
   EmployeeInput,
   Evaluation,
   FormTemplate,
+  JobLevel,
   Level,
   User,
 } from "../types";
@@ -37,6 +38,7 @@ interface EmployeeRow {
   supervisor_id: string | null;
   start_date: string | null;
   level_since: string | null;
+  appraisal_type: User["appraisalType"];
 }
 
 const toUser = (row: EmployeeRow): User => ({
@@ -51,6 +53,7 @@ const toUser = (row: EmployeeRow): User => ({
   supervisorId: row.supervisor_id,
   startDate: row.start_date,
   levelSince: row.level_since,
+  appraisalType: row.appraisal_type,
 });
 
 const toEmployeeRow = (input: EmployeeInput): Omit<EmployeeRow, "id"> => ({
@@ -64,7 +67,15 @@ const toEmployeeRow = (input: EmployeeInput): Omit<EmployeeRow, "id"> => ({
   supervisor_id: input.supervisorId,
   start_date: input.startDate,
   level_since: input.levelSince,
+  appraisal_type: input.appraisalType,
 });
+
+async function requireKnownLevel(input: EmployeeInput): Promise<void> {
+  if (input.departmentId === null || input.level === null) return;
+  if (!findLevel(await listLevels(), input.departmentId, input.level)) {
+    throw new HttpError(400, "ไม่พบ Level นี้ในฝ่ายที่เลือก");
+  }
+}
 
 export async function listUsers(): Promise<User[]> {
   const rows = check(await db().from("employees").select("*").order("code"));
@@ -83,6 +94,7 @@ export async function getUserByCode(code: string): Promise<User | null> {
 }
 
 export async function createUser(input: EmployeeInput): Promise<User> {
+  await requireKnownLevel(input);
   const result = await db().from("employees").insert(toEmployeeRow(input)).select().single();
   if (result.error?.code === UNIQUE_VIOLATION) {
     throw new HttpError(409, `รหัสพนักงาน ${input.code} มีอยู่ในระบบแล้ว`);
@@ -91,6 +103,7 @@ export async function createUser(input: EmployeeInput): Promise<User> {
 }
 
 export async function updateUser(id: string, input: EmployeeInput): Promise<User> {
+  await requireKnownLevel(input);
   const result = await db()
     .from("employees")
     .update(toEmployeeRow(input))
@@ -110,6 +123,54 @@ export async function deleteUser(id: string): Promise<void> {
   check(await db().from("employees").delete().eq("id", id));
 }
 
+/* ------------------------------ levels ------------------------------- */
+
+interface LevelRow {
+  department_id: DepartmentId;
+  level: Level;
+  name: string;
+  title: string;
+}
+
+export async function listLevels(): Promise<JobLevel[]> {
+  const rows = check(
+    await db().from("job_levels").select("*").order("department_id").order("level"),
+  ) as LevelRow[];
+  return rows.map((row) => ({
+    departmentId: row.department_id,
+    level: row.level,
+    name: row.name,
+    title: row.title,
+  }));
+}
+
+/** Adds the level, or renames it when the department already has that level number. */
+export async function saveLevel(level: JobLevel): Promise<JobLevel> {
+  check(
+    await db().from("job_levels").upsert({
+      department_id: level.departmentId,
+      level: level.level,
+      name: level.name,
+      title: level.title,
+    }),
+  );
+  return level;
+}
+
+/** Refused while an employee is still on the level. */
+export async function deleteLevel(departmentId: DepartmentId, level: Level): Promise<void> {
+  const { count, error } = await db()
+    .from("employees")
+    .select("id", { count: "exact", head: true })
+    .eq("department_id", departmentId)
+    .eq("level", level);
+  if (error) throw new Error(`Supabase: ${error.message}`);
+  if (count) {
+    throw new HttpError(409, `ยังมีพนักงาน ${count} คนอยู่ใน Level นี้ กรุณาย้าย Level ของพนักงานก่อนลบ`);
+  }
+  check(await db().from("job_levels").delete().eq("department_id", departmentId).eq("level", level));
+}
+
 /* ----------------------------- templates ----------------------------- */
 
 interface TemplateRow {
@@ -120,10 +181,13 @@ interface TemplateRow {
   updated_at: string;
 }
 
-/** All 12 templates: the built-in defaults, replaced by any that admin has saved. */
-export async function getTemplates(): Promise<FormTemplate[]> {
-  const rows = check(await db().from("form_templates").select("*")) as TemplateRow[];
-  return buildDefaultTemplates().map((fallback) => {
+/** One template per level in use: the built-in defaults, replaced by any that admin has saved. */
+export async function getTemplates(levels?: JobLevel[]): Promise<FormTemplate[]> {
+  const [rows, knownLevels] = await Promise.all([
+    db().from("form_templates").select("*").then(check) as Promise<TemplateRow[]>,
+    levels ?? listLevels(),
+  ]);
+  return buildDefaultTemplates(knownLevels).map((fallback) => {
     const saved = rows.find(
       (r) => r.department_id === fallback.departmentId && r.level === fallback.level,
     );
@@ -137,10 +201,6 @@ export async function getTemplates(): Promise<FormTemplate[]> {
         }
       : fallback;
   });
-}
-
-export async function getTemplate(departmentId: DepartmentId, level: Level): Promise<FormTemplate> {
-  return findTemplate(await getTemplates(), departmentId, level);
 }
 
 export async function saveTemplate(template: FormTemplate): Promise<FormTemplate> {

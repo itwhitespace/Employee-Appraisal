@@ -1,4 +1,4 @@
-import { getTemplates, saveTemplate } from "@/lib/server/db";
+import { getTemplates, listLevels, saveTemplate } from "@/lib/server/db";
 import { handle, readJson, requireUser } from "@/lib/server/http";
 import { parseTemplate } from "@/lib/server/validate";
 
@@ -8,7 +8,8 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return handle(async () => {
     await requireUser(["admin"]);
-    return { templates: await getTemplates() };
+    const levels = await listLevels();
+    return { levels, templates: await getTemplates(levels) };
   });
 }
 

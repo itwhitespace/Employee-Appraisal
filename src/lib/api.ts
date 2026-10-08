@@ -4,6 +4,7 @@ import type {
   EvaluationAction,
   EvaluationBundle,
   FormTemplate,
+  JobLevel,
   OverviewData,
   User,
 } from "./types";
@@ -50,7 +51,7 @@ export const api = {
   updateEvaluation: (employeeId: string, evaluation: Evaluation, action: EvaluationAction) =>
     request<EvaluationBundle>(`/api/evaluations/${employeeId}`, "PUT", { evaluation, action }),
 
-  templates: () => request<{ templates: FormTemplate[] }>("/api/templates"),
+  templates: () => request<{ levels: JobLevel[]; templates: FormTemplate[] }>("/api/templates"),
   saveTemplate: (template: FormTemplate) =>
     request<{ template: FormTemplate }>("/api/templates", "PUT", template),
 
@@ -59,6 +60,10 @@ export const api = {
   updateEmployee: (id: string, input: EmployeeInput) =>
     request<{ user: User }>(`/api/employees/${id}`, "PUT", input),
   deleteEmployee: (id: string) => request<{ ok: true }>(`/api/employees/${id}`, "DELETE"),
+
+  saveLevel: (level: JobLevel) => request<{ level: JobLevel }>("/api/levels", "PUT", level),
+  deleteLevel: (level: Pick<JobLevel, "departmentId" | "level">) =>
+    request<{ ok: true }>("/api/levels", "DELETE", level),
 };
 
 export const errorMessage = (error: unknown): string =>

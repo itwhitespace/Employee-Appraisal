@@ -5,6 +5,7 @@ import type {
   Evaluation,
   FormTemplate,
   ItemScore,
+  JobLevel,
   Level,
   User,
 } from "./types";
@@ -13,6 +14,14 @@ import type {
 
 export function isEmployee(user: User): user is Employee {
   return user.departmentId !== null && user.level !== null && user.supervisorId !== null;
+}
+
+export function findLevel(
+  levels: JobLevel[],
+  departmentId: DepartmentId | null,
+  level: Level | null,
+): JobLevel | undefined {
+  return levels.find((l) => l.departmentId === departmentId && l.level === level);
 }
 
 export const EMPTY_SCORE: ItemScore = { self: null, supervisor: null, comment: "", evidence: "" };

@@ -1,14 +1,23 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { DEPARTMENTS, LEVELS, ROLE_NAMES } from "@/lib/constants";
-import type { DepartmentId, EmployeeInput, Level, Role, User } from "@/lib/types";
+import { APPRAISAL_TYPES, DEPARTMENTS, ROLE_NAMES } from "@/lib/constants";
+import { findLevel } from "@/lib/evaluation";
+import type {
+  AppraisalType,
+  DepartmentId,
+  EmployeeInput,
+  JobLevel,
+  Role,
+  User,
+} from "@/lib/types";
 
 interface EmployeeDialogProps {
   /** The employee being edited, or null to add a new one. */
   editing: User | null;
   /** Everyone who can be chosen as the appraiser. */
   users: User[];
+  levels: JobLevel[];
   /** Resolves to an error message, or null when saved. */
   onSave: (input: EmployeeInput) => Promise<string | null>;
   onClose: () => void;
@@ -25,11 +34,18 @@ const BLANK: EmployeeInput = {
   supervisorId: null,
   startDate: null,
   levelSince: null,
+  appraisalType: "Annual",
 };
 
 const ROLES: Role[] = ["employee", "supervisor", "admin"];
 
-export default function EmployeeDialog({ editing, users, onSave, onClose }: EmployeeDialogProps) {
+export default function EmployeeDialog({
+  editing,
+  users,
+  levels,
+  onSave,
+  onClose,
+}: EmployeeDialogProps) {
   const dialog = useRef<HTMLDialogElement>(null);
   const [form, setForm] = useState<EmployeeInput>(() => {
     if (!editing) return BLANK;
@@ -60,6 +76,7 @@ export default function EmployeeDialog({ editing, users, onSave, onClose }: Empl
   };
 
   const supervisors = users.filter((u) => u.id !== editing?.id && u.role !== "employee");
+  const departmentLevels = levels.filter((l) => l.departmentId === form.departmentId);
   const hasForm = form.departmentId !== null && form.level !== null && form.supervisorId !== null;
 
   return (
@@ -117,7 +134,12 @@ export default function EmployeeDialog({ editing, users, onSave, onClose }: Empl
             <select
               className="field"
               value={form.departmentId ?? ""}
-              onChange={(e) => set({ departmentId: (e.target.value || null) as DepartmentId | null })}
+              onChange={(e) => {
+                const departmentId = (e.target.value || null) as DepartmentId | null;
+                // Keep the level only if the new department has it too.
+                const kept = findLevel(levels, departmentId, form.level);
+                set({ departmentId, level: kept ? form.level : null });
+              }}
             >
               <option value="">– ไม่ระบุ –</option>
               {DEPARTMENTS.map((department) => (
@@ -132,14 +154,32 @@ export default function EmployeeDialog({ editing, users, onSave, onClose }: Empl
             <select
               className="field"
               value={form.level ?? ""}
-              onChange={(e) =>
-                set({ level: e.target.value ? (Number(e.target.value) as Level) : null })
-              }
+              disabled={form.departmentId === null}
+              onChange={(e) => {
+                const level = e.target.value ? Number(e.target.value) : null;
+                const title = findLevel(levels, form.departmentId, level)?.title;
+                // Fill in the job title of the level unless a position was already typed.
+                set({ level, position: form.position.trim() || !title ? form.position : title });
+              }}
             >
-              <option value="">– ไม่ระบุ –</option>
-              {LEVELS.map((level) => (
-                <option key={level.id} value={level.id}>
-                  Level {level.id} · {level.name}
+              <option value="">{form.departmentId ? "– ไม่ระบุ –" : "– เลือกฝ่ายก่อน –"}</option>
+              {departmentLevels.map((level) => (
+                <option key={level.level} value={level.level}>
+                  {level.name} · {level.title}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">ประเภทการประเมิน</span>
+            <select
+              className="field"
+              value={form.appraisalType}
+              onChange={(e) => set({ appraisalType: e.target.value as AppraisalType })}
+            >
+              {APPRAISAL_TYPES.map((type) => (
+                <option key={type} value={type}>
+                  {type}
                 </option>
               ))}
             </select>

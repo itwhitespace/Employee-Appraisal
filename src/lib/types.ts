@@ -4,7 +4,20 @@ export type DepartmentId =
   | "business-development"
   | "business-administration";
 
-export type Level = 1 | 2 | 3;
+/** Rank within a department, 1 = most junior. The levels in use are in JobLevel. */
+export type Level = number;
+
+/** One level of one department; admin can add, rename and remove them. */
+export interface JobLevel {
+  departmentId: DepartmentId;
+  level: Level;
+  /** Grade, e.g. "Level 1" or "Director". */
+  name: string;
+  /** Job title at this level, e.g. "Junior Interior Designer". */
+  title: string;
+}
+
+export type AppraisalType = "Annual" | "Mid-year" | "Probation";
 
 /** Sections that count towards the Performance Score. */
 export type WeightedSectionKey = "A" | "B" | "C" | "D" | "E";
@@ -55,6 +68,7 @@ export interface User {
   supervisorId: string | null;
   startDate: string | null;
   levelSince: string | null;
+  appraisalType: AppraisalType;
 }
 
 /** A user who has an appraisal form. */
@@ -129,6 +143,7 @@ export interface Evaluation {
 /** Everything the dashboard / team pages need, already limited to what the viewer may see. */
 export interface OverviewData {
   users: User[];
+  levels: JobLevel[];
   templates: FormTemplate[];
   /** Keyed by employee id. */
   evaluations: Record<string, Evaluation>;
@@ -136,6 +151,8 @@ export interface OverviewData {
 
 export interface EvaluationBundle {
   employee: Employee;
+  /** Null when the employee's level has been removed. */
+  jobLevel: JobLevel | null;
   supervisorName: string | null;
   template: FormTemplate;
   evaluation: Evaluation;

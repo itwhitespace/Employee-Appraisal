@@ -1,20 +1,16 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import QuestionEditor from "@/components/QuestionEditor";
-import {
-  ALL_SECTIONS,
-  DEPARTMENTS,
-  LEVELS,
-  SECTION_CONFIG,
-  WEIGHTED_SECTIONS,
-} from "@/lib/constants";
+import { ALL_SECTIONS, DEPARTMENTS, SECTION_CONFIG, WEIGHTED_SECTIONS } from "@/lib/constants";
 import { api, errorMessage } from "@/lib/api";
-import { findTemplate, validateTemplate } from "@/lib/evaluation";
+import { findLevel, findTemplate, validateTemplate } from "@/lib/evaluation";
 import { formatDateTime } from "@/lib/format";
 import type {
   DepartmentId,
   FormTemplate,
+  JobLevel,
   Level,
   Question,
   SectionKey,
@@ -32,6 +28,7 @@ const segment = (active: boolean) =>
   }`;
 
 export default function FormBuilderPage() {
+  const [levels, setLevels] = useState<JobLevel[]>([]);
   const [templates, setTemplates] = useState<FormTemplate[] | null>(null);
   const [draft, setDraft] = useState<FormTemplate | null>(null);
   const [section, setSection] = useState<SectionKey>("A");
@@ -43,9 +40,10 @@ export default function FormBuilderPage() {
   useEffect(() => {
     api
       .templates()
-      .then(({ templates: loaded }) => {
+      .then(({ levels: loadedLevels, templates: loaded }) => {
+        setLevels(loadedLevels);
         setTemplates(loaded);
-        setDraft(findTemplate(loaded, DEPARTMENTS[0].id, LEVELS[0].id));
+        setDraft(loaded[0] ?? null);
       })
       .catch((e) => setLoadError(errorMessage(e)));
   }, []);
@@ -59,9 +57,21 @@ export default function FormBuilderPage() {
   }, [dirty]);
 
   if (loadError) return <div className="card p-8 text-center text-red-500">{loadError}</div>;
-  if (!templates || !draft) {
-    return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;
+  if (!templates) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;
+  if (!draft) {
+    return (
+      <div className="card p-8 text-center text-muted">
+        ยังไม่มี Level ในระบบ กรุณาเพิ่มที่หน้า{" "}
+        <Link href="/admin/levels" className="text-accent">
+          ฝ่ายและ Level
+        </Link>{" "}
+        ก่อน
+      </div>
+    );
   }
+
+  const levelsOf = (departmentId: DepartmentId) =>
+    levels.filter((l) => l.departmentId === departmentId);
 
   const select = (departmentId: DepartmentId, level: Level) => {
     if (departmentId === draft.departmentId && level === draft.level) return;
@@ -112,7 +122,7 @@ export default function FormBuilderPage() {
 
   const weightTotal = WEIGHTED_SECTIONS.reduce((sum, key) => sum + draft.weights[key], 0);
   const departmentName = DEPARTMENTS.find((d) => d.id === draft.departmentId)?.name;
-  const levelName = LEVELS.find((l) => l.id === draft.level)?.name;
+  const levelName = findLevel(levels, draft.departmentId, draft.level)?.name;
   const config = SECTION_CONFIG[section];
 
   return (
@@ -134,8 +144,14 @@ export default function FormBuilderPage() {
                 key={department.id}
                 type="button"
                 aria-pressed={draft.departmentId === department.id}
-                onClick={() => select(department.id, draft.level)}
-                className={segment(draft.departmentId === department.id)}
+                disabled={levelsOf(department.id).length === 0}
+                onClick={() => {
+                  // Stay on the same level number when the other department has it.
+                  const options = levelsOf(department.id);
+                  const target = options.find((l) => l.level === draft.level) ?? options[0];
+                  select(department.id, target.level);
+                }}
+                className={`${segment(draft.departmentId === department.id)} disabled:opacity-40`}
               >
                 {department.name}
               </button>
@@ -145,15 +161,15 @@ export default function FormBuilderPage() {
         <div>
           <div className="mb-2 text-xs font-medium text-muted">Level</div>
           <div className="flex flex-wrap gap-2">
-            {LEVELS.map((level) => (
+            {levelsOf(draft.departmentId).map((level) => (
               <button
-                key={level.id}
+                key={level.level}
                 type="button"
-                aria-pressed={draft.level === level.id}
-                onClick={() => select(draft.departmentId, level.id)}
-                className={segment(draft.level === level.id)}
+                aria-pressed={draft.level === level.level}
+                onClick={() => select(draft.departmentId, level.level)}
+                className={segment(draft.level === level.level)}
               >
-                Level {level.id} · {level.name}
+                {level.name} · {level.title}
               </button>
             ))}
           </div>
@@ -252,7 +268,7 @@ export default function FormBuilderPage() {
         <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-3 px-4 py-3 sm:px-8">
           <div className="flex flex-wrap items-center gap-3 text-sm">
             <span className="font-medium">
-              {departmentName} · Level {draft.level} ({levelName})
+              {departmentName} · {levelName}
             </span>
             {dirty && <span className="chip bg-orange-50 text-orange-700">ยังไม่ได้บันทึก</span>}
             {notice && (

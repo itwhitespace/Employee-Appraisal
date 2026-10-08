@@ -2,6 +2,8 @@ import "server-only";
 import {
   createEmptyEvaluation,
   EMPTY_SCORE,
+  findLevel,
+  findTemplate,
   isEmployee,
   withoutSupervisorInput,
 } from "../evaluation";
@@ -18,7 +20,7 @@ import type {
   Question,
   User,
 } from "../types";
-import { getEvaluation, getTemplate, getUser, saveEvaluation } from "./db";
+import { getEvaluation, getTemplates, getUser, listLevels, saveEvaluation } from "./db";
 import { HttpError } from "./errors";
 
 /**
@@ -105,13 +107,19 @@ async function loadContext(viewer: User, employeeId: string) {
   if (!canViewEvaluation(viewer, employee)) {
     throw new HttpError(403, "คุณไม่มีสิทธิ์เปิดแบบประเมินนี้");
   }
-  const [template, stored, supervisor] = await Promise.all([
-    getTemplate(employee.departmentId, employee.level),
+  const [levels, stored, supervisor] = await Promise.all([
+    listLevels(),
     getEvaluation(employee.id),
     getUser(employee.supervisorId),
   ]);
+  const template = findTemplate(
+    await getTemplates(levels),
+    employee.departmentId,
+    employee.level,
+  );
   return {
     employee,
+    jobLevel: findLevel(levels, employee.departmentId, employee.level) ?? null,
     template,
     evaluation: stored ?? createEmptyEvaluation(employee.id),
     supervisorName: supervisor?.name ?? null,
@@ -129,6 +137,7 @@ function toBundle(
     access.isOwner && !access.isSupervisor && !access.isAdmin && evaluation.status !== "completed";
   return {
     employee: context.employee,
+    jobLevel: context.jobLevel,
     supervisorName: context.supervisorName,
     template: context.template,
     evaluation: supervisorHidden ? withoutSupervisorInput(evaluation) : evaluation,
