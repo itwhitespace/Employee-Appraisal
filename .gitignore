@@ -4,3 +4,7 @@ out
 next-env.d.ts
 *.tsbuildinfo
 .env*.local
+
+# Employee data: never commit
+*.xlsx
+*.local.sql

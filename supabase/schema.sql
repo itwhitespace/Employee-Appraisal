@@ -103,7 +103,8 @@ insert into public.job_levels (department_id, level, name, title) values
   ('business-administration', 3, 'Level 3', 'Supervisor / Senior Accountant'),
   ('business-administration', 4, 'Level 4', 'Finance & Admin Manager'),
   ('business-administration', 5, 'Director', 'Finance & Administration Director'),
-  ('business-administration', 6, 'Senior Director', 'Senior Director, Finance & Corporate Services')
+  ('business-administration', 6, 'Senior Director', 'Senior Director, Finance & Corporate Services'),
+  ('business-administration', 7, 'Managing Director', 'Managing Director')
 on conflict (department_id, level) do nothing;
 
 -- Test accounts: Admin 33333, Supervisor 22222, User 11111.
