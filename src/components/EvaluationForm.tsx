@@ -6,10 +6,10 @@ import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
   ALL_SECTIONS,
-  CYCLE_PERIOD,
   DEPARTMENTS,
   RATING_SCALE,
   SECTION_CONFIG,
+  cycleLabel,
 } from "@/lib/constants";
 import { EMPTY_SCORE } from "@/lib/evaluation";
 import { formatDate, formatDateTime, formatScore, newId, yearsSince } from "@/lib/format";
@@ -25,6 +25,7 @@ import type {
   SignOffComments,
 } from "@/lib/types";
 import AssessmentTable from "./AssessmentTable";
+import { useConfirm } from "./ConfirmDialog";
 import IdpSection from "./IdpSection";
 import SectionCard from "./SectionCard";
 import StatusBadge from "./StatusBadge";
@@ -40,6 +41,7 @@ type FormContext = Omit<EvaluationBundle, "evaluation">;
 
 export default function EvaluationForm({ employeeId }: { employeeId: string }) {
   const { user } = useAuth();
+  const confirm = useConfirm();
   const [context, setContext] = useState<FormContext | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -170,7 +172,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
     return null;
   };
 
-  const submit = (rater: Rater) => {
+  const submit = async (rater: Rater) => {
     const problem = blockedBy(rater);
     if (problem) {
       setFlagMissing(rater);
@@ -178,17 +180,28 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
       return;
     }
     if (rater === "self") {
-      if (!window.confirm("ส่งแบบประเมินตนเองให้ผู้ประเมิน? หลังส่งแล้วจะแก้ไขไม่ได้")) return;
-      void send("submit_self", "ส่งแบบประเมินตนเองแล้ว");
+      const agreed = await confirm({
+        title: "ส่งแบบประเมินตนเอง?",
+        message: "หลังส่งให้ผู้ประเมินแล้วจะแก้ไขไม่ได้",
+        confirmLabel: "ส่ง",
+      });
+      if (agreed) void send("submit_self", "ส่งแบบประเมินตนเองแล้ว");
     } else {
-      if (!window.confirm("ยืนยันผลการประเมิน? พนักงานจะเห็นคะแนนและความเห็นของคุณ")) return;
-      void send("confirm", "ยืนยันผลการประเมินแล้ว");
+      const agreed = await confirm({
+        title: "ยืนยันผลการประเมิน?",
+        message: "พนักงานจะเห็นคะแนนและความเห็นของคุณ",
+      });
+      if (agreed) void send("confirm", "ยืนยันผลการประเมินแล้ว");
     }
   };
 
-  const sendBack = () => {
-    if (!window.confirm("ส่งกลับให้พนักงานแก้ไขแบบประเมินตนเอง?")) return;
-    void send("send_back", "ส่งกลับให้พนักงานแก้ไขแล้ว");
+  const sendBack = async () => {
+    const agreed = await confirm({
+      title: "ส่งกลับให้พนักงานแก้ไข?",
+      message: "พนักงานจะแก้ไขแบบประเมินตนเองได้อีกครั้ง",
+      confirmLabel: "ส่งกลับ",
+    });
+    if (agreed) void send("send_back", "ส่งกลับให้พนักงานแก้ไขแล้ว");
   };
 
   const headerFields: [string, string | undefined][] = [
@@ -198,7 +211,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
     ["Level", jobLevel ? `${jobLevel.name} · ${jobLevel.title}` : undefined],
     ["Studio / Team", employee.team],
     ["ผู้ประเมิน", supervisorName ?? undefined],
-    ["รอบประเมิน", `${evaluation.cycle} (${CYCLE_PERIOD})`],
+    ["รอบประเมิน", cycleLabel()],
     ["ประเภท", employee.appraisalType],
     ["วันเริ่มงาน", formatDate(employee.startDate)],
     ["อายุงานในระดับปัจจุบัน", yearsInLevel ? `${yearsInLevel} ปี` : undefined],
@@ -400,7 +413,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
                 <button type="button" className="btn-secondary" disabled={busy} onClick={() => void send("save", "บันทึกร่างแล้ว")}>
                   บันทึกร่าง
                 </button>
-                <button type="button" className="btn-primary" disabled={busy} onClick={() => submit("self")}>
+                <button type="button" className="btn-primary" disabled={busy} onClick={() => void submit("self")}>
                   ส่งแบบประเมินตนเอง
                 </button>
               </>
@@ -408,7 +421,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
             {canEditSupervisor && (
               <>
                 {status === "self_submitted" && (
-                  <button type="button" className="btn-secondary" disabled={busy} onClick={sendBack}>
+                  <button type="button" className="btn-secondary" disabled={busy} onClick={() => void sendBack()}>
                     ส่งกลับให้พนักงานแก้ไข
                   </button>
                 )}
@@ -420,7 +433,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
                   className="btn-primary"
                   disabled={busy || status !== "self_submitted"}
                   title={status !== "self_submitted" ? "รอพนักงานส่งแบบประเมินตนเองก่อน" : undefined}
-                  onClick={() => submit("supervisor")}
+                  onClick={() => void submit("supervisor")}
                 >
                   ยืนยันผลการประเมิน
                 </button>

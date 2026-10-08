@@ -1,6 +1,8 @@
 "use client";
 
 import { useState } from "react";
+import { useConfirm } from "@/components/ConfirmDialog";
+import IconButton from "@/components/IconButton";
 import { api, errorMessage } from "@/lib/api";
 import { DEPARTMENTS } from "@/lib/constants";
 import { useOverview } from "@/lib/overview";
@@ -51,30 +53,27 @@ function LevelRow({ level, headcount, onSave, onDelete }: LevelRowProps) {
         />
       </td>
       <td className="pt-4 text-center tabular-nums text-muted">{headcount || "–"}</td>
-      <td className="whitespace-nowrap pt-3.5 text-right">
-        <button
-          type="button"
-          className="btn-text"
+      <td className="whitespace-nowrap !px-1.5 !py-1.5 text-right">
+        <IconButton
+          icon="save"
+          label="บันทึก"
           disabled={!dirty || busy || !name.trim()}
           onClick={() => run(() => onSave({ ...level, name: name.trim(), title: title.trim() }))}
-        >
-          บันทึก
-        </button>
-        <button
-          type="button"
-          className="btn-text-danger disabled:cursor-not-allowed disabled:opacity-30"
+        />
+        <IconButton
+          icon="delete"
+          label={headcount > 0 ? "ยังมีพนักงานอยู่ใน Level นี้" : "ลบ"}
+          tone="danger"
           disabled={busy || headcount > 0}
-          title={headcount > 0 ? "ยังมีพนักงานอยู่ใน Level นี้" : undefined}
           onClick={() => run(() => onDelete(level))}
-        >
-          ลบ
-        </button>
+        />
       </td>
     </tr>
   );
 }
 
 export default function LevelsPage() {
+  const confirm = useConfirm();
   const { data, error, reload } = useOverview();
   const [departmentId, setDepartmentId] = useState<DepartmentId>(DEPARTMENTS[0].id);
   const [newName, setNewName] = useState("");
@@ -103,12 +102,22 @@ export default function LevelsPage() {
   };
 
   const save = async (level: JobLevel) => {
-    await attempt(() => api.saveLevel(level));
+    const agreed = await confirm({
+      title: "บันทึกการแก้ไข Level?",
+      message: `${level.name} · ${level.title}`,
+      confirmLabel: "บันทึก",
+    });
+    if (agreed) await attempt(() => api.saveLevel(level));
   };
 
   const remove = async (level: JobLevel) => {
-    if (!window.confirm(`ลบ ${level.name} · ${level.title} ออกจากฝ่ายนี้?`)) return;
-    await attempt(() => api.deleteLevel(level));
+    const agreed = await confirm({
+      title: "ลบ Level นี้?",
+      message: `${level.name} · ${level.title}`,
+      confirmLabel: "ลบ",
+      tone: "danger",
+    });
+    if (agreed) await attempt(() => api.deleteLevel(level));
   };
 
   const add = async (event: React.FormEvent) => {
@@ -169,7 +178,7 @@ export default function LevelsPage() {
                 <th className="w-56">ชื่อระดับ</th>
                 <th>ชื่อตำแหน่ง</th>
                 <th className="w-24 text-center">พนักงาน</th>
-                <th className="w-32" aria-label="จัดการ" />
+                <th className="w-24" aria-label="จัดการ" />
               </tr>
             </thead>
             <tbody>

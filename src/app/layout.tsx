@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { IBM_Plex_Sans_Thai, Inter } from "next/font/google";
 import AppShell from "@/components/AppShell";
+import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { AuthProvider } from "@/lib/auth";
 import "./globals.css";
 
@@ -23,7 +24,9 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
     <html lang="th" className={`${inter.variable} ${thai.variable}`}>
       <body className="font-sans">
         <AuthProvider>
-          <AppShell>{children}</AppShell>
+          <ConfirmProvider>
+            <AppShell>{children}</AppShell>
+          </ConfirmProvider>
         </AuthProvider>
       </body>
     </html>

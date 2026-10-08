@@ -3,7 +3,6 @@
 import { useMemo } from "react";
 import OverviewTable from "@/components/OverviewTable";
 import { useAuth } from "@/lib/auth";
-import { CURRENT_CYCLE, CYCLE_PERIOD } from "@/lib/constants";
 import { isEmployee } from "@/lib/evaluation";
 import { overviewRow, useOverview } from "@/lib/overview";
 
@@ -33,8 +32,7 @@ export default function TeamPage() {
       <div>
         <h1 className="page-title">ทีมของฉัน</h1>
         <p className="mt-1 text-sm text-muted">
-          รอบประเมิน {CURRENT_CYCLE} ({CYCLE_PERIOD}) · เปิดแบบประเมินของพนักงานเพื่อให้คะแนนในคอลัมน์
-          Supervisor
+          เปิดแบบประเมินของพนักงานเพื่อให้คะแนนในคอลัมน์ Supervisor
         </p>
       </div>
 

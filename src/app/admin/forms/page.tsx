@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useState } from "react";
+import { useConfirm } from "@/components/ConfirmDialog";
 import QuestionEditor from "@/components/QuestionEditor";
 import { ALL_SECTIONS, DEPARTMENTS, SECTION_CONFIG, WEIGHTED_SECTIONS } from "@/lib/constants";
 import { api, errorMessage } from "@/lib/api";
@@ -28,6 +29,7 @@ const segment = (active: boolean) =>
   }`;
 
 export default function FormBuilderPage() {
+  const confirm = useConfirm();
   const [levels, setLevels] = useState<JobLevel[]>([]);
   const [templates, setTemplates] = useState<FormTemplate[] | null>(null);
   const [draft, setDraft] = useState<FormTemplate | null>(null);
@@ -73,9 +75,19 @@ export default function FormBuilderPage() {
   const levelsOf = (departmentId: DepartmentId) =>
     levels.filter((l) => l.departmentId === departmentId);
 
-  const select = (departmentId: DepartmentId, level: Level) => {
+  const select = async (departmentId: DepartmentId, level: Level) => {
     if (departmentId === draft.departmentId && level === draft.level) return;
-    if (dirty && !window.confirm("มีการแก้ไขที่ยังไม่ได้บันทึก ต้องการทิ้งการแก้ไขหรือไม่?")) return;
+    if (
+      dirty &&
+      !(await confirm({
+        title: "ทิ้งการแก้ไขที่ยังไม่ได้บันทึก?",
+        message: "การแก้ไขในแบบประเมินนี้จะหายไป",
+        confirmLabel: "ทิ้งการแก้ไข",
+        tone: "danger",
+      }))
+    ) {
+      return;
+    }
     setDraft(findTemplate(templates, departmentId, level));
     setDirty(false);
     setNotice(null);
@@ -102,6 +114,12 @@ export default function FormBuilderPage() {
       setNotice({ tone: "error", text: problem });
       return;
     }
+    const agreed = await confirm({
+      title: "บันทึก Form Template?",
+      message: "แบบประเมินของพนักงานในฝ่ายและ Level นี้จะเปลี่ยนตามทันที",
+      confirmLabel: "บันทึก",
+    });
+    if (!agreed) return;
     setSaving(true);
     try {
       const { template: saved } = await api.saveTemplate(draft);
@@ -149,7 +167,7 @@ export default function FormBuilderPage() {
                   // Stay on the same level number when the other department has it.
                   const options = levelsOf(department.id);
                   const target = options.find((l) => l.level === draft.level) ?? options[0];
-                  select(department.id, target.level);
+                  void select(department.id, target.level);
                 }}
                 className={`${segment(draft.departmentId === department.id)} disabled:opacity-40`}
               >
@@ -166,7 +184,7 @@ export default function FormBuilderPage() {
                 key={level.level}
                 type="button"
                 aria-pressed={draft.level === level.level}
-                onClick={() => select(draft.departmentId, level.level)}
+                onClick={() => void select(draft.departmentId, level.level)}
                 className={segment(draft.level === level.level)}
               >
                 {level.name} · {level.title}
@@ -241,9 +259,6 @@ export default function FormBuilderPage() {
                 }`}
               >
                 {key}. {SECTION_CONFIG[key].title}
-                <span className="ml-1.5 text-xs tabular-nums text-faint">
-                  {draft.sections[key].length}
-                </span>
               </button>
             ))}
           </div>

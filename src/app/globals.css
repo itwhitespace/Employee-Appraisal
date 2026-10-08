@@ -48,6 +48,9 @@ body {
   .btn-primary {
     @apply btn bg-accent text-white hover:bg-accent-hover;
   }
+  .btn-danger {
+    @apply btn bg-red-500 text-white hover:bg-red-600;
+  }
   .btn-secondary {
     @apply btn bg-black/5 text-ink hover:bg-black/10;
   }

@@ -9,8 +9,10 @@ import type {
 } from "./types";
 
 export const COMPANY_NAME = "Whitespace Partners";
+/** Key under which this cycle's evaluations are stored; not shown to users. */
 export const CURRENT_CYCLE = "FY2026/27";
-export const CYCLE_PERIOD = "ต.ค. 2026 – ก.ย. 2027";
+/** What users see as the appraisal round: the current calendar year. */
+export const cycleLabel = (): string => `ประจำปี ${new Date().getFullYear()}`;
 
 export const DEPARTMENTS: { id: DepartmentId; name: string }[] = [
   { id: "interior-designer", name: "Interior Designer" },
@@ -23,8 +25,8 @@ export const APPRAISAL_TYPES: AppraisalType[] = ["Annual", "Mid-year", "Probatio
 
 export const ROLE_NAMES: Record<Role, string> = {
   employee: "พนักงาน",
-  supervisor: "Supervisor",
-  admin: "Admin",
+  supervisor: "ผู้ประเมิน",
+  admin: "แอดมิน",
 };
 
 export const EXPECTED_LEVELS: ExpectedLevel[] = [

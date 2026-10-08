@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
-import { COMPANY_NAME, CURRENT_CYCLE, ROLE_NAMES } from "@/lib/constants";
+import { COMPANY_NAME, ROLE_NAMES, cycleLabel } from "@/lib/constants";
 import { isEmployee } from "@/lib/evaluation";
 import { canAccessPath, homePath } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -69,7 +69,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="z-30 flex flex-col border-b border-black/10 bg-white/80 backdrop-blur-xl print:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
         <div className="px-5 pb-2 pt-5 lg:pb-6 lg:pt-7">
           <div className="text-[15px] font-semibold tracking-tight text-ink">{COMPANY_NAME}</div>
-          <div className="text-xs text-faint">Performance Appraisal · {CURRENT_CYCLE}</div>
+          <div className="text-xs text-faint">Performance Appraisal · {cycleLabel()}</div>
         </div>
 
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:pb-0">

@@ -3,7 +3,7 @@
 import { useMemo, useState } from "react";
 import NineBoxGrid, { type NineBoxPerson } from "@/components/NineBoxGrid";
 import OverviewTable from "@/components/OverviewTable";
-import { CURRENT_CYCLE, CYCLE_PERIOD, DEPARTMENTS } from "@/lib/constants";
+import { DEPARTMENTS, cycleLabel } from "@/lib/constants";
 import { isEmployee } from "@/lib/evaluation";
 import { formatScore } from "@/lib/format";
 import { overviewRow, useOverview, type OverviewStatus } from "@/lib/overview";
@@ -56,7 +56,7 @@ export default function DashboardPage() {
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="mt-1 text-sm text-muted">
-            รอบประเมิน {CURRENT_CYCLE} ({CYCLE_PERIOD})
+            รอบประเมิน{cycleLabel()}
           </p>
         </div>
         <select
