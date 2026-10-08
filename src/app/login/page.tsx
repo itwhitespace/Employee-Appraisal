@@ -1,0 +1,96 @@
+"use client";
+
+import { useState } from "react";
+import { useAuth } from "@/lib/auth";
+import { COMPANY_NAME } from "@/lib/constants";
+
+/** Test accounts created by supabase/schema.sql. Remove this list before real use. */
+const TEST_ACCOUNTS = [
+  { label: "User", code: "11111" },
+  { label: "Supervisor", code: "22222" },
+  { label: "Admin", code: "33333" },
+];
+
+export default function LoginPage() {
+  const { login } = useAuth();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  const submit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!/^\d{5}$/.test(code)) {
+      setError("กรุณากรอกรหัสพนักงาน 5 หลัก");
+      return;
+    }
+    setBusy(true);
+    // On success AppShell redirects to the role's landing page.
+    setError(await login(code));
+    setBusy(false);
+  };
+
+  return (
+    <div className="flex min-h-screen items-center justify-center px-4 py-10">
+      <div className="w-full max-w-sm">
+        <div className="mb-8 text-center">
+          <div className="text-sm font-medium text-faint">{COMPANY_NAME}</div>
+          <h1 className="mt-1 text-[32px] font-semibold leading-tight tracking-tight">
+            Performance Appraisal
+          </h1>
+          <p className="mt-2 text-sm text-muted">เข้าสู่ระบบด้วยรหัสพนักงานของคุณ</p>
+        </div>
+
+        <form onSubmit={submit} className="card p-6" noValidate>
+          <label htmlFor="code" className="mb-1.5 block text-sm font-medium">
+            รหัสพนักงาน (5 หลัก)
+          </label>
+          <input
+            id="code"
+            className="field py-3 text-center text-xl font-semibold tracking-[0.4em] tabular-nums"
+            inputMode="numeric"
+            autoComplete="username"
+            autoFocus
+            maxLength={5}
+            placeholder="00000"
+            value={code}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "code-error" : undefined}
+            onChange={(e) => {
+              setCode(e.target.value.replace(/\D/g, "").slice(0, 5));
+              setError(null);
+            }}
+          />
+          {error && (
+            <p id="code-error" role="alert" className="mt-2 text-sm text-red-500">
+              {error}
+            </p>
+          )}
+          <button type="submit" className="btn-primary mt-5 w-full py-2.5" disabled={busy}>
+            {busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
+          </button>
+        </form>
+
+        <div className="mt-6 rounded-2xl bg-black/[0.03] p-4">
+          <div className="text-xs font-medium text-muted">บัญชีทดสอบ</div>
+          <ul className="mt-2 space-y-1">
+            {TEST_ACCOUNTS.map((account) => (
+              <li key={account.code}>
+                <button
+                  type="button"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-black/5"
+                  onClick={() => {
+                    setCode(account.code);
+                    setError(null);
+                  }}
+                >
+                  <span className="font-medium">{account.label}</span>
+                  <span className="font-semibold tabular-nums text-accent">{account.code}</span>
+                </button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}

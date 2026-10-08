@@ -1,0 +1,65 @@
+import type {
+  EmployeeInput,
+  Evaluation,
+  EvaluationAction,
+  EvaluationBundle,
+  FormTemplate,
+  OverviewData,
+  User,
+} from "./types";
+
+/** Browser-side client for the app's own API routes. */
+
+export class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
+
+async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method,
+      headers: body === undefined ? undefined : { "Content-Type": "application/json" },
+      body: body === undefined ? undefined : JSON.stringify(body),
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(0, "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่");
+  }
+  const data = await response.json().catch(() => null);
+  if (!response.ok) {
+    throw new ApiError(response.status, data?.error ?? "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
+  }
+  return data as T;
+}
+
+export const api = {
+  me: () => request<{ user: User | null }>("/api/auth/me"),
+  login: (code: string) => request<{ user: User }>("/api/auth/login", "POST", { code }),
+  logout: () => request<{ ok: true }>("/api/auth/logout", "POST"),
+
+  overview: () => request<OverviewData>("/api/overview"),
+
+  evaluation: (employeeId: string) =>
+    request<EvaluationBundle>(`/api/evaluations/${employeeId}`),
+  updateEvaluation: (employeeId: string, evaluation: Evaluation, action: EvaluationAction) =>
+    request<EvaluationBundle>(`/api/evaluations/${employeeId}`, "PUT", { evaluation, action }),
+
+  templates: () => request<{ templates: FormTemplate[] }>("/api/templates"),
+  saveTemplate: (template: FormTemplate) =>
+    request<{ template: FormTemplate }>("/api/templates", "PUT", template),
+
+  createEmployee: (input: EmployeeInput) =>
+    request<{ user: User }>("/api/employees", "POST", input),
+  updateEmployee: (id: string, input: EmployeeInput) =>
+    request<{ user: User }>(`/api/employees/${id}`, "PUT", input),
+  deleteEmployee: (id: string) => request<{ ok: true }>(`/api/employees/${id}`, "DELETE"),
+};
+
+export const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง";
