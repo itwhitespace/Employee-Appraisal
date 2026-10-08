@@ -1,8 +1,8 @@
 import "server-only";
-import { CURRENT_CYCLE } from "../constants";
 import { buildDefaultTemplates } from "../default-templates";
 import { findLevel } from "../evaluation";
 import type {
+  Cycle,
   DepartmentId,
   EmployeeInput,
   Evaluation,
@@ -217,6 +217,44 @@ export async function saveTemplate(template: FormTemplate): Promise<FormTemplate
   return { ...template, updatedAt };
 }
 
+/* ------------------------------ cycles ------------------------------- */
+
+interface CycleRow {
+  id: string;
+  period: string;
+  is_current: boolean;
+}
+
+/** Newest first. */
+export async function listCycles(): Promise<Cycle[]> {
+  const rows = check(
+    await db().from("cycles").select("*").order("created_at", { ascending: false }),
+  ) as CycleRow[];
+  return rows.map((row) => ({ id: row.id, period: row.period, current: row.is_current }));
+}
+
+export async function createCycle(id: string, period: string): Promise<void> {
+  const result = await db().from("cycles").insert({ id, period });
+  if (result.error?.code === UNIQUE_VIOLATION) {
+    throw new HttpError(409, `มีรอบประเมินชื่อ ${id} อยู่แล้ว`);
+  }
+  check(result);
+}
+
+export async function updateCyclePeriod(id: string, period: string): Promise<void> {
+  check(await db().from("cycles").update({ period }).eq("id", id));
+}
+
+export async function markCurrentCycle(id: string): Promise<void> {
+  // Only one row may be current at a time, so the old one is cleared first.
+  check(await db().from("cycles").update({ is_current: false }).eq("is_current", true));
+  check(await db().from("cycles").update({ is_current: true }).eq("id", id));
+}
+
+export async function deleteCycle(id: string): Promise<void> {
+  check(await db().from("cycles").delete().eq("id", id));
+}
+
 /* ---------------------------- evaluations ---------------------------- */
 
 interface EvaluationRow {
@@ -230,6 +268,7 @@ interface EvaluationRow {
   updated_at: string | null;
   self_submitted_at: string | null;
   completed_at: string | null;
+  snapshot: Evaluation["snapshot"];
 }
 
 const toEvaluation = (row: EvaluationRow): Evaluation => ({
@@ -243,24 +282,38 @@ const toEvaluation = (row: EvaluationRow): Evaluation => ({
   updatedAt: row.updated_at,
   selfSubmittedAt: row.self_submitted_at,
   completedAt: row.completed_at,
+  snapshot: row.snapshot ?? null,
 });
 
-/** Evaluations of the current cycle keyed by employee id; all of them, or only `employeeIds`. */
-export async function listEvaluations(employeeIds?: string[]): Promise<Record<string, Evaluation>> {
+/** Evaluations of one cycle keyed by employee id; all of them, or only `employeeIds`. */
+export async function listEvaluations(
+  cycleId: string,
+  employeeIds?: string[],
+): Promise<Record<string, Evaluation>> {
   if (employeeIds && employeeIds.length === 0) return {};
-  let query = db().from("evaluations").select("*").eq("cycle", CURRENT_CYCLE);
+  let query = db().from("evaluations").select("*").eq("cycle", cycleId);
   if (employeeIds) query = query.in("employee_id", employeeIds);
   const rows = check(await query) as EvaluationRow[];
   return Object.fromEntries(rows.map((row) => [row.employee_id, toEvaluation(row)]));
 }
 
-export async function getEvaluation(employeeId: string): Promise<Evaluation | null> {
+/** Cycle id of every stored evaluation, or only those of one employee. */
+export async function listEvaluationCycles(employeeId?: string): Promise<string[]> {
+  let query = db().from("evaluations").select("cycle");
+  if (employeeId) query = query.eq("employee_id", employeeId);
+  return (check(await query) as { cycle: string }[]).map((row) => row.cycle);
+}
+
+export async function getEvaluation(
+  employeeId: string,
+  cycleId: string,
+): Promise<Evaluation | null> {
   const row = check(
     await db()
       .from("evaluations")
       .select("*")
       .eq("employee_id", employeeId)
-      .eq("cycle", CURRENT_CYCLE)
+      .eq("cycle", cycleId)
       .maybeSingle(),
   );
   return row ? toEvaluation(row as EvaluationRow) : null;
@@ -278,6 +331,7 @@ export async function saveEvaluation(evaluation: Evaluation): Promise<void> {
     updated_at: evaluation.updatedAt,
     self_submitted_at: evaluation.selfSubmittedAt,
     completed_at: evaluation.completedAt,
+    snapshot: evaluation.snapshot,
   };
   check(await db().from("evaluations").upsert(row));
 }

@@ -1,4 +1,5 @@
 import type {
+  Cycle,
   EmployeeInput,
   Evaluation,
   EvaluationAction,
@@ -39,15 +40,20 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
   return data as T;
 }
 
+const cycleQuery = (cycleId: string | null): string =>
+  cycleId ? `?cycle=${encodeURIComponent(cycleId)}` : "";
+
 export const api = {
-  me: () => request<{ user: User | null }>("/api/auth/me"),
+  me: () => request<{ user: User | null; cycle: Cycle | null }>("/api/auth/me"),
   login: (code: string) => request<{ user: User }>("/api/auth/login", "POST", { code }),
   logout: () => request<{ ok: true }>("/api/auth/logout", "POST"),
 
-  overview: () => request<OverviewData>("/api/overview"),
+  /** `cycleId` null = the current cycle. */
+  overview: (cycleId: string | null = null) =>
+    request<OverviewData>(`/api/overview${cycleQuery(cycleId)}`),
 
-  evaluation: (employeeId: string) =>
-    request<EvaluationBundle>(`/api/evaluations/${employeeId}`),
+  evaluation: (employeeId: string, cycleId: string | null = null) =>
+    request<EvaluationBundle>(`/api/evaluations/${employeeId}${cycleQuery(cycleId)}`),
   updateEvaluation: (employeeId: string, evaluation: Evaluation, action: EvaluationAction) =>
     request<EvaluationBundle>(`/api/evaluations/${employeeId}`, "PUT", { evaluation, action }),
 
@@ -60,6 +66,15 @@ export const api = {
   updateEmployee: (id: string, input: EmployeeInput) =>
     request<{ user: User }>(`/api/employees/${id}`, "PUT", input),
   deleteEmployee: (id: string) => request<{ ok: true }>(`/api/employees/${id}`, "DELETE"),
+
+  cycles: () => request<{ cycles: (Cycle & { evaluations: number })[] }>("/api/cycles"),
+  createCycle: (id: string, period: string) =>
+    request<{ ok: true }>("/api/cycles", "POST", { id, period }),
+  updateCycle: (id: string, period: string) =>
+    request<{ ok: true }>("/api/cycles", "PUT", { id, period }),
+  /** Closes the open cycle and opens this one. */
+  openCycle: (id: string) => request<{ ok: true }>("/api/cycles", "PUT", { id, makeCurrent: true }),
+  deleteCycle: (id: string) => request<{ ok: true }>("/api/cycles", "DELETE", { id }),
 
   saveLevel: (level: JobLevel) => request<{ level: JobLevel }>("/api/levels", "PUT", level),
   deleteLevel: (level: Pick<JobLevel, "departmentId" | "level">) =>

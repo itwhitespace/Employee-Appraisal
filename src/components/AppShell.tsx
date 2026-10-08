@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect } from "react";
 import { useAuth } from "@/lib/auth";
-import { COMPANY_NAME, ROLE_NAMES, cycleLabel } from "@/lib/constants";
+import { COMPANY_NAME, ROLE_NAMES } from "@/lib/constants";
 import { isEmployee } from "@/lib/evaluation";
 import { canAccessPath, homePath } from "@/lib/permissions";
 import type { User } from "@/lib/types";
@@ -22,6 +22,7 @@ const ICONS = {
   dashboard: "M3.5 3.5h5.5v5.5H3.5zM11 3.5h5.5v5.5H11zM3.5 11h5.5v5.5H3.5zM11 11h5.5v5.5H11z",
   people: "M10 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 16.5c0-2.8 2.7-5 6-5s6 2.2 6 5",
   levels: "M3.5 16.5h4v-4h4v-4h4v-4h1",
+  cycles: "M4 5.5h12v11H4zM4 8.5h12M7 3.5v3M13 3.5v3",
   builder: "M4 6h7m4 0h1M4 10h2m4 0h6M4 14h8m4 0h0M13 4.5v3M8 8.5v3M14 12.5v3",
 };
 
@@ -34,6 +35,7 @@ function navItems(user: User): NavItem[] {
       { href: "/admin/dashboard", label: "Dashboard", icon: ICONS.dashboard },
       { href: "/admin/employees", label: "ข้อมูลพนักงาน", icon: ICONS.people },
       { href: "/admin/levels", label: "ฝ่ายและ Level", icon: ICONS.levels },
+      { href: "/admin/cycles", label: "รอบประเมิน", icon: ICONS.cycles },
       { href: "/admin/forms", label: "Form Builder", icon: ICONS.builder },
       ...ownForm,
     ];
@@ -45,7 +47,7 @@ function navItems(user: User): NavItem[] {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { user, ready, logout } = useAuth();
+  const { user, cycle, ready, logout } = useAuth();
   const pathname = usePathname();
   const router = useRouter();
 
@@ -69,7 +71,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="z-30 flex flex-col border-b border-black/10 bg-white/80 backdrop-blur-xl print:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
         <div className="px-5 pb-2 pt-5 lg:pb-6 lg:pt-7">
           <div className="text-[15px] font-semibold tracking-tight text-ink">{COMPANY_NAME}</div>
-          <div className="text-xs text-faint">Performance Appraisal · {cycleLabel()}</div>
+          <div className="text-xs text-faint">Performance Appraisal{cycle ? ` · ${cycle.id}` : ""}</div>
         </div>
 
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:pb-0">

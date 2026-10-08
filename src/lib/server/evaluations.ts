@@ -20,7 +20,15 @@ import type {
   Question,
   User,
 } from "../types";
-import { getEvaluation, getTemplates, getUser, listLevels, saveEvaluation } from "./db";
+import { buildSnapshot, resolveCycle } from "./cycles";
+import {
+  getEvaluation,
+  getTemplates,
+  getUser,
+  listEvaluationCycles,
+  listLevels,
+  saveEvaluation,
+} from "./db";
 import { HttpError } from "./errors";
 
 /**
@@ -99,30 +107,60 @@ function accessOf(viewer: User, employee: Employee, evaluation: Evaluation): Acc
   };
 }
 
-async function loadContext(viewer: User, employeeId: string) {
-  const employee = await getUser(employeeId);
-  if (!employee || !isEmployee(employee)) {
-    throw new HttpError(404, "ไม่พบแบบประเมินของพนักงานคนนี้");
+/** `cycleId` empty = the current cycle. A past cycle is read from its snapshot and is read-only. */
+async function loadContext(viewer: User, employeeId: string, cycleId?: string | null) {
+  const [user, { cycle, cycles }] = await Promise.all([getUser(employeeId), resolveCycle(cycleId)]);
+  if (!user) throw new HttpError(404, "ไม่พบแบบประเมินของพนักงานคนนี้");
+
+  const [stored, usedCycles] = await Promise.all([
+    getEvaluation(user.id, cycle.id),
+    listEvaluationCycles(user.id),
+  ]);
+  const snapshot = stored?.snapshot ?? null;
+  // A frozen form shows the employee as they were then. In the open cycle the appraiser
+  // stays the present one, who is the person able to reopen it.
+  const employee: User = snapshot
+    ? {
+        ...user,
+        ...snapshot.employee,
+        ...(cycle.current ? { supervisorId: user.supervisorId } : {}),
+      }
+    : user;
+  if (!isEmployee(employee) || (!cycle.current && !stored)) {
+    throw new HttpError(
+      404,
+      cycle.current
+        ? "ไม่พบแบบประเมินของพนักงานคนนี้"
+        : `พนักงานคนนี้ไม่มีแบบประเมินในรอบ ${cycle.id}`,
+    );
   }
-  if (!canViewEvaluation(viewer, employee)) {
+  // The present appraiser may also look back at the history of their report.
+  if (!canViewEvaluation(viewer, employee) && viewer.id !== user.supervisorId) {
     throw new HttpError(403, "คุณไม่มีสิทธิ์เปิดแบบประเมินนี้");
   }
-  const [levels, stored, supervisor] = await Promise.all([
-    listLevels(),
-    getEvaluation(employee.id),
-    getUser(employee.supervisorId),
-  ]);
-  const template = findTemplate(
-    await getTemplates(levels),
-    employee.departmentId,
-    employee.level,
-  );
+
+  const frozen = snapshot
+    ? {
+        template: snapshot.template,
+        jobLevel: snapshot.jobLevel,
+        supervisorName: snapshot.supervisorName,
+      }
+    : null;
+  const live = async () => {
+    const [levels, supervisor] = await Promise.all([listLevels(), getUser(employee.supervisorId)]);
+    return {
+      template: findTemplate(await getTemplates(levels), employee.departmentId, employee.level),
+      jobLevel: findLevel(levels, employee.departmentId, employee.level) ?? null,
+      supervisorName: supervisor?.name ?? null,
+    };
+  };
+
   return {
+    cycle,
+    cycles: cycles.filter((c) => c.current || usedCycles.includes(c.id)),
     employee,
-    jobLevel: findLevel(levels, employee.departmentId, employee.level) ?? null,
-    template,
-    evaluation: stored ?? createEmptyEvaluation(employee.id),
-    supervisorName: supervisor?.name ?? null,
+    ...(frozen ?? (await live())),
+    evaluation: stored ?? createEmptyEvaluation(employee.id, cycle.id),
   };
 }
 
@@ -136,6 +174,9 @@ function toBundle(
   const supervisorHidden =
     access.isOwner && !access.isSupervisor && !access.isAdmin && evaluation.status !== "completed";
   return {
+    cycle: context.cycle,
+    cycles: context.cycles,
+    readOnly: !context.cycle.current,
     employee: context.employee,
     jobLevel: context.jobLevel,
     supervisorName: context.supervisorName,
@@ -145,8 +186,12 @@ function toBundle(
   };
 }
 
-export async function loadEvaluation(viewer: User, employeeId: string): Promise<EvaluationBundle> {
-  const context = await loadContext(viewer, employeeId);
+export async function loadEvaluation(
+  viewer: User,
+  employeeId: string,
+  cycleId?: string | null,
+): Promise<EvaluationBundle> {
+  const context = await loadContext(viewer, employeeId, cycleId);
   return toBundle(viewer, context, context.evaluation);
 }
 
@@ -251,6 +296,12 @@ export async function updateEvaluation(
       }
       next.status = "completed";
       next.completedAt = now;
+      next.snapshot = buildSnapshot(
+        context.employee,
+        context.template,
+        context.jobLevel,
+        context.supervisorName,
+      );
       break;
     case "reopen":
       if (!(access.isSupervisor || access.isAdmin) || stored.status !== "completed") {
@@ -258,6 +309,8 @@ export async function updateEvaluation(
       }
       next.status = "self_submitted";
       next.completedAt = null;
+      // Back to the live form and details until it is confirmed again.
+      next.snapshot = null;
       break;
     default:
       throw new HttpError(400, "ไม่รู้จักคำสั่งนี้");

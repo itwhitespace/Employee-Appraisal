@@ -1,3 +1,8 @@
+/** "FY2026/27 (ต.ค. 2026 – ก.ย. 2027)" */
+export function formatCycle(cycle: { id: string; period: string }): string {
+  return cycle.period ? `${cycle.id} (${cycle.period})` : cycle.id;
+}
+
 export function formatScore(value: number | null): string {
   return value === null ? "–" : value.toFixed(2);
 }

@@ -46,6 +46,16 @@ create table if not exists public.form_templates (
   primary key (department_id, level)
 );
 
+-- Appraisal rounds. `id` is the name shown to users ("FY2026/27"); exactly one is current.
+create table if not exists public.cycles (
+  id         text primary key,
+  period     text not null default '',
+  is_current boolean not null default false,
+  created_at timestamptz not null default now()
+);
+
+create unique index if not exists cycles_one_current on public.cycles (is_current) where is_current;
+
 -- One appraisal per employee per cycle.
 create table if not exists public.evaluations (
   employee_id       uuid not null references public.employees (id) on delete cascade,
@@ -58,6 +68,9 @@ create table if not exists public.evaluations (
   updated_at        timestamptz,
   self_submitted_at timestamptz,
   completed_at      timestamptz,
+  -- The form, the employee's details and the appraiser as they were when the result was
+  -- confirmed or the cycle closed, so history does not change with later edits.
+  snapshot          jsonb,
   primary key (employee_id, cycle)
 );
 
@@ -67,6 +80,7 @@ alter table public.employees      enable row level security;
 alter table public.form_templates enable row level security;
 alter table public.evaluations    enable row level security;
 alter table public.job_levels     enable row level security;
+alter table public.cycles         enable row level security;
 
 -- Upgrade a database created by an earlier version of this file (levels were fixed at 1-3).
 alter table public.employees add column if not exists appraisal_type text not null default 'Annual';
@@ -77,6 +91,13 @@ alter table public.employees drop constraint if exists employees_level_check;
 alter table public.employees add constraint employees_level_check check (level >= 1);
 alter table public.form_templates drop constraint if exists form_templates_level_check;
 alter table public.form_templates add constraint form_templates_level_check check (level >= 1);
+
+alter table public.evaluations add column if not exists snapshot jsonb;
+
+-- First cycle; later ones are added by admin in the web app.
+insert into public.cycles (id, period, is_current)
+select 'FY2026/27', 'ต.ค. 2026 – ก.ย. 2027', true
+where not exists (select 1 from public.cycles);
 
 -- Levels in use. Admin can add, rename and remove them later in the web app.
 insert into public.job_levels (department_id, level, name, title) values

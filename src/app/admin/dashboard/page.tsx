@@ -3,20 +3,19 @@
 import { useMemo, useState } from "react";
 import NineBoxGrid, { type NineBoxPerson } from "@/components/NineBoxGrid";
 import OverviewTable from "@/components/OverviewTable";
-import { DEPARTMENTS, cycleLabel } from "@/lib/constants";
-import { isEmployee } from "@/lib/evaluation";
-import { formatScore } from "@/lib/format";
-import { overviewRow, useOverview, type OverviewStatus } from "@/lib/overview";
+import CycleSelect from "@/components/CycleSelect";
+import { DEPARTMENTS } from "@/lib/constants";
+import { formatCycle, formatScore } from "@/lib/format";
+import { overviewRows, useOverview, type OverviewStatus } from "@/lib/overview";
 import type { DepartmentId } from "@/lib/types";
 
 export default function DashboardPage() {
-  const { data, error } = useOverview();
+  // null = the current cycle.
+  const [cycleId, setCycleId] = useState<string | null>(null);
+  const { data, error } = useOverview(cycleId);
   const [filter, setFilter] = useState<DepartmentId | "all">("all");
 
-  const rows = useMemo(
-    () => (data ? data.users.filter(isEmployee).map((employee) => overviewRow(employee, data)) : []),
-    [data],
-  );
+  const rows = useMemo(() => (data ? overviewRows(data) : []), [data]);
 
   if (error) return <div className="card p-8 text-center text-red-500">{error}</div>;
   if (!data) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;
@@ -56,22 +55,32 @@ export default function DashboardPage() {
         <div>
           <h1 className="page-title">Dashboard</h1>
           <p className="mt-1 text-sm text-muted">
-            รอบประเมิน{cycleLabel()}
+            รอบประเมิน {formatCycle(data.cycle)}
+            {!data.cycle.current && (
+              <span className="chip ml-2 bg-orange-50 text-orange-700">ย้อนหลัง · ดูได้อย่างเดียว</span>
+            )}
           </p>
         </div>
-        <select
-          className="field w-56 bg-white shadow-card"
-          aria-label="กรองตามฝ่าย"
-          value={filter}
-          onChange={(e) => setFilter(e.target.value as DepartmentId | "all")}
-        >
-          <option value="all">ทุกฝ่าย</option>
-          {DEPARTMENTS.map((department) => (
-            <option key={department.id} value={department.id}>
-              {department.name}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-wrap items-center gap-2">
+          <CycleSelect
+            cycles={data.cycles}
+            value={data.cycle.id}
+            onChange={(cycle) => setCycleId(cycle.current ? null : cycle.id)}
+          />
+          <select
+            className="field w-56 bg-white shadow-card"
+            aria-label="กรองตามฝ่าย"
+            value={filter}
+            onChange={(e) => setFilter(e.target.value as DepartmentId | "all")}
+          >
+            <option value="all">ทุกฝ่าย</option>
+            {DEPARTMENTS.map((department) => (
+              <option key={department.id} value={department.id}>
+                {department.name}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
@@ -99,7 +108,7 @@ export default function DashboardPage() {
           <p className="text-xs text-muted">{visible.length} คน</p>
         </header>
         <div className="border-t border-line">
-          <OverviewTable rows={visible} levels={data.levels} viewer="admin" />
+          <OverviewTable rows={visible} cycle={data.cycle} viewer="admin" />
         </div>
       </section>
     </div>

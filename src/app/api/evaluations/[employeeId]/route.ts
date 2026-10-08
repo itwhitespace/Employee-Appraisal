@@ -6,8 +6,15 @@ interface Context {
   params: { employeeId: string };
 }
 
-export async function GET(_request: Request, { params }: Context) {
-  return handle(async () => loadEvaluation(await requireUser(), params.employeeId));
+/** `?cycle=` opens a past cycle; without it, the current one. */
+export async function GET(request: Request, { params }: Context) {
+  return handle(async () =>
+    loadEvaluation(
+      await requireUser(),
+      params.employeeId,
+      new URL(request.url).searchParams.get("cycle"),
+    ),
+  );
 }
 
 /** Body: `{ evaluation, action }`. The server keeps only the fields the caller may change. */

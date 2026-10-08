@@ -1,25 +1,26 @@
 import Link from "next/link";
 import { DEPARTMENTS } from "@/lib/constants";
-import { findLevel } from "@/lib/evaluation";
 import { formatScore } from "@/lib/format";
 import type { OverviewRow } from "@/lib/overview";
-import type { JobLevel } from "@/lib/types";
+import type { Cycle } from "@/lib/types";
 import StatusBadge from "./StatusBadge";
 
 interface OverviewTableProps {
   rows: OverviewRow[];
-  levels: JobLevel[];
+  /** The cycle the rows belong to; a past one links to its read-only forms. */
+  cycle: Cycle;
   /** Label of the link to each form, by who is looking. */
   viewer: "supervisor" | "admin";
 }
 
-function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"]): string {
+function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"], cycle: Cycle): string {
   if (viewer === "admin") return "เปิดดู";
-  return row.status === "completed" ? "ดูผล" : "ประเมิน";
+  return row.status === "completed" || !cycle.current ? "ดูผล" : "ประเมิน";
 }
 
 /** Appraisal status and scores per employee; shared by the admin dashboard and the supervisor's team page. */
-export default function OverviewTable({ rows, levels, viewer }: OverviewTableProps) {
+export default function OverviewTable({ rows, cycle, viewer }: OverviewTableProps) {
+  const query = cycle.current ? "" : `?cycle=${encodeURIComponent(cycle.id)}`;
   return (
     <div className="overflow-x-auto">
       <table className="sheet min-w-[1040px]">
@@ -56,7 +57,7 @@ export default function OverviewTable({ rows, levels, viewer }: OverviewTablePro
                   <div className="text-xs text-muted">{employee.position}</div>
                 </td>
                 <td className="whitespace-nowrap">{DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}</td>
-                <td>{findLevel(levels, employee.departmentId, employee.level)?.name ?? "–"}</td>
+                <td>{row.levelName ?? "–"}</td>
                 {viewer === "admin" && <td className="whitespace-nowrap">{row.supervisorName ?? "–"}</td>}
                 <td>
                   <StatusBadge status={row.status} />
@@ -72,8 +73,8 @@ export default function OverviewTable({ rows, levels, viewer }: OverviewTablePro
                 </td>
                 <td>{row.position?.label ?? <span className="text-faint">รอคะแนน</span>}</td>
                 <td className="text-right">
-                  <Link href={`/evaluate/${employee.id}`} className="btn-text text-[13px]">
-                    {actionLabel(row, viewer)}
+                  <Link href={`/evaluate/${employee.id}${query}`} className="btn-text text-[13px]">
+                    {actionLabel(row, viewer, cycle)}
                   </Link>
                 </td>
               </tr>

@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
@@ -9,10 +10,16 @@ import {
   DEPARTMENTS,
   RATING_SCALE,
   SECTION_CONFIG,
-  cycleLabel,
 } from "@/lib/constants";
 import { EMPTY_SCORE } from "@/lib/evaluation";
-import { formatDate, formatDateTime, formatScore, newId, yearsSince } from "@/lib/format";
+import {
+  formatCycle,
+  formatDate,
+  formatDateTime,
+  formatScore,
+  newId,
+  yearsSince,
+} from "@/lib/format";
 import { homePath } from "@/lib/permissions";
 import { getSectionQuestions, summarize } from "@/lib/scoring";
 import type {
@@ -26,6 +33,7 @@ import type {
 } from "@/lib/types";
 import AssessmentTable from "./AssessmentTable";
 import { useConfirm } from "./ConfirmDialog";
+import CycleSelect from "./CycleSelect";
 import IdpSection from "./IdpSection";
 import SectionCard from "./SectionCard";
 import StatusBadge from "./StatusBadge";
@@ -39,8 +47,15 @@ interface Notice {
 /** Everything about the form except the evaluation itself, which is edited locally. */
 type FormContext = Omit<EvaluationBundle, "evaluation">;
 
-export default function EvaluationForm({ employeeId }: { employeeId: string }) {
+interface EvaluationFormProps {
+  employeeId: string;
+  /** A past cycle to look at, or null for the current one. */
+  cycleId: string | null;
+}
+
+export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormProps) {
   const { user } = useAuth();
+  const router = useRouter();
   const confirm = useConfirm();
   const [context, setContext] = useState<FormContext | null>(null);
   const [evaluation, setEvaluation] = useState<Evaluation | null>(null);
@@ -57,11 +72,12 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
   // The server decides whether this user may open the form, and withholds the
   // supervisor's input from the employee until the result is confirmed.
   useEffect(() => {
+    setLoadError(null);
     api
-      .evaluation(employeeId)
+      .evaluation(employeeId, cycleId)
       .then(accept)
       .catch((e) => setLoadError(errorMessage(e)));
-  }, [employeeId]);
+  }, [employeeId, cycleId]);
 
   const summary = useMemo(
     () => (context && evaluation ? summarize(context.template, evaluation) : null),
@@ -85,23 +101,24 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
     return <div className="card p-8 text-center text-muted">กำลังโหลดแบบประเมิน…</div>;
   }
 
-  const { employee, jobLevel, template, supervisorName, supervisorHidden } = context;
+  const { cycle, cycles, readOnly, employee, jobLevel, template, supervisorName, supervisorHidden } =
+    context;
   const shown = evaluation;
   const isOwner = user.id === employee.id;
   const isSupervisor = user.id === employee.supervisorId;
   const isAdmin = user.role === "admin";
 
   const { status } = evaluation;
-  const canEditSelf = isOwner && status === "draft";
-  const canEditSupervisor = isSupervisor && status !== "completed";
+  const canEditSelf = !readOnly && isOwner && status === "draft";
+  const canEditSupervisor = !readOnly && isSupervisor && status !== "completed";
   const canEditNotes = canEditSelf || canEditSupervisor;
-  const canEditAnything = canEditNotes || isAdmin;
+  const canEditAnything = !readOnly && (canEditNotes || isAdmin);
 
   const commentAccess: Record<keyof SignOffComments, boolean> = {
     employee: canEditSelf,
     supervisor: canEditSupervisor,
-    director: isAdmin,
-    hr: isAdmin,
+    director: isAdmin && !readOnly,
+    hr: isAdmin && !readOnly,
   };
 
   const questions = getSectionQuestions(template, evaluation);
@@ -211,7 +228,7 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
     ["Level", jobLevel ? `${jobLevel.name} · ${jobLevel.title}` : undefined],
     ["Studio / Team", employee.team],
     ["ผู้ประเมิน", supervisorName ?? undefined],
-    ["รอบประเมิน", cycleLabel()],
+    ["รอบประเมิน", formatCycle(cycle)],
     ["ประเภท", employee.appraisalType],
     ["วันเริ่มงาน", formatDate(employee.startDate)],
     ["อายุงานในระดับปัจจุบัน", yearsInLevel ? `${yearsInLevel} ปี` : undefined],
@@ -219,7 +236,9 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
     ["บันทึกล่าสุด", formatDateTime(evaluation.updatedAt)],
   ];
 
-  const stageHint = isOwner
+  const stageHint = readOnly
+    ? `รอบประเมิน ${cycle.id} ปิดแล้ว — ดูได้อย่างเดียว`
+    : isOwner
     ? status === "draft"
       ? "กรอกคะแนนในคอลัมน์ Self ให้ครบทุกข้อ แล้วกดส่งแบบประเมินตนเอง"
       : status === "self_submitted"
@@ -249,7 +268,20 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
             <p className="text-xs font-medium text-faint">Employee Performance Appraisal</p>
             <h1 className="page-title">{employee.name}</h1>
           </div>
-          <StatusBadge status={status} />
+          <div className="flex flex-wrap items-center gap-2">
+            <CycleSelect
+              cycles={cycles}
+              value={cycle.id}
+              onChange={(next) =>
+                router.push(
+                  `/evaluate/${employee.id}${
+                    next.current ? "" : `?cycle=${encodeURIComponent(next.id)}`
+                  }`,
+                )
+              }
+            />
+            <StatusBadge status={status} />
+          </div>
         </div>
         <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line px-5 py-4 text-sm md:grid-cols-3 xl:grid-cols-4">
           {headerFields.map(([label, value]) => (
@@ -439,12 +471,12 @@ export default function EvaluationForm({ employeeId }: { employeeId: string }) {
                 </button>
               </>
             )}
-            {isAdmin && !canEditNotes && (
+            {isAdmin && !canEditNotes && !readOnly && (
               <button type="button" className="btn-primary" disabled={busy} onClick={() => void send("save", "บันทึกความเห็นแล้ว")}>
                 บันทึกความเห็น
               </button>
             )}
-            {(isSupervisor || isAdmin) && status === "completed" && (
+            {(isSupervisor || isAdmin) && status === "completed" && !readOnly && (
               <button
                 type="button"
                 className="btn-secondary"

@@ -1,4 +1,4 @@
-import { ALL_SECTIONS, CURRENT_CYCLE, DEFAULT_WEIGHTS, WEIGHTED_SECTIONS } from "./constants";
+import { ALL_SECTIONS, DEFAULT_WEIGHTS, WEIGHTED_SECTIONS } from "./constants";
 import type {
   DepartmentId,
   Employee,
@@ -26,10 +26,10 @@ export function findLevel(
 
 export const EMPTY_SCORE: ItemScore = { self: null, supervisor: null, comment: "", evidence: "" };
 
-export function createEmptyEvaluation(employeeId: string): Evaluation {
+export function createEmptyEvaluation(employeeId: string, cycle: string): Evaluation {
   return {
     employeeId,
-    cycle: CURRENT_CYCLE,
+    cycle,
     status: "draft",
     scores: {},
     personalKpis: [],
@@ -51,6 +51,7 @@ export function createEmptyEvaluation(employeeId: string): Evaluation {
     updatedAt: null,
     selfSubmittedAt: null,
     completedAt: null,
+    snapshot: null,
   };
 }
 

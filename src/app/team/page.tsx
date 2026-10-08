@@ -1,21 +1,26 @@
 "use client";
 
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
+import CycleSelect from "@/components/CycleSelect";
 import OverviewTable from "@/components/OverviewTable";
 import { useAuth } from "@/lib/auth";
-import { isEmployee } from "@/lib/evaluation";
-import { overviewRow, useOverview } from "@/lib/overview";
+import { formatCycle } from "@/lib/format";
+import { overviewRows, useOverview } from "@/lib/overview";
 
 export default function TeamPage() {
   const { user } = useAuth();
-  const { data, error } = useOverview();
+  // null = the current cycle.
+  const [cycleId, setCycleId] = useState<string | null>(null);
+  const { data, error } = useOverview(cycleId);
 
   const rows = useMemo(() => {
     if (!data || !user) return [];
-    return data.users
-      .filter(isEmployee)
-      .filter((e) => e.supervisorId === user.id)
-      .map((e) => overviewRow(e, data));
+    // For a past cycle the server has already narrowed the list to this viewer's people.
+    return overviewRows(data).filter(
+      (row) =>
+        row.employee.id !== user.id &&
+        (!data.cycle.current || row.employee.supervisorId === user.id),
+    );
   }, [data, user]);
 
   if (error) return <div className="card p-8 text-center text-red-500">{error}</div>;
@@ -29,11 +34,23 @@ export default function TeamPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="page-title">ทีมของฉัน</h1>
-        <p className="mt-1 text-sm text-muted">
-          เปิดแบบประเมินของพนักงานเพื่อให้คะแนนในคอลัมน์ Supervisor
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="page-title">ทีมของฉัน</h1>
+          <p className="mt-1 text-sm text-muted">
+            รอบประเมิน {formatCycle(data.cycle)}
+            {data.cycle.current ? (
+              " · เปิดแบบประเมินของพนักงานเพื่อให้คะแนนในคอลัมน์ Supervisor"
+            ) : (
+              <span className="chip ml-2 bg-orange-50 text-orange-700">ย้อนหลัง · ดูได้อย่างเดียว</span>
+            )}
+          </p>
+        </div>
+        <CycleSelect
+          cycles={data.cycles}
+          value={data.cycle.id}
+          onChange={(cycle) => setCycleId(cycle.current ? null : cycle.id)}
+        />
       </div>
 
       <section className="grid grid-cols-3 gap-3">
@@ -46,7 +63,7 @@ export default function TeamPage() {
       </section>
 
       <section className="card overflow-hidden">
-        <OverviewTable rows={rows} levels={data.levels} viewer="supervisor" />
+        <OverviewTable rows={rows} cycle={data.cycle} viewer="supervisor" />
       </section>
     </div>
   );

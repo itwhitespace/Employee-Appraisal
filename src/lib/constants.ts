@@ -9,10 +9,6 @@ import type {
 } from "./types";
 
 export const COMPANY_NAME = "Whitespace Partners";
-/** Key under which this cycle's evaluations are stored; not shown to users. */
-export const CURRENT_CYCLE = "FY2026/27";
-/** What users see as the appraisal round: the current calendar year. */
-export const cycleLabel = (): string => `ประจำปี ${new Date().getFullYear()}`;
 
 export const DEPARTMENTS: { id: DepartmentId; name: string }[] = [
   { id: "interior-designer", name: "Interior Designer" },
