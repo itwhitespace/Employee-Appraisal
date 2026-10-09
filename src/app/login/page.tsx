@@ -57,7 +57,6 @@ export default function LoginPage() {
             autoComplete="username"
             autoFocus
             maxLength={5}
-            placeholder="00000"
             value={code}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "code-error" : undefined}
@@ -76,7 +75,6 @@ export default function LoginPage() {
             inputMode="numeric"
             autoComplete="current-password"
             maxLength={64}
-            placeholder="•••••"
             value={password}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "code-error" : undefined}
