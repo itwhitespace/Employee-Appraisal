@@ -2,7 +2,8 @@ export type DepartmentId =
   | "interior-designer"
   | "3d-visualizer"
   | "business-development"
-  | "business-administration";
+  | "business-administration"
+  | "it-support";
 
 /** Rank within a department, 1 = most junior. The levels in use are in JobLevel. */
 export type Level = number;

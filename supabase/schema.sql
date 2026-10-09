@@ -16,7 +16,8 @@ create table if not exists public.employees (
   team          text not null default '',
   -- Null department/level/supervisor = this person has no appraisal form (e.g. HR admin).
   department_id text check (department_id in
-                  ('interior-designer', '3d-visualizer', 'business-development', 'business-administration')),
+                  ('interior-designer', '3d-visualizer', 'business-development',
+                   'business-administration', 'it-support')),
   level         smallint check (level >= 1),
   supervisor_id uuid references public.employees (id) on delete set null,
   start_date    date,
@@ -130,6 +131,11 @@ alter table public.employees add column if not exists appraisal_type text not nu
 alter table public.employees drop constraint if exists employees_appraisal_type_check;
 alter table public.employees add constraint employees_appraisal_type_check
   check (appraisal_type in ('Annual', 'Mid-year', 'Probation'));
+alter table public.employees drop constraint if exists employees_department_id_check;
+alter table public.employees add constraint employees_department_id_check
+  check (department_id in
+                  ('interior-designer', '3d-visualizer', 'business-development',
+                   'business-administration', 'it-support'));
 alter table public.employees drop constraint if exists employees_level_check;
 alter table public.employees add constraint employees_level_check check (level >= 1);
 alter table public.form_templates drop constraint if exists form_templates_level_check;
@@ -168,7 +174,11 @@ insert into public.job_levels (department_id, level, name, title) values
   ('business-administration', 4, 'Level 4', 'Finance & Admin Manager'),
   ('business-administration', 5, 'Director', 'Finance & Administration Director'),
   ('business-administration', 6, 'Senior Director', 'Senior Director, Finance & Corporate Services'),
-  ('business-administration', 7, 'Managing Director', 'Managing Director')
+  ('business-administration', 7, 'Managing Director', 'Managing Director'),
+  ('it-support', 1, 'Level 1', 'IT Support Officer (Helpdesk)'),
+  ('it-support', 2, 'Level 2', 'IT Support Specialist'),
+  ('it-support', 3, 'Level 3', 'Senior IT Specialist / System Administrator'),
+  ('it-support', 4, 'Level 4', 'IT Manager')
 on conflict (department_id, level) do nothing;
 
 -- Starting scales. Admin edits them later in the web app; existing rows are left alone.

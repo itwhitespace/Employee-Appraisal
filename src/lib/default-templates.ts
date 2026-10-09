@@ -52,6 +52,11 @@ const ACCURACY_KPI: Record<DepartmentId, KpiSeed> = {
     description: "จำนวนเอกสารที่ถูกตีกลับให้แก้ไขต่อเดือน",
     targets: ["≤ 2 ครั้ง/เดือน", "≤ 1 ครั้ง/เดือน", "≤ 1 ครั้ง/เดือน"],
   },
+  "it-support": {
+    title: "First-time Fix (Reopened Tickets)",
+    description: "จำนวนงานแจ้งซ่อมที่ถูกเปิดซ้ำเพราะแก้ไม่จบต่อเดือน",
+    targets: ["≤ 2 ครั้ง/เดือน", "≤ 1 ครั้ง/เดือน", "≤ 1 ครั้ง/เดือน"],
+  },
 };
 
 function kpiSeeds(departmentId: DepartmentId): KpiSeed[] {
@@ -209,6 +214,39 @@ const COMPETENCIES: Record<DepartmentId, CompetencySeed[]> = {
       levels: [3],
     },
   ],
+  "it-support": [
+    {
+      title: "Helpdesk & User Support",
+      description: "รับแจ้งปัญหา วิเคราะห์ และแก้ไขให้ผู้ใช้กลับมาทำงานได้ พร้อมสื่อสารสถานะชัดเจน",
+      expected: ["Basic", "Intermediate", "Advanced"],
+    },
+    {
+      title: "Hardware, Software & Asset Management",
+      description: "ติดตั้ง ดูแล และบันทึกทะเบียนอุปกรณ์และ license ให้ถูกต้องเป็นปัจจุบัน",
+      expected: ["Basic", "Intermediate", "Advanced"],
+    },
+    {
+      title: "Network & System Administration",
+      description: "ดูแลเครือข่าย เซิร์ฟเวอร์ บัญชีผู้ใช้ และสิทธิ์การเข้าถึงให้พร้อมใช้งาน",
+      expected: ["Beginner", "Intermediate", "Advanced"],
+    },
+    {
+      title: "IT Security & Backup",
+      description: "ปฏิบัติตามมาตรการความปลอดภัย สำรองข้อมูล และกู้คืนได้เมื่อเกิดเหตุ",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "Documentation & Knowledge Sharing",
+      description: "จัดทำคู่มือ บันทึกวิธีแก้ปัญหา และแนะนำการใช้งานให้ผู้ใช้",
+      expected: ["Basic", "Intermediate", "Advanced"],
+    },
+    {
+      title: "IT Planning & Vendor Management",
+      description: "วางแผนระบบและงบประมาณ IT เปรียบเทียบและประสานงานผู้ให้บริการ",
+      expected: ["Beginner", "Basic", "Intermediate"],
+      levels: [3],
+    },
+  ],
 };
 
 type Seed = Omit<Question, "id">;
@@ -264,6 +302,7 @@ const AI_EXAMPLES: Record<DepartmentId, string> = {
   "3d-visualizer": "เช่น AI upscale / ปรับแก้ภาพ, สร้าง texture, ร่างมุมภาพเบื้องต้น",
   "business-development": "เช่น AI ร่าง proposal, สรุปข้อมูลลูกค้าและตลาด",
   "business-administration": "เช่น AI ร่างเอกสาร, สรุปรายงาน, ตรวจข้อมูลใน spreadsheet",
+  "it-support": "เช่น AI ช่วยวิเคราะห์ log / error, เขียน script อัตโนมัติ, ร่างคู่มือการใช้งาน",
 };
 
 function digitalSeeds(departmentId: DepartmentId): Seed[] {

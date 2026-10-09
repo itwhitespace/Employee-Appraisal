@@ -18,6 +18,7 @@ export const DEPARTMENTS: { id: DepartmentId; name: string }[] = [
   { id: "3d-visualizer", name: "3D Visualizer" },
   { id: "business-development", name: "Business Development" },
   { id: "business-administration", name: "Business Administration" },
+  { id: "it-support", name: "Business Administration – IT Support" },
 ];
 
 export const APPRAISAL_TYPES: AppraisalType[] = ["Annual", "Mid-year", "Probation"];
