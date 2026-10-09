@@ -4,6 +4,7 @@ import type { Cycle, Employee, EvaluationSnapshot, FormTemplate, JobLevel } from
 import {
   createCycle,
   deleteCycle,
+  getScales,
   getTemplates,
   listCycles,
   listEvaluationCycles,
@@ -73,7 +74,8 @@ export async function editCycle(id: string, period: string): Promise<void> {
 
 /**
  * Makes `id` the cycle everyone fills in. The cycle being closed is frozen first:
- * every form in it that has no snapshot yet gets one, so it stays as it was.
+ * every form in it that has no snapshot yet gets one, and all of them keep the
+ * scales of that moment, so it stays as it was.
  */
 export async function switchCycle(id: string): Promise<void> {
   const { cycle: next, cycles } = await resolveCycle(id);
@@ -81,24 +83,31 @@ export async function switchCycle(id: string): Promise<void> {
   if (previous?.id === next.id) return;
 
   if (previous) {
-    const [evaluations, users, levels] = await Promise.all([
+    const [evaluations, users, levels, scales] = await Promise.all([
       listEvaluations(previous.id),
       listUsers(),
       listLevels(),
+      getScales(),
     ]);
     const templates = await getTemplates(levels);
     for (const evaluation of Object.values(evaluations)) {
-      if (evaluation.snapshot) continue;
+      if (evaluation.snapshot) {
+        await saveEvaluation({ ...evaluation, snapshot: { ...evaluation.snapshot, scales } });
+        continue;
+      }
       const employee = users.find((u) => u.id === evaluation.employeeId);
       if (!employee || !isEmployee(employee)) continue;
       await saveEvaluation({
         ...evaluation,
-        snapshot: buildSnapshot(
-          employee,
-          findTemplate(templates, employee.departmentId, employee.level),
-          findLevel(levels, employee.departmentId, employee.level) ?? null,
-          users.find((u) => u.id === employee.supervisorId)?.name ?? null,
-        ),
+        snapshot: {
+          ...buildSnapshot(
+            employee,
+            findTemplate(templates, employee.departmentId, employee.level),
+            findLevel(levels, employee.departmentId, employee.level) ?? null,
+            users.find((u) => u.id === employee.supervisorId)?.name ?? null,
+          ),
+          scales,
+        },
       });
     }
   }

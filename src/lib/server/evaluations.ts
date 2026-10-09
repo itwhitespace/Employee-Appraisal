@@ -25,6 +25,7 @@ import { buildSnapshot, resolveCycle } from "./cycles";
 import {
   deleteEvaluation,
   getEvaluation,
+  getScales,
   getTemplates,
   getUser,
   listEvaluationCycles,
@@ -118,9 +119,10 @@ async function loadContext(viewer: User, employeeId: string, cycleId?: string | 
   const [user, { cycle, cycles }] = await Promise.all([getUser(employeeId), resolveCycle(cycleId)]);
   if (!user) throw new HttpError(404, "ไม่พบแบบประเมินของพนักงานคนนี้");
 
-  const [stored, usedCycles] = await Promise.all([
+  const [stored, usedCycles, liveScales] = await Promise.all([
     getEvaluation(user.id, cycle.id),
     listEvaluationCycles(user.id),
+    getScales(),
   ]);
   const snapshot = stored?.snapshot ?? null;
   // A frozen form shows the employee as they were then. In the open cycle the appraiser
@@ -166,6 +168,8 @@ async function loadContext(viewer: User, employeeId: string, cycleId?: string | 
     cycles: cycles.filter((c) => c.current || usedCycles.includes(c.id)),
     employee,
     ...(frozen ?? (await live())),
+    // A closed cycle keeps the scales it was graded with.
+    scales: cycle.current ? liveScales : (snapshot?.scales ?? liveScales),
     evaluation: stored ?? createEmptyEvaluation(employee.id, cycle.id),
   };
 }
@@ -189,6 +193,7 @@ function toBundle(
     jobLevel: context.jobLevel,
     supervisorName: context.supervisorName,
     template: context.template,
+    scales: context.scales,
     evaluation: closed
       ? withoutContent(evaluation)
       : supervisorHidden

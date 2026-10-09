@@ -1,7 +1,10 @@
 import "server-only";
+import { BAND_NAMES, DEFAULT_SCALES } from "../constants";
 import { buildDefaultTemplates } from "../default-templates";
 import { findLevel } from "../evaluation";
 import type {
+  BandLevel,
+  BandThresholds,
   Cycle,
   DepartmentId,
   EmployeeInput,
@@ -9,6 +12,7 @@ import type {
   FormTemplate,
   JobLevel,
   Level,
+  Scales,
   User,
 } from "../types";
 import { HttpError } from "./errors";
@@ -235,6 +239,118 @@ export async function saveTemplate(template: FormTemplate): Promise<FormTemplate
     }),
   );
   return { ...template, updatedAt };
+}
+
+/* ------------------------------ scales ------------------------------- */
+
+interface RatingBandRow {
+  position: number;
+  min_score: number;
+  grade: string;
+  meaning: string;
+  share: string;
+  merit: string;
+}
+
+interface LevelBandRow {
+  level: BandLevel;
+  min_score: number;
+}
+
+interface NineBoxRow {
+  id: number;
+  potential_level: BandLevel;
+  performance_level: BandLevel;
+  box_label: string;
+}
+
+/** Postgres / PostgREST codes for a table that does not exist. */
+const MISSING_TABLE = ["42P01", "PGRST205"];
+
+/** Rows of a scale table; none when a database not yet upgraded with schema.sql lacks it. */
+async function scaleRows<T>(table: string, orderBy: string): Promise<T[]> {
+  const result = await db().from(table).select("*").order(orderBy);
+  if (result.error && MISSING_TABLE.includes(result.error.code ?? "")) return [];
+  return check(result) as T[];
+}
+
+function toThresholds(rows: LevelBandRow[], fallback: BandThresholds): BandThresholds {
+  const min = (level: BandLevel) => rows.find((row) => row.level === level)?.min_score;
+  const medium = min("Medium");
+  const high = min("High");
+  return medium === undefined || high === undefined
+    ? fallback
+    : { medium: Number(medium), high: Number(high) };
+}
+
+const toLevelRows = (thresholds: BandThresholds): LevelBandRow[] => [
+  { level: "Low", min_score: 0 },
+  { level: "Medium", min_score: thresholds.medium },
+  { level: "High", min_score: thresholds.high },
+];
+
+/** What admin has saved; the built-in defaults for any table that is still empty. */
+export async function getScales(): Promise<Scales> {
+  const [bands, potential, performance, boxes] = await Promise.all([
+    scaleRows<RatingBandRow>("rating_bands", "min_score"),
+    scaleRows<LevelBandRow>("potential_bands", "min_score"),
+    scaleRows<LevelBandRow>("performance_bands", "min_score"),
+    scaleRows<NineBoxRow>("nine_box", "id"),
+  ]);
+  return {
+    ratingBands:
+      bands.length === 0
+        ? DEFAULT_SCALES.ratingBands
+        : bands.map((row) => ({
+            min: Number(row.min_score),
+            grade: row.grade,
+            meaning: row.meaning,
+            share: row.share,
+            merit: row.merit,
+          })),
+    potential: toThresholds(potential, DEFAULT_SCALES.potential),
+    performance: toThresholds(performance, DEFAULT_SCALES.performance),
+    nineBox: BAND_NAMES.map((potentialLevel, i) =>
+      BAND_NAMES.map(
+        (performanceLevel, j) =>
+          boxes.find(
+            (box) =>
+              box.potential_level === potentialLevel && box.performance_level === performanceLevel,
+          )?.box_label ?? DEFAULT_SCALES.nineBox[i][j],
+      ),
+    ),
+  };
+}
+
+export async function saveScales(scales: Scales): Promise<Scales> {
+  check(
+    await db().from("rating_bands").upsert(
+      scales.ratingBands.map((band, index) => ({
+        position: index + 1,
+        min_score: band.min,
+        grade: band.grade,
+        meaning: band.meaning,
+        share: band.share,
+        merit: band.merit,
+      })),
+    ),
+  );
+  check(await db().from("rating_bands").delete().gt("position", scales.ratingBands.length));
+  check(await db().from("potential_bands").upsert(toLevelRows(scales.potential)));
+  check(await db().from("performance_bands").upsert(toLevelRows(scales.performance)));
+  check(
+    await db().from("nine_box").upsert(
+      BAND_NAMES.flatMap((potentialLevel, i) =>
+        BAND_NAMES.map((performanceLevel, j) => ({
+          id: i * 3 + j + 1,
+          potential_level: potentialLevel,
+          performance_level: performanceLevel,
+          box_label: scales.nineBox[i][j],
+        })),
+      ),
+    ),
+  );
+  return scales;
 }
 
 /* ------------------------------ cycles ------------------------------- */

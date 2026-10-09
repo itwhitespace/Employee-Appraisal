@@ -1,7 +1,8 @@
 import Link from "next/link";
-import { BAND_NAMES, NINE_BOX_LABELS, NINE_BOX_THRESHOLDS } from "@/lib/constants";
+import { BAND_NAMES } from "@/lib/constants";
 import { formatScore } from "@/lib/format";
 import { scoreBand, type Band } from "@/lib/scoring";
+import type { BandThresholds, Scales } from "@/lib/types";
 
 export interface NineBoxPerson {
   id: string;
@@ -16,10 +17,23 @@ export interface NineBoxPerson {
 const CELL_TINTS = ["bg-red-50", "bg-orange-50", "bg-canvas", "bg-sky-50", "bg-emerald-50"];
 
 const BANDS: Band[] = [0, 1, 2];
-const { medium, high } = NINE_BOX_THRESHOLDS;
-const BAND_RANGES = [`< ${medium}`, `${medium} – ${(high - 0.01).toFixed(2)}`, `≥ ${high}`];
 
-export default function NineBoxGrid({ people }: { people: NineBoxPerson[] }) {
+/** Score range of each level, for the axis captions. */
+const rangesOf = ({ medium, high }: BandThresholds) => [
+  `< ${medium.toFixed(2)}`,
+  `${medium.toFixed(2)} – ${(high - 0.01).toFixed(2)}`,
+  `≥ ${high.toFixed(2)}`,
+];
+
+interface NineBoxGridProps {
+  people: NineBoxPerson[];
+  /** Thresholds of both axes and the name of each box. */
+  scales: Scales;
+}
+
+export default function NineBoxGrid({ people, scales }: NineBoxGridProps) {
+  const potentialRanges = rangesOf(scales.potential);
+  const performanceRanges = rangesOf(scales.performance);
   return (
     <div className="grid grid-cols-[auto_1fr] gap-3">
       <div className="flex items-center justify-center">
@@ -34,13 +48,13 @@ export default function NineBoxGrid({ people }: { people: NineBoxPerson[] }) {
             <div key={potentialBand} className="contents">
               <div className="flex flex-col items-end justify-center pr-1 text-right text-xs">
                 <span className="font-medium">{BAND_NAMES[potentialBand]}</span>
-                <span className="text-[11px] text-faint">{BAND_RANGES[potentialBand]}</span>
+                <span className="text-[11px] text-faint">{potentialRanges[potentialBand]}</span>
               </div>
               {BANDS.map((performanceBand) => {
                 const inCell = people.filter(
                   (p) =>
-                    scoreBand(p.performance) === performanceBand &&
-                    scoreBand(p.potential) === potentialBand,
+                    scoreBand(p.performance, scales.performance) === performanceBand &&
+                    scoreBand(p.potential, scales.potential) === potentialBand,
                 );
                 return (
                   <div
@@ -49,7 +63,7 @@ export default function NineBoxGrid({ people }: { people: NineBoxPerson[] }) {
                   >
                     <div className="flex items-baseline justify-between gap-2">
                       <span className="text-xs font-semibold">
-                        {NINE_BOX_LABELS[potentialBand][performanceBand]}
+                        {scales.nineBox[potentialBand][performanceBand]}
                       </span>
                       <span className="text-[11px] tabular-nums text-faint">{inCell.length}</span>
                     </div>
@@ -82,7 +96,7 @@ export default function NineBoxGrid({ people }: { people: NineBoxPerson[] }) {
           {BANDS.map((band) => (
             <div key={band} className="text-center text-xs">
               <span className="font-medium">{BAND_NAMES[band]}</span>{" "}
-              <span className="text-[11px] text-faint">{BAND_RANGES[band]}</span>
+              <span className="text-[11px] text-faint">{performanceRanges[band]}</span>
             </div>
           ))}
         </div>

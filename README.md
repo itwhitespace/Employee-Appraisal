@@ -28,7 +28,7 @@ Next.js 14 (App Router) · TypeScript · Tailwind CSS · Supabase (Postgres)
 
 ## Test accounts
 
-A new database gets these accounts; the password of each is its own code.
+A database with no employees gets these accounts; the password of each is its own code.
 
 | Role       | Employee code | Password |
 | ---------- | ------------- | -------- |
@@ -49,7 +49,9 @@ A new database gets these accounts; the password of each is its own code.
 
 `Performance Score = A×0.25 + B×0.40 + C×0.20 + D×0.05 + E×0.10` (weights are editable per
 template). Section F (Potential) is not part of the score; it places the employee on the 9-Box
-grid. Thresholds and bands are in [`src/lib/constants.ts`](src/lib/constants.ts).
+grid. The grade shown beside the score, the Low / Medium / High levels of both scores and
+the names of the nine boxes come from the scales that admin edits on the Scale & Rating page;
+the starting values are in [`src/lib/constants.ts`](src/lib/constants.ts).
 
 ## Security notes
 

@@ -17,6 +17,40 @@ export interface JobLevel {
   title: string;
 }
 
+/** One row of the Rating Band table: the grade given from `min` up to the next band. */
+export interface RatingBand {
+  /** Lowest Performance Score that earns this grade. */
+  min: number;
+  /** e.g. "B - Meets Expectations". */
+  grade: string;
+  /** What the grade means and what follows from it. */
+  meaning: string;
+  /** Suggested share of staff, free text. */
+  share: string;
+  /** Suggested merit multiplier, free text. */
+  merit: string;
+}
+
+export type BandLevel = "Low" | "Medium" | "High";
+
+/** Lowest score of the Medium and of the High level; Low starts at 0. */
+export interface BandThresholds {
+  medium: number;
+  high: number;
+}
+
+/** Everything admin sets on the Scale & Rating page. */
+export interface Scales {
+  /** Lowest band first. */
+  ratingBands: RatingBand[];
+  /** Levels of the Potential score (section F): the Y axis of the 9-Box. */
+  potential: BandThresholds;
+  /** Levels of the Performance Score: the X axis of the 9-Box. */
+  performance: BandThresholds;
+  /** 9-Box names, indexed as [potential level][performance level], 0 = Low, 2 = High. */
+  nineBox: string[][];
+}
+
 export type AppraisalType = "Annual" | "Mid-year" | "Probation";
 
 /** Sections that count towards the Performance Score. */
@@ -153,6 +187,8 @@ export interface EvaluationSnapshot {
   >;
   jobLevel: JobLevel | null;
   supervisorName: string | null;
+  /** The scales when the cycle closed; absent on older snapshots. */
+  scales?: Scales;
   takenAt: string;
 }
 
@@ -182,6 +218,8 @@ export interface OverviewData {
   /** The cycle the evaluations belong to. */
   cycle: Cycle;
   cycles: Cycle[];
+  /** The scales the cycle is graded with. */
+  scales: Scales;
   users: User[];
   levels: JobLevel[];
   templates: FormTemplate[];
@@ -200,6 +238,8 @@ export interface EvaluationBundle {
   jobLevel: JobLevel | null;
   supervisorName: string | null;
   template: FormTemplate;
+  /** The scales this form is graded with. */
+  scales: Scales;
   evaluation: Evaluation;
   /** True when the supervisor's scores and comments were withheld from this viewer. */
   supervisorHidden: boolean;

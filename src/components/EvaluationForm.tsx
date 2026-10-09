@@ -109,6 +109,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     employee,
     jobLevel,
     template,
+    scales,
     supervisorName,
     supervisorHidden,
     closed,
@@ -342,6 +343,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
           <SummaryTable
             summary={summary}
             weights={template.weights}
+            scales={scales}
             supervisorHidden={supervisorHidden}
           />
         </div>

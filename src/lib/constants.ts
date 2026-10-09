@@ -1,8 +1,11 @@
 import type {
   AppraisalType,
+  BandLevel,
   DepartmentId,
   ExpectedLevel,
+  RatingBand,
   Role,
+  Scales,
   SectionKey,
   WeightedSectionKey,
   Weights,
@@ -114,33 +117,55 @@ export const RATING_SCALE: { score: number; label: string }[] = [
   { score: 1, label: "ต่ำกว่าเกณฑ์มาก ต้องปรับปรุงอย่างเร่งด่วน" },
 ];
 
-/**
- * 9-Box bands on the 1-5 scale, split into equal thirds:
- * Low < 2.34 <= Medium < 3.67 <= High. Used for both axes.
- */
-export const NINE_BOX_THRESHOLDS = { medium: 2.34, high: 3.67 };
+/** Level names of both 9-Box axes, lowest first. */
+export const BAND_NAMES: BandLevel[] = ["Low", "Medium", "High"];
 
-export const BAND_NAMES = ["Low", "Medium", "High"] as const;
-
-/** Indexed as [potentialBand][performanceBand], 0 = Low, 2 = High. */
-export const NINE_BOX_LABELS: string[][] = [
-  ["Risk", "Effective", "Trusted Professional"],
-  ["Inconsistent Player", "Core Player", "High Performer"],
-  ["Potential Gem", "High Potential", "Star"],
+const DEFAULT_RATING_BANDS: RatingBand[] = [
+  {
+    min: 0,
+    grade: "D - Unsatisfactory",
+    meaning: "ต่ำกว่ามาตรฐาน → Performance Improvement Plan (PIP) 90 วัน ไม่ปรับเงินเดือน",
+    share: "≤ 5%",
+    merit: "0.00x",
+  },
+  {
+    min: 2.25,
+    grade: "C - Needs Improvement",
+    meaning: "ต้องพัฒนา → แผนพัฒนาเฉพาะจุด ติดตามทุกเดือน",
+    share: "10–15%",
+    merit: "0.50x",
+  },
+  {
+    min: 3,
+    grade: "B - Meets Expectations",
+    meaning: "ได้มาตรฐาน → พัฒนาต่อเนื่องในระดับปัจจุบัน",
+    share: "50–60%",
+    merit: "1.00x",
+  },
+  {
+    min: 3.75,
+    grade: "A - Exceeds Expectations",
+    meaning: "เกินมาตรฐาน → พิจารณาเพิ่มความรับผิดชอบ / เลื่อนระดับ",
+    share: "20%",
+    merit: "1.25x",
+  },
+  {
+    min: 4.5,
+    grade: "S - Outstanding",
+    meaning: "ดีเยี่ยม → Talent pool, เลื่อนระดับเร่งด่วน, retention plan",
+    share: "≤ 10%",
+    merit: "1.50x",
+  },
 ];
 
-/** Performance Band: first entry whose `min` the Performance Score reaches. */
-export const PERFORMANCE_BANDS: { min: number; label: string }[] = [
-  { min: 4.5, label: "Outstanding" },
-  { min: 3.5, label: "Exceeds Expectations" },
-  { min: 2.5, label: "Meets Expectations" },
-  { min: 1.5, label: "Needs Improvement" },
-  { min: 0, label: "Unsatisfactory" },
-];
-
-/** Preliminary promotion readiness labels; the rules are in scoring.promotionReadiness. */
-export const PROMOTION_READINESS = {
-  ready: "Ready Now — พร้อมเลื่อนระดับ",
-  soon: "Ready in 1–2 Years — ใกล้พร้อม",
-  develop: "Develop in Current Level — พัฒนาในระดับปัจจุบัน",
+/** The scales until admin saves their own on the Scale & Rating page. */
+export const DEFAULT_SCALES: Scales = {
+  ratingBands: DEFAULT_RATING_BANDS,
+  potential: { medium: 3, high: 4 },
+  performance: { medium: 3, high: 3.75 },
+  nineBox: [
+    ["Underperformer – PIP", "Effective Contributor", "Trusted Professional"],
+    ["Inconsistent Player – ต้องปรับปรุง", "Core Player – กำลังหลัก", "High Performer – ผู้ทำผลงานสูง"],
+    ["Rough Diamond – โค้ชใกล้ชิด", "Emerging Talent – ผู้มีศักยภาพโดดเด่น", "Star – ผู้นำอนาคต"],
+  ],
 };

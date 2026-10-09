@@ -87,7 +87,7 @@ export function overviewRows(data: OverviewData): OverviewRow[] {
         selfPerformance: summary?.performance.self ?? null,
         performance,
         potential,
-        position: nineBoxPosition(performance, potential),
+        position: nineBoxPosition(performance, potential, data.scales),
       },
     ];
   });

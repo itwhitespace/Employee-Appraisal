@@ -1,17 +1,13 @@
-import {
-  ALL_SECTIONS,
-  NINE_BOX_LABELS,
-  NINE_BOX_THRESHOLDS,
-  PERFORMANCE_BANDS,
-  PROMOTION_READINESS,
-  WEIGHTED_SECTIONS,
-} from "./constants";
+import { ALL_SECTIONS, WEIGHTED_SECTIONS } from "./constants";
 import type {
+  BandThresholds,
   Evaluation,
   FormTemplate,
   ItemScore,
   Question,
   Rater,
+  RatingBand,
+  Scales,
   SectionKey,
   WeightedSectionKey,
   Weights,
@@ -118,10 +114,10 @@ export type Band = 0 | 1 | 2;
 /** Bands are decided on the value as displayed (2 decimals) so labels match what users see. */
 const asShown = (score: number) => Math.round(score * 100) / 100;
 
-export function scoreBand(score: number): Band {
+export function scoreBand(score: number, thresholds: BandThresholds): Band {
   const shown = asShown(score);
-  if (shown < NINE_BOX_THRESHOLDS.medium) return 0;
-  if (shown < NINE_BOX_THRESHOLDS.high) return 1;
+  if (shown < thresholds.medium) return 0;
+  if (shown < thresholds.high) return 1;
   return 2;
 }
 
@@ -134,28 +130,21 @@ export interface NineBoxPosition {
 export function nineBoxPosition(
   performance: number | null,
   potential: number | null,
+  scales: Scales,
 ): NineBoxPosition | null {
   if (performance === null || potential === null) return null;
-  const performanceBand = scoreBand(performance);
-  const potentialBand = scoreBand(potential);
+  const performanceBand = scoreBand(performance, scales.performance);
+  const potentialBand = scoreBand(potential, scales.potential);
   return {
     performanceBand,
     potentialBand,
-    label: NINE_BOX_LABELS[potentialBand][performanceBand],
+    label: scales.nineBox[potentialBand][performanceBand],
   };
 }
 
-export function performanceBand(performance: number | null): string | null {
+/** The band whose minimum the Performance Score reaches; null while there is no score. */
+export function ratingBandOf(performance: number | null, bands: RatingBand[]): RatingBand | null {
   if (performance === null) return null;
   const shown = asShown(performance);
-  return PERFORMANCE_BANDS.find((band) => shown >= band.min)?.label ?? null;
-}
-
-/** Preliminary promotion readiness, derived from the 9-Box position. */
-export function promotionReadiness(position: NineBoxPosition | null): string | null {
-  if (!position) return null;
-  const { performanceBand: perf, potentialBand: pot } = position;
-  if (perf === 2 && pot === 2) return PROMOTION_READINESS.ready;
-  if (perf >= 1 && pot >= 1 && perf + pot >= 3) return PROMOTION_READINESS.soon;
-  return PROMOTION_READINESS.develop;
+  return [...bands].sort((a, b) => b.min - a.min).find((band) => shown >= band.min) ?? null;
 }

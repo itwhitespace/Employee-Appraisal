@@ -1,16 +1,13 @@
-import { SECTION_CONFIG, WEIGHTED_SECTIONS } from "@/lib/constants";
+import { BAND_NAMES, SECTION_CONFIG, WEIGHTED_SECTIONS } from "@/lib/constants";
 import { formatScore } from "@/lib/format";
-import {
-  nineBoxPosition,
-  performanceBand,
-  promotionReadiness,
-  type ScoreSummary,
-} from "@/lib/scoring";
-import type { Weights } from "@/lib/types";
+import { nineBoxPosition, ratingBandOf, scoreBand, type ScoreSummary } from "@/lib/scoring";
+import type { Scales, Weights } from "@/lib/types";
 
 interface SummaryTableProps {
   summary: ScoreSummary;
   weights: Weights;
+  /** The scales the grade, the levels and the 9-Box position are read from. */
+  scales: Scales;
   /** True while the supervisor's result is not yet released to the employee. */
   supervisorHidden: boolean;
 }
@@ -18,16 +15,36 @@ interface SummaryTableProps {
 const weighted = (average: number | null, weight: number) =>
   average === null ? null : average * (weight / 100);
 
-export default function SummaryTable({ summary, weights, supervisorHidden }: SummaryTableProps) {
+export default function SummaryTable({
+  summary,
+  weights,
+  scales,
+  supervisorHidden,
+}: SummaryTableProps) {
   const { performance, potential, sections } = summary;
-  const position = nineBoxPosition(performance.supervisor, potential.supervisor);
+  const position = nineBoxPosition(performance.supervisor, potential.supervisor, scales);
+  const band = ratingBandOf(performance.supervisor, scales.ratingBands);
   const pending = supervisorHidden ? "รอผลจากผู้ประเมิน" : "ยังไม่ครบ";
 
   const results = [
-    { label: "Potential (ค่าเฉลี่ยหมวด F)", value: potential.supervisor === null ? null : formatScore(potential.supervisor) },
-    { label: "Performance Band", value: performanceBand(performance.supervisor) },
+    {
+      label: "Potential (ค่าเฉลี่ยหมวด F)",
+      value:
+        potential.supervisor === null
+          ? null
+          : `${formatScore(potential.supervisor)} / ${
+              BAND_NAMES[scoreBand(potential.supervisor, scales.potential)]
+            }`,
+    },
+    {
+      label: "Performance Band",
+      value:
+        performance.supervisor === null
+          ? null
+          : BAND_NAMES[scoreBand(performance.supervisor, scales.performance)],
+    },
     { label: "9-Box Position", value: position?.label ?? null },
-    { label: "ความพร้อมเลื่อนระดับ (เบื้องต้น)", value: promotionReadiness(position) },
+    { label: "ความพร้อมเลื่อนระดับ (เบื้องต้น)", value: band?.meaning || null },
   ];
 
   return (
@@ -72,11 +89,18 @@ export default function SummaryTable({ summary, weights, supervisorHidden }: Sum
 
       <div className="border-t border-line p-5 lg:border-l lg:border-t-0">
         <div className="text-xs font-medium text-muted">Performance Score · คะแนน Supervisor เป็นตัวตัดสิน</div>
-        <div className="mt-1 flex items-baseline gap-2">
-          <span className="text-5xl font-semibold tracking-tight tabular-nums">
-            {formatScore(performance.supervisor)}
-          </span>
-          <span className="text-sm text-faint">/ 5.00</span>
+        <div className="mt-1 flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
+          <div className="flex items-baseline gap-2">
+            <span className="text-5xl font-semibold tracking-tight tabular-nums">
+              {formatScore(performance.supervisor)}
+            </span>
+            <span className="text-sm text-faint">/ 5.00</span>
+          </div>
+          {band && (
+            <span className="text-right text-xl font-semibold tracking-tight text-accent">
+              {band.grade}
+            </span>
+          )}
         </div>
         <dl className="mt-4 divide-y divide-line text-sm">
           {results.map((item) => (

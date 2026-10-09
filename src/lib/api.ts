@@ -7,6 +7,7 @@ import type {
   FormTemplate,
   JobLevel,
   OverviewData,
+  Scales,
   User,
 } from "./types";
 
@@ -81,6 +82,9 @@ export const api = {
   /** Closes the open cycle and opens this one. */
   openCycle: (id: string) => request<{ ok: true }>("/api/cycles", "PUT", { id, makeCurrent: true }),
   deleteCycle: (id: string) => request<{ ok: true }>("/api/cycles", "DELETE", { id }),
+
+  scales: () => request<{ scales: Scales }>("/api/scales"),
+  saveScales: (scales: Scales) => request<{ scales: Scales }>("/api/scales", "PUT", scales),
 
   saveLevel: (level: JobLevel) => request<{ level: JobLevel }>("/api/levels", "PUT", level),
   deleteLevel: (level: Pick<JobLevel, "departmentId" | "level">) =>

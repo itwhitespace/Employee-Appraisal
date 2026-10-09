@@ -98,7 +98,7 @@ export default function DashboardPage() {
           <p className="text-xs text-muted">Performance เทียบกับ Potential จากคะแนนของ Supervisor</p>
         </header>
         <div className="border-t border-line p-5">
-          <NineBoxGrid people={people} />
+          <NineBoxGrid people={people} scales={data.scales} />
         </div>
       </section>
 
