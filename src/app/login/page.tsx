@@ -5,13 +5,6 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { COMPANY_NAME } from "@/lib/constants";
 
-/** Real employees, one per role, used for testing. Remove this list before real use. */
-const TEST_ACCOUNTS = [
-  { label: "User", name: "Suksan Roobun", code: "21503" },
-  { label: "Supervisor", name: "Boriphon Suwattana", code: "20501" },
-  { label: "Admin", name: "Pakorn Boonyapatkul", code: "61803" },
-];
-
 export default function LoginPage() {
   const { login } = useAuth();
   const [code, setCode] = useState("");
@@ -101,30 +94,6 @@ export default function LoginPage() {
             {busy ? "กำลังเข้าสู่ระบบ…" : "เข้าสู่ระบบ"}
           </button>
         </form>
-
-        <div className="mt-6 rounded-2xl bg-black/[0.03] p-4">
-          <div className="text-xs font-medium text-muted">บัญชีทดสอบ</div>
-          <ul className="mt-2 space-y-1">
-            {TEST_ACCOUNTS.map((account) => (
-              <li key={account.code}>
-                <button
-                  type="button"
-                  className="flex w-full items-center justify-between gap-3 rounded-lg px-2 py-1.5 text-left text-sm transition hover:bg-black/5"
-                  onClick={() => {
-                    setCode(account.code);
-                    setError(null);
-                  }}
-                >
-                  <span className="min-w-0 truncate">
-                    <span className="font-medium">{account.label}:</span>{" "}
-                    <span className="text-muted">{account.name}</span>
-                  </span>
-                  <span className="font-semibold tabular-nums text-accent">{account.code}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
-        </div>
       </div>
     </div>
   );
