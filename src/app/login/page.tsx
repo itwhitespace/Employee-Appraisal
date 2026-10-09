@@ -4,11 +4,11 @@ import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { COMPANY_NAME } from "@/lib/constants";
 
-/** Test accounts created by supabase/schema.sql. Remove this list before real use. */
+/** Real employees, one per role, used for testing. Remove this list before real use. */
 const TEST_ACCOUNTS = [
-  { label: "User", code: "11111" },
-  { label: "Supervisor", code: "22222" },
-  { label: "Admin", code: "33333" },
+  { label: "User", code: "21503" },
+  { label: "Supervisor", code: "20501" },
+  { label: "Admin", code: "61803" },
 ];
 
 export default function LoginPage() {
