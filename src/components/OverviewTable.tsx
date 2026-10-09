@@ -3,6 +3,7 @@ import { DEPARTMENTS } from "@/lib/constants";
 import { formatScore } from "@/lib/format";
 import type { OverviewRow } from "@/lib/overview";
 import type { Cycle } from "@/lib/types";
+import IconButton from "./IconButton";
 import StatusBadge from "./StatusBadge";
 
 interface OverviewTableProps {
@@ -11,6 +12,8 @@ interface OverviewTableProps {
   cycle: Cycle;
   /** Label of the link to each form, by who is looking. */
   viewer: "supervisor" | "admin";
+  /** Adds a "clear this form" button to each row that has a form. */
+  onClear?: (row: OverviewRow) => void;
 }
 
 function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"], cycle: Cycle): string {
@@ -19,7 +22,7 @@ function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"], cyc
 }
 
 /** Appraisal status and scores per employee; shared by the admin dashboard and the supervisor's team page. */
-export default function OverviewTable({ rows, cycle, viewer }: OverviewTableProps) {
+export default function OverviewTable({ rows, cycle, viewer, onClear }: OverviewTableProps) {
   const query = cycle.current ? "" : `?cycle=${encodeURIComponent(cycle.id)}`;
   return (
     <div className="overflow-x-auto">
@@ -36,7 +39,7 @@ export default function OverviewTable({ rows, cycle, viewer }: OverviewTableProp
             <th className="w-28 text-center">Performance</th>
             <th className="w-24 text-center">Potential</th>
             <th className="w-40">9-Box</th>
-            <th className="w-20" aria-label="แบบประเมิน" />
+            <th className={onClear ? "w-32" : "w-20"} aria-label="แบบประเมิน" />
           </tr>
         </thead>
         <tbody>
@@ -72,10 +75,19 @@ export default function OverviewTable({ rows, cycle, viewer }: OverviewTableProp
                   {formatScore(row.potential)}
                 </td>
                 <td>{row.position?.label ?? <span className="text-faint">รอคะแนน</span>}</td>
-                <td className="text-right">
+                <td className="whitespace-nowrap text-right">
                   <Link href={`/evaluate/${employee.id}${query}`} className="btn-text text-[13px]">
                     {actionLabel(row, viewer, cycle)}
                   </Link>
+                  {onClear && (
+                    <IconButton
+                      icon="delete"
+                      label={row.status === "not_started" ? "ยังไม่มีแบบประเมินให้ล้าง" : "ล้างแบบประเมิน"}
+                      tone="danger"
+                      disabled={row.status === "not_started"}
+                      onClick={() => onClear(row)}
+                    />
+                  )}
                 </td>
               </tr>
             );

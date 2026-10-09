@@ -23,6 +23,7 @@ import type {
 } from "../types";
 import { buildSnapshot, resolveCycle } from "./cycles";
 import {
+  deleteEvaluation,
   getEvaluation,
   getTemplates,
   getUser,
@@ -94,17 +95,21 @@ interface Access {
   canSelf: boolean;
   /** Supervisor may edit their assessment. */
   canSupervisor: boolean;
+  /** Admin may correct the supervisor's scores of a confirmed result. */
+  canAdminScores: boolean;
 }
 
 function accessOf(viewer: User, employee: Employee, evaluation: Evaluation): Access {
   const isOwner = viewer.id === employee.id;
   const isSupervisor = viewer.id === employee.supervisorId;
+  const isAdmin = viewer.role === "admin";
   return {
     isOwner,
     isSupervisor,
-    isAdmin: viewer.role === "admin",
+    isAdmin,
     canSelf: isOwner && evaluation.status === "draft",
     canSupervisor: isSupervisor && evaluation.status !== "completed",
+    canAdminScores: isAdmin && !isOwner && evaluation.status === "completed",
   };
 }
 
@@ -245,6 +250,15 @@ function mergeAllowed(
         : stored.idp.recommendation,
     };
     next.idp = nextIdp;
+  } else if (access.canAdminScores) {
+    const incomingScores = record(incoming.scores);
+    const questions = Object.values(getSectionQuestions(template, next)).flat();
+    for (const question of questions) {
+      next.scores[question.id] = {
+        ...(stored.scores[question.id] ?? EMPTY_SCORE),
+        supervisor: score(record(incomingScores[question.id]).supervisor),
+      };
+    }
   }
 
   if (access.canSelf) next.comments.employee = text(comments.employee, stored.comments.employee);
@@ -279,6 +293,10 @@ export async function updateEvaluation(
 
   switch (action) {
     case "save":
+      // A confirmed result stays complete while admin corrects it.
+      if (access.canAdminScores && missing().supervisor > 0) {
+        throw new HttpError(400, "ยังกรอกคะแนน Supervisor ไม่ครบทุกข้อ");
+      }
       break;
     case "submit_self":
       if (!access.canSelf) throw new HttpError(403, "ส่งแบบประเมินตนเองไม่ได้ในขั้นตอนนี้");
@@ -327,4 +345,11 @@ export async function updateEvaluation(
   next.updatedAt = now;
   await saveEvaluation(next);
   return toBundle(viewer, context, next);
+}
+
+/** Deletes the form of the current cycle; the employee starts again from an empty one. */
+export async function clearEvaluation(employeeId: string): Promise<void> {
+  const [user, { cycle }] = await Promise.all([getUser(employeeId), resolveCycle()]);
+  if (!user) throw new HttpError(404, "ไม่พบแบบประเมินของพนักงานคนนี้");
+  await deleteEvaluation(user.id, cycle.id);
 }

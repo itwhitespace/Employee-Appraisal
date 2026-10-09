@@ -234,8 +234,8 @@ export default function LevelsPage() {
       </section>
 
       <p className="text-xs text-muted">
-        Level ที่เพิ่มใหม่จะได้แบบประเมินเริ่มต้นชุดเดียวกับ Level 3 ของฝ่ายนั้น แก้ไขข้อประเมินได้ที่
-        Form Builder
+        Level ที่เพิ่มใหม่จะได้แบบประเมินเริ่มต้นชุดเดียวกับ Level 3 ของฝ่ายนั้น แก้ไขข้อประเมินได้ที่เมนู
+        กำหนดหัวข้อประเมิน
       </p>
     </div>
   );

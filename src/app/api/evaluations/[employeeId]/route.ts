@@ -1,4 +1,4 @@
-import { loadEvaluation, updateEvaluation } from "@/lib/server/evaluations";
+import { clearEvaluation, loadEvaluation, updateEvaluation } from "@/lib/server/evaluations";
 import { handle, readJson, requireUser } from "@/lib/server/http";
 import type { EvaluationAction } from "@/lib/types";
 
@@ -24,5 +24,14 @@ export async function PUT(request: Request, { params }: Context) {
     const body = await readJson(request);
     const evaluation = (body.evaluation ?? {}) as Record<string, unknown>;
     return updateEvaluation(viewer, params.employeeId, evaluation, body.action as EvaluationAction);
+  });
+}
+
+/** Admin only: deletes this employee's form of the current cycle. */
+export async function DELETE(_request: Request, { params }: Context) {
+  return handle(async () => {
+    await requireUser(["admin"]);
+    await clearEvaluation(params.employeeId);
+    return { ok: true };
   });
 }

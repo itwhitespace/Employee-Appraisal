@@ -57,6 +57,10 @@ export const api = {
   updateEvaluation: (employeeId: string, evaluation: Evaluation, action: EvaluationAction) =>
     request<EvaluationBundle>(`/api/evaluations/${employeeId}`, "PUT", { evaluation, action }),
 
+  /** Admin only: deletes the form of the current cycle so the employee starts again. */
+  clearEvaluation: (employeeId: string) =>
+    request<{ ok: true }>(`/api/evaluations/${employeeId}`, "DELETE"),
+
   templates: () => request<{ levels: JobLevel[]; templates: FormTemplate[] }>("/api/templates"),
   saveTemplate: (template: FormTemplate) =>
     request<{ template: FormTemplate }>("/api/templates", "PUT", template),

@@ -121,6 +121,8 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   const canEditSelf = !readOnly && isOwner && status === "draft";
   const canEditSupervisor = !readOnly && isSupervisor && status !== "completed";
   const canEditNotes = canEditSelf || canEditSupervisor;
+  // Admin may correct the supervisor's scores of a confirmed result.
+  const canAdminScores = !readOnly && isAdmin && !isOwner && status === "completed";
   const canEditAnything = !readOnly && (canEditNotes || isAdmin);
 
   const commentAccess: Record<keyof SignOffComments, boolean> = {
@@ -220,6 +222,15 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     }
   };
 
+  const saveAsAdmin = () => {
+    if (canAdminScores && summary.missing.supervisor > 0) {
+      setFlagMissing("supervisor");
+      setNotice({ tone: "error", text: `ยังบันทึกไม่ได้: ${blockedBy("supervisor")}` });
+      return;
+    }
+    void send("save", canAdminScores ? "บันทึกการแก้ไขแล้ว" : "บันทึกความเห็นแล้ว");
+  };
+
   const sendBack = async () => {
     const agreed = await confirm({
       title: "ส่งกลับให้พนักงานแก้ไข?",
@@ -258,7 +269,9 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
         : status === "self_submitted"
           ? "พนักงานส่งแบบประเมินตนเองแล้ว — กรอกคะแนนในคอลัมน์ Supervisor แล้วกดยืนยันผล"
           : "คุณยืนยันผลการประเมินนี้แล้ว"
-      : "มุมมอง Admin — ดูได้ทั้งหมด และกรอกความเห็นของ Director และ HR / MD ได้";
+      : `มุมมอง Admin — ดูได้ทั้งหมด และกรอกความเห็นของ Director และ HR / MD ได้${
+          canAdminScores ? " รวมถึงแก้ไขคะแนนในคอลัมน์ Supervisor ได้" : ""
+        }`;
 
   const header = (
     <section className="card overflow-hidden">
@@ -361,7 +374,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
             scores={shown.scores}
             summary={summary.sections[key]}
             canEditSelf={canEditSelf}
-            canEditSupervisor={canEditSupervisor}
+            canEditSupervisor={canEditSupervisor || canAdminScores}
             canEditNotes={canEditNotes}
             flagMissing={flagMissing}
             onScore={setScore}
@@ -484,8 +497,8 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
               </>
             )}
             {isAdmin && !canEditNotes && !readOnly && (
-              <button type="button" className="btn-primary" disabled={busy} onClick={() => void send("save", "บันทึกความเห็นแล้ว")}>
-                บันทึกความเห็น
+              <button type="button" className="btn-primary" disabled={busy} onClick={saveAsAdmin}>
+                {canAdminScores ? "บันทึกการแก้ไข" : "บันทึกความเห็น"}
               </button>
             )}
             {(isSupervisor || isAdmin) && status === "completed" && !readOnly && (

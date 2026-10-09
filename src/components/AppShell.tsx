@@ -98,6 +98,7 @@ function NavMenu({ group, pathname }: { group: NavGroup; pathname: string }) {
 const ICONS = {
   form: "M6 3h8a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2Zm1.5 4h5M7.5 10h5M7.5 13h3",
   team: "M7 9a2.5 2.5 0 1 0 0-5 2.5 2.5 0 0 0 0 5Zm6.5 0a2 2 0 1 0 0-4M2.5 16c0-2.2 2-4 4.5-4s4.5 1.8 4.5 4m2-3.8c1.9.3 3.5 1.8 3.5 3.8",
+  list: "M7.5 5.5h9M7.5 10h9M7.5 14.5h9M3.75 5.5h.5M3.75 10h.5M3.75 14.5h.5",
   dashboard: "M3.5 3.5h5.5v5.5H3.5zM11 3.5h5.5v5.5H11zM3.5 11h5.5v5.5H3.5zM11 11h5.5v5.5H11z",
   people: "M10 9.5a3 3 0 1 0 0-6 3 3 0 0 0 0 6ZM4 16.5c0-2.8 2.7-5 6-5s6 2.2 6 5",
   levels: "M3.5 16.5h4v-4h4v-4h4v-4h1",
@@ -115,18 +116,19 @@ function navItems(user: User): (NavItem | NavGroup)[] {
   if (user.role === "admin") {
     return [
       { href: "/admin/dashboard", label: "Dashboard", icon: ICONS.dashboard },
+      { href: "/admin/evaluations", label: "รายการประเมิน", icon: ICONS.list },
       { href: "/admin/employees", label: "ข้อมูลพนักงาน", icon: ICONS.people },
+      { href: "/admin/forms", label: "กำหนดหัวข้อประเมิน", icon: ICONS.builder },
+      ...ownForm,
       {
         label: "ฐานข้อมูล",
         icon: ICONS.database,
         children: [
           { href: "/admin/levels", label: "ฝ่ายและ Level", icon: ICONS.levels },
+          { href: "/admin/cycles", label: "รอบประเมิน", icon: ICONS.cycles },
           { href: "/admin/scale-rating", label: "Scale & Rating", icon: ICONS.scale },
         ],
       },
-      { href: "/admin/cycles", label: "รอบประเมิน", icon: ICONS.cycles },
-      { href: "/admin/forms", label: "Form Builder", icon: ICONS.builder },
-      ...ownForm,
     ];
   }
   if (user.role === "supervisor") {

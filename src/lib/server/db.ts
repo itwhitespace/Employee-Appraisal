@@ -323,6 +323,10 @@ export async function getEvaluation(
   return row ? toEvaluation(row as EvaluationRow) : null;
 }
 
+export async function deleteEvaluation(employeeId: string, cycleId: string): Promise<void> {
+  check(await db().from("evaluations").delete().eq("employee_id", employeeId).eq("cycle", cycleId));
+}
+
 export async function saveEvaluation(evaluation: Evaluation): Promise<void> {
   const row: EvaluationRow = {
     employee_id: evaluation.employeeId,
