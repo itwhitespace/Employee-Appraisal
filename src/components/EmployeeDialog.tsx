@@ -26,6 +26,7 @@ interface EmployeeDialogProps {
 const BLANK: EmployeeInput = {
   code: "",
   name: "",
+  nickname: "",
   role: "employee",
   position: "",
   team: "",
@@ -106,6 +107,15 @@ export default function EmployeeDialog({
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium">ชื่อ-สกุล</span>
             <input className="field" value={form.name} onChange={(e) => set({ name: e.target.value })} />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">ชื่อเล่น</span>
+            <input
+              className="field"
+              maxLength={60}
+              value={form.nickname}
+              onChange={(e) => set({ nickname: e.target.value })}
+            />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium">สิทธิ์การใช้งาน</span>

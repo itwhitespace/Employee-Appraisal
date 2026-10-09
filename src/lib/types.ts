@@ -58,6 +58,7 @@ export interface User {
   /** 5-digit employee code, used to log in. */
   code: string;
   name: string;
+  nickname: string;
   role: Role;
   position: string;
   team: string;
@@ -202,6 +203,11 @@ export interface EvaluationBundle {
   evaluation: Evaluation;
   /** True when the supervisor's scores and comments were withheld from this viewer. */
   supervisorHidden: boolean;
+  /**
+   * True for the employee once the result is confirmed: the form is closed to them until
+   * the next cycle, and its scores and comments were withheld.
+   */
+  closed: boolean;
 }
 
 /**

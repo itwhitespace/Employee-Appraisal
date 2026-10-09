@@ -73,6 +73,7 @@ export function parseEmployeeInput(body: Record<string, unknown>): EmployeeInput
   return {
     code,
     name,
+    nickname: trimmed(body.nickname, 60),
     role,
     position: trimmed(body.position),
     team: trimmed(body.team),

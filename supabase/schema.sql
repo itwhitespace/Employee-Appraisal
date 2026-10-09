@@ -8,6 +8,7 @@ create table if not exists public.employees (
   id            uuid primary key default gen_random_uuid(),
   code          text not null unique check (code ~ '^[0-9]{5}$'),
   name          text not null,
+  nickname      text not null default '',
   role          text not null default 'employee' check (role in ('employee', 'supervisor', 'admin')),
   position      text not null default '',
   team          text not null default '',
@@ -83,6 +84,7 @@ alter table public.job_levels     enable row level security;
 alter table public.cycles         enable row level security;
 
 -- Upgrade a database created by an earlier version of this file (levels were fixed at 1-3).
+alter table public.employees add column if not exists nickname text not null default '';
 alter table public.employees add column if not exists appraisal_type text not null default 'Annual';
 alter table public.employees drop constraint if exists employees_appraisal_type_check;
 alter table public.employees add constraint employees_appraisal_type_check

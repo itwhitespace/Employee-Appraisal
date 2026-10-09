@@ -18,7 +18,7 @@ import {
   formatDateTime,
   formatScore,
   newId,
-  yearsSince,
+  tenureSince,
 } from "@/lib/format";
 import { homePath } from "@/lib/permissions";
 import { getSectionQuestions, summarize } from "@/lib/scoring";
@@ -101,8 +101,17 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     return <div className="card p-8 text-center text-muted">กำลังโหลดแบบประเมิน…</div>;
   }
 
-  const { cycle, cycles, readOnly, employee, jobLevel, template, supervisorName, supervisorHidden } =
-    context;
+  const {
+    cycle,
+    cycles,
+    readOnly,
+    employee,
+    jobLevel,
+    template,
+    supervisorName,
+    supervisorHidden,
+    closed,
+  } = context;
   const shown = evaluation;
   const isOwner = user.id === employee.id;
   const isSupervisor = user.id === employee.supervisorId;
@@ -124,7 +133,6 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   const questions = getSectionQuestions(template, evaluation);
   const personalIds = new Set(evaluation.personalKpis.map((q) => q.id));
   const department = DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name;
-  const yearsInLevel = yearsSince(employee.levelSince);
 
   const patch = (fn: (prev: Evaluation) => Evaluation) => {
     setEvaluation((prev) => (prev ? fn(prev) : prev));
@@ -206,7 +214,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     } else {
       const agreed = await confirm({
         title: "ยืนยันผลการประเมิน?",
-        message: "พนักงานจะเห็นคะแนนและความเห็นของคุณ",
+        message: "พนักงานจะเห็นเพียงว่าการประเมินเสร็จสิ้นแล้ว",
       });
       if (agreed) void send("confirm", "ยืนยันผลการประเมินแล้ว");
     }
@@ -231,7 +239,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     ["รอบประเมิน", formatCycle(cycle)],
     ["ประเภท", employee.appraisalType],
     ["วันเริ่มงาน", formatDate(employee.startDate)],
-    ["อายุงานในระดับปัจจุบัน", yearsInLevel ? `${yearsInLevel} ปี` : undefined],
+    ["อายุงาน", tenureSince(employee.startDate) ?? undefined],
     ["วันที่ประเมิน", formatDate(evaluation.completedAt)],
     ["บันทึกล่าสุด", formatDateTime(evaluation.updatedAt)],
   ];
@@ -242,8 +250,8 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     ? status === "draft"
       ? "กรอกคะแนนในคอลัมน์ Self ให้ครบทุกข้อ แล้วกดส่งแบบประเมินตนเอง"
       : status === "self_submitted"
-        ? "ส่งแบบประเมินตนเองแล้ว — รอผู้ประเมินให้คะแนน ผลจะแสดงเมื่อผู้ประเมินยืนยัน"
-        : "การประเมินเสร็จสิ้นแล้ว คุณสามารถดูคะแนนและความเห็นของผู้ประเมินได้ด้านล่าง"
+        ? "ส่งแบบประเมินตนเองแล้ว — รอผู้ประเมินให้คะแนน"
+        : "การประเมินเสร็จสิ้นแล้ว"
     : isSupervisor
       ? status === "draft"
         ? "พนักงานยังไม่ได้ส่งแบบประเมินตนเอง คุณกรอกคะแนน Supervisor ล่วงหน้าได้ แต่ยืนยันผลได้หลังพนักงานส่งแล้ว"
@@ -252,53 +260,63 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
           : "คุณยืนยันผลการประเมินนี้แล้ว"
       : "มุมมอง Admin — ดูได้ทั้งหมด และกรอกความเห็นของ Director และ HR / MD ได้";
 
-  const signOffs: [string, string | null][] = [
-    ["พนักงาน", evaluation.selfSubmittedAt],
-    ["ผู้ประเมิน", evaluation.completedAt],
-    ["Director / Sr. Director", null],
-    ["HR / Managing Director", null],
-  ];
+  const header = (
+    <section className="card overflow-hidden">
+      <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-4 pt-5">
+        <div>
+          <p className="text-xs font-medium text-faint">Employee Performance Appraisal</p>
+          <h1 className="page-title">{employee.name}</h1>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <CycleSelect
+            cycles={cycles}
+            value={cycle.id}
+            onChange={(next) =>
+              router.push(
+                `/evaluate/${employee.id}${
+                  next.current ? "" : `?cycle=${encodeURIComponent(next.id)}`
+                }`,
+              )
+            }
+          />
+          <StatusBadge status={status} />
+        </div>
+      </div>
+      <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line px-5 py-4 text-sm md:grid-cols-3 xl:grid-cols-4">
+        {headerFields.map(([label, value]) => (
+          <div key={label}>
+            <dt className="text-xs text-faint">{label}</dt>
+            <dd className="font-medium">{value ?? "–"}</dd>
+          </div>
+        ))}
+      </dl>
+      {!closed && (
+        <p className="border-t border-line bg-accent-soft/60 px-5 py-2.5 text-sm text-ink">{stageHint}</p>
+      )}
+      {canEditAnything && (
+        <p className="flex items-center gap-2 border-t border-line px-5 py-2.5 text-xs text-muted print:hidden">
+          <span className="h-4 w-7 shrink-0 rounded border border-amber-300 bg-amber-50" aria-hidden="true" />
+          ช่องพื้นสีเหลืองคือช่องที่คุณกรอกได้
+        </p>
+      )}
+    </section>
+  );
+
+  // The employee's own form after the result is confirmed: nothing but the header.
+  if (closed) {
+    return (
+      <div className="space-y-6">
+        {header}
+        <p role="status" className="py-6 text-center text-3xl font-semibold tracking-tight text-emerald-600">
+          การประเมินเสร็จสิ้นแล้ว
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="fillable space-y-6 pb-28">
-      {/* Employee header */}
-      <section className="card overflow-hidden">
-        <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-4 pt-5">
-          <div>
-            <p className="text-xs font-medium text-faint">Employee Performance Appraisal</p>
-            <h1 className="page-title">{employee.name}</h1>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <CycleSelect
-              cycles={cycles}
-              value={cycle.id}
-              onChange={(next) =>
-                router.push(
-                  `/evaluate/${employee.id}${
-                    next.current ? "" : `?cycle=${encodeURIComponent(next.id)}`
-                  }`,
-                )
-              }
-            />
-            <StatusBadge status={status} />
-          </div>
-        </div>
-        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line px-5 py-4 text-sm md:grid-cols-3 xl:grid-cols-4">
-          {headerFields.map(([label, value]) => (
-            <div key={label}>
-              <dt className="text-xs text-faint">{label}</dt>
-              <dd className="font-medium">{value ?? "–"}</dd>
-            </div>
-          ))}
-        </dl>
-        <p className="border-t border-line bg-accent-soft/60 px-5 py-2.5 text-sm text-ink">{stageHint}</p>
-        {canEditAnything && (
-          <p className="flex items-center gap-2 border-t border-line px-5 py-2.5 text-xs text-muted print:hidden">
-            <span className="h-4 w-7 shrink-0 rounded border border-amber-300 bg-amber-50" aria-hidden="true" />
-            ช่องพื้นสีเหลืองคือช่องที่คุณกรอกได้
-          </p>
-        )}
-      </section>
+      {header}
 
       {/* Real-time summary */}
       <section className="card overflow-hidden">
@@ -377,8 +395,8 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
         />
       </SectionCard>
 
-      {/* H. Comments & sign-off */}
-      <SectionCard letter="H" title="ความเห็นและการลงนาม" subtitle="Final Comments & Sign-off" muted>
+      {/* H. Comments */}
+      <SectionCard letter="H" title="ความเห็น" subtitle="Final Comments" muted>
         <div className="grid gap-4 p-5 md:grid-cols-2">
           {(
             [
@@ -403,15 +421,6 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
                 }
               />
             </label>
-          ))}
-        </div>
-        <div className="grid grid-cols-2 gap-4 border-t border-line px-5 py-5 text-center text-sm md:grid-cols-4">
-          {signOffs.map(([label, date]) => (
-            <div key={label}>
-              <div className="mx-auto mb-2 h-8 max-w-[180px] border-b border-ink/30" />
-              <div className="font-medium">{label}</div>
-              <div className="text-xs text-faint">วันที่ {date ? formatDate(date) : "____ / ____ / ______"}</div>
-            </div>
           ))}
         </div>
       </SectionCard>

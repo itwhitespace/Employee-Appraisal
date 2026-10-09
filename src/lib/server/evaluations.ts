@@ -5,6 +5,7 @@ import {
   findLevel,
   findTemplate,
   isEmployee,
+  withoutContent,
   withoutSupervisorInput,
 } from "../evaluation";
 import { canViewEvaluation } from "../permissions";
@@ -170,9 +171,11 @@ function toBundle(
   evaluation: Evaluation,
 ): EvaluationBundle {
   const access = accessOf(viewer, context.employee, evaluation);
-  // The employee does not see the supervisor's input until the result is confirmed.
-  const supervisorHidden =
-    access.isOwner && !access.isSupervisor && !access.isAdmin && evaluation.status !== "completed";
+  const ownerOnly = access.isOwner && !access.isSupervisor && !access.isAdmin;
+  // The employee never sees the supervisor's input, and once the result is confirmed
+  // the whole form is closed to them until the next cycle.
+  const closed = ownerOnly && evaluation.status === "completed";
+  const supervisorHidden = ownerOnly && !closed;
   return {
     cycle: context.cycle,
     cycles: context.cycles,
@@ -181,8 +184,13 @@ function toBundle(
     jobLevel: context.jobLevel,
     supervisorName: context.supervisorName,
     template: context.template,
-    evaluation: supervisorHidden ? withoutSupervisorInput(evaluation) : evaluation,
+    evaluation: closed
+      ? withoutContent(evaluation)
+      : supervisorHidden
+        ? withoutSupervisorInput(evaluation)
+        : evaluation,
     supervisorHidden,
+    closed,
   };
 }
 

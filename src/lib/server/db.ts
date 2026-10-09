@@ -30,6 +30,7 @@ interface EmployeeRow {
   id: string;
   code: string;
   name: string;
+  nickname: string;
   role: User["role"];
   position: string;
   team: string;
@@ -45,6 +46,8 @@ const toUser = (row: EmployeeRow): User => ({
   id: row.id,
   code: row.code,
   name: row.name,
+  // Empty until the nickname column has been added by supabase/schema.sql.
+  nickname: row.nickname ?? "",
   role: row.role,
   position: row.position,
   team: row.team,
@@ -59,6 +62,7 @@ const toUser = (row: EmployeeRow): User => ({
 const toEmployeeRow = (input: EmployeeInput): Omit<EmployeeRow, "id"> => ({
   code: input.code,
   name: input.name,
+  nickname: input.nickname,
   role: input.role,
   position: input.position,
   team: input.team,

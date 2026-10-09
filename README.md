@@ -38,7 +38,8 @@ Next.js 14 (App Router) · TypeScript · Tailwind CSS · Supabase (Postgres)
 
 - **Employee** — sees only their own form; fills in the Self column and submits it.
 - **Supervisor** — sees their direct reports; fills in the Supervisor column and confirms the result.
-  The employee cannot see the supervisor's scores or comments until the result is confirmed.
+  The employee never sees the supervisor's scores or comments; once the result is confirmed
+  their own form shows only their details and "การประเมินเสร็จสิ้นแล้ว" until the next cycle.
 - **Admin** — dashboard and 9-Box grid, employee management, and the Form Builder for editing
   the questions and weights of every section per department and level.
 

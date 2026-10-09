@@ -33,10 +33,16 @@ export function formatDateTime(iso: string | null): string {
   return new Date(iso).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
 }
 
-export function yearsSince(iso: string | null): string | null {
+/** Whole years and months from a date until today: "11 ปี 4 เดือน". */
+export function tenureSince(iso: string | null): string | null {
   if (!iso) return null;
-  const years = (Date.now() - new Date(iso).getTime()) / (365.25 * 24 * 60 * 60 * 1000);
-  return Math.max(0, years).toFixed(1);
+  const start = new Date(iso);
+  if (Number.isNaN(start.getTime())) return null;
+  const now = new Date();
+  let months = (now.getFullYear() - start.getFullYear()) * 12 + now.getMonth() - start.getMonth();
+  if (now.getDate() < start.getDate()) months -= 1;
+  months = Math.max(0, months);
+  return `${Math.floor(months / 12)} ปี ${months % 12} เดือน`;
 }
 
 export function newId(prefix: string): string {

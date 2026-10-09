@@ -67,6 +67,17 @@ export function withoutSupervisorInput(evaluation: Evaluation): Evaluation {
   };
 }
 
+/** The copy an employee gets once the result is confirmed: the stage and its dates only. */
+export function withoutContent(evaluation: Evaluation): Evaluation {
+  return {
+    ...createEmptyEvaluation(evaluation.employeeId, evaluation.cycle),
+    status: evaluation.status,
+    updatedAt: evaluation.updatedAt,
+    selfSubmittedAt: evaluation.selfSubmittedAt,
+    completedAt: evaluation.completedAt,
+  };
+}
+
 export function findTemplate(
   templates: FormTemplate[],
   departmentId: DepartmentId,

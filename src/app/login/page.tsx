@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { useAuth } from "@/lib/auth";
 import { COMPANY_NAME } from "@/lib/constants";
@@ -33,8 +34,15 @@ export default function LoginPage() {
     <div className="flex min-h-screen items-center justify-center px-4 py-10">
       <div className="w-full max-w-sm">
         <div className="mb-8 text-center">
-          <div className="text-sm font-medium text-faint">{COMPANY_NAME}</div>
-          <h1 className="mt-1 text-[32px] font-semibold leading-tight tracking-tight">
+          <Image
+            src="/logo.png"
+            alt={COMPANY_NAME}
+            width={502}
+            height={120}
+            priority
+            className="mx-auto h-auto w-52"
+          />
+          <h1 className="mt-5 text-[32px] font-semibold leading-tight tracking-tight">
             Performance Appraisal
           </h1>
           <p className="mt-2 text-sm text-muted">เข้าสู่ระบบด้วยรหัสพนักงานของคุณ</p>

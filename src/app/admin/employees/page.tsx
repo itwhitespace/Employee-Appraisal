@@ -71,7 +71,7 @@ export default function EmployeesPage() {
       (user) =>
         (team === null || teamOf(user) === team) &&
         (!term ||
-          [user.code, user.name, user.position, user.team].some((text) =>
+          [user.code, user.name, user.nickname, user.position, user.team].some((text) =>
             text.toLowerCase().includes(term),
           )),
     );
@@ -132,7 +132,7 @@ export default function EmployeesPage() {
           <input
             type="search"
             className="field w-64 bg-white shadow-card"
-            placeholder="ค้นหารหัส ชื่อ ตำแหน่ง หรือทีม"
+            placeholder="ค้นหารหัส ชื่อ ชื่อเล่น ตำแหน่ง หรือทีม"
             aria-label="ค้นหาพนักงาน"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
@@ -212,7 +212,12 @@ export default function EmployeesPage() {
                     <tr>
                       <td className="font-semibold tabular-nums">{user.code}</td>
                       <td>
-                        <div className="font-semibold">{user.name}</div>
+                        <div className="font-semibold">
+                          {user.name}
+                          {user.nickname && (
+                            <span className="ml-1.5 font-normal text-muted">({user.nickname})</span>
+                          )}
+                        </div>
                         <div className="text-xs text-muted">{user.position}</div>
                       </td>
                       <td>
