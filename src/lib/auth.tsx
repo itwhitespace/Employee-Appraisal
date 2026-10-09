@@ -17,7 +17,7 @@ interface AuthContextValue {
   /** False until the session has been checked with the server. */
   ready: boolean;
   /** Resolves to an error message, or null on success. */
-  login: (code: string) => Promise<string | null>;
+  login: (code: string, password: string) => Promise<string | null>;
   logout: () => Promise<void>;
 }
 
@@ -42,9 +42,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     void refresh().finally(() => setReady(true));
   }, [refresh]);
 
-  const login = useCallback(async (code: string) => {
+  const login = useCallback(async (code: string, password: string) => {
     try {
-      setUser((await api.login(code)).user);
+      setUser((await api.login(code, password)).user);
       // Picks up the open cycle for the sidebar.
       void refresh();
       return null;

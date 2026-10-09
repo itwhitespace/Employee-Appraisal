@@ -13,6 +13,7 @@ import {
 } from "@/lib/constants";
 import { EMPTY_SCORE } from "@/lib/evaluation";
 import {
+  displayName,
   formatCycle,
   formatDate,
   formatDateTime,
@@ -278,7 +279,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
       <div className="flex flex-wrap items-start justify-between gap-3 px-5 pb-4 pt-5">
         <div>
           <p className="text-xs font-medium text-faint">Employee Performance Appraisal</p>
-          <h1 className="page-title">{employee.name}</h1>
+          <h1 className="page-title">{displayName(employee)}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <CycleSelect

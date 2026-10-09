@@ -57,6 +57,16 @@ function dateOf(value: unknown, label: string): string | null {
   return value;
 }
 
+/** The new password in an employee form, or null when the field was left empty. */
+export function parsePassword(body: Record<string, unknown>): string | null {
+  const password = typeof body.password === "string" ? body.password.trim() : "";
+  if (!password) return null;
+  if (password.length < 5 || password.length > 64) {
+    throw new HttpError(400, "รหัสผ่านต้องมีอย่างน้อย 5 ตัวอักษร");
+  }
+  return password;
+}
+
 export function parseEmployeeInput(body: Record<string, unknown>): EmployeeInput {
   const code = trimmed(body.code);
   if (!/^\d{5}$/.test(code)) throw new HttpError(400, "รหัสพนักงานต้องเป็นตัวเลข 5 หลัก");

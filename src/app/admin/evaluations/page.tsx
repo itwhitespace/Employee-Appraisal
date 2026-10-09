@@ -4,14 +4,19 @@ import { useMemo, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import OverviewTable from "@/components/OverviewTable";
 import { api, errorMessage } from "@/lib/api";
-import { formatCycle } from "@/lib/format";
+import { displayName, formatCycle } from "@/lib/format";
 import { overviewRows, useOverview, type OverviewRow, type OverviewStatus } from "@/lib/overview";
 
-const FILTERS: { status: OverviewStatus; label: string }[] = [
-  { status: "not_started", label: "ยังไม่เริ่ม" },
-  { status: "draft", label: "พนักงานกำลังกรอก" },
-  { status: "self_submitted", label: "รอผู้ประเมิน" },
-  { status: "completed", label: "เสร็จสิ้น" },
+type Filter = "not_submitted" | "self_submitted" | "completed";
+
+/** A form the employee is still filling in is listed with those not started yet. */
+const filterOf = (status: OverviewStatus): Filter =>
+  status === "self_submitted" || status === "completed" ? status : "not_submitted";
+
+const FILTERS: { id: Filter; label: string }[] = [
+  { id: "not_submitted", label: "ยังไม่เริ่ม" },
+  { id: "self_submitted", label: "รอผู้ประเมิน" },
+  { id: "completed", label: "เสร็จสิ้น" },
 ];
 
 const segment = (active: boolean) =>
@@ -22,7 +27,7 @@ const segment = (active: boolean) =>
 export default function EvaluationsPage() {
   const confirm = useConfirm();
   const { data, error, reload } = useOverview();
-  const [status, setStatus] = useState<OverviewStatus>("not_started");
+  const [filter, setFilter] = useState<Filter>("not_submitted");
   const [notice, setNotice] = useState<string | null>(null);
 
   const rows = useMemo(() => (data ? overviewRows(data) : []), [data]);
@@ -33,7 +38,7 @@ export default function EvaluationsPage() {
   const clear = async (row: OverviewRow) => {
     const agreed = await confirm({
       title: "ล้างแบบประเมินนี้?",
-      message: `${row.employee.name} (${row.employee.code}) — คะแนนและความเห็นทั้งหมดในรอบ ${data.cycle.id} จะถูกลบถาวร พนักงานต้องเริ่มกรอกใหม่`,
+      message: `${displayName(row.employee)} (${row.employee.code}) — คะแนนและความเห็นทั้งหมดในรอบ ${data.cycle.id} จะถูกลบถาวร พนักงานต้องเริ่มกรอกใหม่`,
       confirmLabel: "ล้างแบบประเมิน",
       tone: "danger",
     });
@@ -55,17 +60,17 @@ export default function EvaluationsPage() {
       </div>
 
       <div className="flex flex-wrap gap-2" role="group" aria-label="กรองตามสถานะ">
-        {FILTERS.map((filter) => (
+        {FILTERS.map((option) => (
           <button
-            key={filter.status}
+            key={option.id}
             type="button"
-            aria-pressed={status === filter.status}
-            onClick={() => setStatus(filter.status)}
-            className={segment(status === filter.status)}
+            aria-pressed={filter === option.id}
+            onClick={() => setFilter(option.id)}
+            className={segment(filter === option.id)}
           >
-            {filter.label}{" "}
+            {option.label}{" "}
             <span className="tabular-nums opacity-60">
-              {rows.filter((row) => row.status === filter.status).length}
+              {rows.filter((row) => filterOf(row.status) === option.id).length}
             </span>
           </button>
         ))}
@@ -79,9 +84,10 @@ export default function EvaluationsPage() {
 
       <section className="card overflow-hidden">
         <OverviewTable
-          rows={rows.filter((row) => row.status === status)}
+          rows={rows.filter((row) => filterOf(row.status) === filter)}
           cycle={data.cycle}
           viewer="admin"
+          hidePosition
           onClear={(row) => void clear(row)}
         />
       </section>

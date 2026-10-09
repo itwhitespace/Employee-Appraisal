@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { DEPARTMENTS } from "@/lib/constants";
-import { formatScore } from "@/lib/format";
+import { displayName, formatScore } from "@/lib/format";
 import type { OverviewRow } from "@/lib/overview";
 import type { Cycle } from "@/lib/types";
 import IconButton from "./IconButton";
@@ -14,6 +14,8 @@ interface OverviewTableProps {
   viewer: "supervisor" | "admin";
   /** Adds a "clear this form" button to each row that has a form. */
   onClear?: (row: OverviewRow) => void;
+  /** Leaves the position out of the name column. */
+  hidePosition?: boolean;
 }
 
 function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"], cycle: Cycle): string {
@@ -22,7 +24,13 @@ function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"], cyc
 }
 
 /** Appraisal status and scores per employee; shared by the admin dashboard and the supervisor's team page. */
-export default function OverviewTable({ rows, cycle, viewer, onClear }: OverviewTableProps) {
+export default function OverviewTable({
+  rows,
+  cycle,
+  viewer,
+  onClear,
+  hidePosition,
+}: OverviewTableProps) {
   const query = cycle.current ? "" : `?cycle=${encodeURIComponent(cycle.id)}`;
   return (
     <div className="overflow-x-auto">
@@ -30,7 +38,7 @@ export default function OverviewTable({ rows, cycle, viewer, onClear }: Overview
         <thead>
           <tr>
             <th className="w-20">รหัส</th>
-            <th className="min-w-[220px]">ชื่อ-สกุล / ตำแหน่ง</th>
+            <th className="min-w-[220px]">{hidePosition ? "ชื่อ-สกุล" : "ชื่อ-สกุล / ตำแหน่ง"}</th>
             <th>ฝ่าย</th>
             <th className="w-28">Level</th>
             {viewer === "admin" && <th>ผู้ประเมิน</th>}
@@ -56,8 +64,8 @@ export default function OverviewTable({ rows, cycle, viewer, onClear }: Overview
               <tr key={employee.id}>
                 <td className="tabular-nums text-muted">{employee.code}</td>
                 <td>
-                  <div className="font-semibold">{employee.name}</div>
-                  <div className="text-xs text-muted">{employee.position}</div>
+                  <div className="font-semibold">{displayName(employee)}</div>
+                  {!hidePosition && <div className="text-xs text-muted">{employee.position}</div>}
                 </td>
                 <td className="whitespace-nowrap">{DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}</td>
                 <td>{row.levelName ?? "–"}</td>

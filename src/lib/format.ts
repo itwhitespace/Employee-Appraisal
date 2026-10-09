@@ -45,6 +45,11 @@ export function tenureSince(iso: string | null): string | null {
   return `${Math.floor(months / 12)} ปี ${months % 12} เดือน`;
 }
 
+/** "นาย ภาณุภณ บวรวิวุฒิ(Tony)", or the name alone when there is no nickname. */
+export function displayName(person: { name: string; nickname?: string }): string {
+  return person.nickname ? `${person.name}(${person.nickname})` : person.name;
+}
+
 export function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }

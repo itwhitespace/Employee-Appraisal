@@ -40,6 +40,8 @@ interface EmployeeRow {
   start_date: string | null;
   level_since: string | null;
   appraisal_type: User["appraisalType"];
+  /** Never sent to the browser: toUser leaves it out. */
+  password_hash?: string | null;
 }
 
 const toUser = (row: EmployeeRow): User => ({
@@ -92,25 +94,39 @@ export async function getUser(id: string | null): Promise<User | null> {
   return row ? toUser(row as EmployeeRow) : null;
 }
 
-export async function getUserByCode(code: string): Promise<User | null> {
+/** For sign-in only: the user together with their password hash. */
+export async function getLoginRecord(
+  code: string,
+): Promise<{ user: User; passwordHash: string | null } | null> {
   const row = check(await db().from("employees").select("*").eq("code", code).maybeSingle());
-  return row ? toUser(row as EmployeeRow) : null;
+  if (!row) return null;
+  const employee = row as EmployeeRow;
+  return { user: toUser(employee), passwordHash: employee.password_hash ?? null };
 }
 
-export async function createUser(input: EmployeeInput): Promise<User> {
+export async function createUser(input: EmployeeInput, passwordHash: string): Promise<User> {
   await requireKnownLevel(input);
-  const result = await db().from("employees").insert(toEmployeeRow(input)).select().single();
+  const result = await db()
+    .from("employees")
+    .insert({ ...toEmployeeRow(input), password_hash: passwordHash })
+    .select()
+    .single();
   if (result.error?.code === UNIQUE_VIOLATION) {
     throw new HttpError(409, `รหัสพนักงาน ${input.code} มีอยู่ในระบบแล้ว`);
   }
   return toUser(check(result) as EmployeeRow);
 }
 
-export async function updateUser(id: string, input: EmployeeInput): Promise<User> {
+/** `passwordHash` null keeps the password the employee already has. */
+export async function updateUser(
+  id: string,
+  input: EmployeeInput,
+  passwordHash: string | null,
+): Promise<User> {
   await requireKnownLevel(input);
   const result = await db()
     .from("employees")
-    .update(toEmployeeRow(input))
+    .update({ ...toEmployeeRow(input), ...(passwordHash ? { password_hash: passwordHash } : {}) })
     .eq("id", id)
     .select()
     .maybeSingle();

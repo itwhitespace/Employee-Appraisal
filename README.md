@@ -28,11 +28,13 @@ Next.js 14 (App Router) · TypeScript · Tailwind CSS · Supabase (Postgres)
 
 ## Test accounts
 
-| Role       | Employee code |
-| ---------- | ------------- |
-| User       | 11111         |
-| Supervisor | 22222         |
-| Admin      | 33333         |
+A new database gets these accounts; the password of each is its own code.
+
+| Role       | Employee code | Password |
+| ---------- | ------------- | -------- |
+| User       | 11111         | 11111    |
+| Supervisor | 22222         | 22222    |
+| Admin      | 33333         | 33333    |
 
 ## Roles
 
@@ -51,8 +53,11 @@ grid. Thresholds and bands are in [`src/lib/constants.ts`](src/lib/constants.ts)
 
 ## Security notes
 
-- Sign-in uses the 5-digit employee code only, with no password. Anyone who knows a code can
-  sign in as that person. Add a password or SSO before using this with real appraisal data.
+- Sign-in uses the 5-digit employee code and a password. Passwords are stored as scrypt
+  hashes, so they cannot be read back; admin sets a new one on the employee page. An account
+  with no password cannot sign in.
+- There is no limit on failed sign-in attempts yet, and a 5-digit password is short. Add a
+  lockout or longer passwords before relying on this for sensitive appraisal data.
 - All database access goes through the Next.js server with the service role key. Row Level
   Security is enabled with no policies, so the tables cannot be reached with the public key.
 - Never commit `.env.local`.

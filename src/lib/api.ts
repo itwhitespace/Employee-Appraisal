@@ -45,7 +45,8 @@ const cycleQuery = (cycleId: string | null): string =>
 
 export const api = {
   me: () => request<{ user: User | null; cycle: Cycle | null }>("/api/auth/me"),
-  login: (code: string) => request<{ user: User }>("/api/auth/login", "POST", { code }),
+  login: (code: string, password: string) =>
+    request<{ user: User }>("/api/auth/login", "POST", { code, password }),
   logout: () => request<{ ok: true }>("/api/auth/logout", "POST"),
 
   /** `cycleId` null = the current cycle. */
@@ -65,10 +66,11 @@ export const api = {
   saveTemplate: (template: FormTemplate) =>
     request<{ template: FormTemplate }>("/api/templates", "PUT", template),
 
-  createEmployee: (input: EmployeeInput) =>
-    request<{ user: User }>("/api/employees", "POST", input),
-  updateEmployee: (id: string, input: EmployeeInput) =>
-    request<{ user: User }>(`/api/employees/${id}`, "PUT", input),
+  createEmployee: (input: EmployeeInput, password: string) =>
+    request<{ user: User }>("/api/employees", "POST", { ...input, password }),
+  /** An empty `password` keeps the one the employee already has. */
+  updateEmployee: (id: string, input: EmployeeInput, password: string) =>
+    request<{ user: User }>(`/api/employees/${id}`, "PUT", { ...input, password }),
   deleteEmployee: (id: string) => request<{ ok: true }>(`/api/employees/${id}`, "DELETE"),
 
   cycles: () => request<{ cycles: (Cycle & { evaluations: number })[] }>("/api/cycles"),

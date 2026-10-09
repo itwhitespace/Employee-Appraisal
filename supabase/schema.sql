@@ -3,12 +3,14 @@
 
 create extension if not exists pgcrypto;
 
--- Employee database. `code` is the 5-digit employee code used to log in.
+-- Employee database. `code` is the 5-digit employee code used to log in, together with
+-- the password. `password_hash` is a scrypt hash; null = the person cannot log in yet.
 create table if not exists public.employees (
   id            uuid primary key default gen_random_uuid(),
   code          text not null unique check (code ~ '^[0-9]{5}$'),
   name          text not null,
   nickname      text not null default '',
+  password_hash text,
   role          text not null default 'employee' check (role in ('employee', 'supervisor', 'admin')),
   position      text not null default '',
   team          text not null default '',
@@ -85,6 +87,7 @@ alter table public.cycles         enable row level security;
 
 -- Upgrade a database created by an earlier version of this file (levels were fixed at 1-3).
 alter table public.employees add column if not exists nickname text not null default '';
+alter table public.employees add column if not exists password_hash text;
 alter table public.employees add column if not exists appraisal_type text not null default 'Annual';
 alter table public.employees drop constraint if exists employees_appraisal_type_check;
 alter table public.employees add constraint employees_appraisal_type_check
@@ -130,19 +133,23 @@ insert into public.job_levels (department_id, level, name, title) values
   ('business-administration', 7, 'Managing Director', 'Managing Director')
 on conflict (department_id, level) do nothing;
 
--- Test accounts: Admin 33333, Supervisor 22222, User 11111.
-insert into public.employees (code, name, role, position, team, start_date, level_since)
-values ('33333', 'พรทิพย์ สายสุวรรณ', 'admin', 'HR Manager', 'People & Culture', '2018-06-01', '2022-10-01')
+-- Test accounts: Admin 33333, Supervisor 22222, User 11111. The password of each is its
+-- own code. Only a new database gets them: an account that already exists is left alone.
+insert into public.employees (code, name, role, position, team, start_date, level_since, password_hash)
+values ('33333', 'พรทิพย์ สายสุวรรณ', 'admin', 'HR Manager', 'People & Culture', '2018-06-01', '2022-10-01',
+        'scrypt$0c67aa7451e81b7f285a551c90711381$b4224ace12d769243172a47aa6864b57e435bc70c6194f155a31fc504f9a513d4ee7d444d6597c7196759416aace1bd2e8bf93bfffb5c8e247e67f33e6486c18')
 on conflict (code) do nothing;
 
-insert into public.employees (code, name, role, position, team, department_id, start_date, level_since)
+insert into public.employees (code, name, role, position, team, department_id, start_date, level_since, password_hash)
 values ('22222', 'วรินทร์ จันทรประเสริฐ', 'supervisor', 'Lead Interior Designer', 'Studio A',
-        'interior-designer', '2016-03-01', '2021-10-01')
+        'interior-designer', '2016-03-01', '2021-10-01',
+        'scrypt$6e2b074c82d35268c577c397c7d27e01$2924fd86e794b0501e9495a0cf0aa5bc70fd5d42ef180a8e593f236920f20948e44e65212b0518994aad05bb8f5598f1f446b358e3ba21ca178400857f4eb9b4')
 on conflict (code) do nothing;
 
-insert into public.employees (code, name, role, position, team, department_id, level, supervisor_id, start_date, level_since)
+insert into public.employees (code, name, role, position, team, department_id, level, supervisor_id, start_date, level_since, password_hash)
 select '11111', 'ณัฐชา ศรีวงศ์', 'employee', 'Junior Interior Designer', 'Studio A',
-       'interior-designer', 1, s.id, '2023-01-01', '2025-01-01'
+       'interior-designer', 1, s.id, '2023-01-01', '2025-01-01',
+       'scrypt$08cb39570049cceb82ac41c32e6fa5eb$7d2410f9273cf0077edd2921a5033e9388415b5e3a70fd0ae568febd43f10854c4623808ff2592baabbe24ea6a16201aea77921d16337c41097460ca47526cf1'
 from public.employees s
 where s.code = '22222'
 on conflict (code) do nothing;

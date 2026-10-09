@@ -18,8 +18,8 @@ interface EmployeeDialogProps {
   /** Everyone who can be chosen as the appraiser. */
   users: User[];
   levels: JobLevel[];
-  /** Resolves to an error message, or null when saved. */
-  onSave: (input: EmployeeInput) => Promise<string | null>;
+  /** `password` is empty when it is not being changed. Resolves to an error message, or null when saved. */
+  onSave: (input: EmployeeInput, password: string) => Promise<string | null>;
   onClose: () => void;
 }
 
@@ -53,6 +53,7 @@ export default function EmployeeDialog({
     const { id: _id, ...rest } = editing;
     return rest;
   });
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -70,8 +71,11 @@ export default function EmployeeDialog({
     event.preventDefault();
     if (!/^\d{5}$/.test(form.code)) return setError("รหัสพนักงานต้องเป็นตัวเลข 5 หลัก");
     if (!form.name.trim()) return setError("กรุณากรอกชื่อ-สกุล");
+    const newPassword = password.trim();
+    if (!editing && !newPassword) return setError("กรุณากำหนดรหัสผ่าน");
+    if (newPassword && newPassword.length < 5) return setError("รหัสผ่านต้องมีอย่างน้อย 5 ตัวอักษร");
     setBusy(true);
-    const problem = await onSave(form);
+    const problem = await onSave(form, newPassword);
     setBusy(false);
     if (problem) setError(problem);
   };
@@ -115,6 +119,22 @@ export default function EmployeeDialog({
               maxLength={60}
               value={form.nickname}
               onChange={(e) => set({ nickname: e.target.value })}
+            />
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">
+              {editing ? "ตั้งรหัสผ่านใหม่" : "รหัสผ่าน"}
+            </span>
+            <input
+              className="field tabular-nums"
+              autoComplete="off"
+              maxLength={64}
+              placeholder={editing ? "เว้นว่างไว้ถ้าไม่เปลี่ยน" : "เลขบัตรประชาชน 5 ตัวท้าย"}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                setError(null);
+              }}
             />
           </label>
           <label className="block">

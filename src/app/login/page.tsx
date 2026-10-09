@@ -15,6 +15,7 @@ const TEST_ACCOUNTS = [
 export default function LoginPage() {
   const { login } = useAuth();
   const [code, setCode] = useState("");
+  const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 
@@ -24,9 +25,13 @@ export default function LoginPage() {
       setError("กรุณากรอกรหัสพนักงาน 5 หลัก");
       return;
     }
+    if (!password) {
+      setError("กรุณากรอกรหัสผ่าน");
+      return;
+    }
     setBusy(true);
     // On success AppShell redirects to the role's landing page.
-    setError(await login(code));
+    setError(await login(code, password));
     setBusy(false);
   };
 
@@ -45,7 +50,7 @@ export default function LoginPage() {
           <h1 className="mt-5 text-[32px] font-semibold leading-tight tracking-tight">
             Performance Appraisal
           </h1>
-          <p className="mt-2 text-sm text-muted">เข้าสู่ระบบด้วยรหัสพนักงานของคุณ</p>
+          <p className="mt-2 text-sm text-muted">เข้าสู่ระบบด้วยรหัสพนักงานและรหัสผ่านของคุณ</p>
         </div>
 
         <form onSubmit={submit} className="card p-6" noValidate>
@@ -65,6 +70,25 @@ export default function LoginPage() {
             aria-describedby={error ? "code-error" : undefined}
             onChange={(e) => {
               setCode(e.target.value.replace(/\D/g, "").slice(0, 5));
+              setError(null);
+            }}
+          />
+          <label htmlFor="password" className="mb-1.5 mt-4 block text-sm font-medium">
+            รหัสผ่าน (เลขบัตรประชาชน 5 ตัวท้าย)
+          </label>
+          <input
+            id="password"
+            type="password"
+            className="field py-3 text-center text-xl font-semibold tracking-[0.4em]"
+            inputMode="numeric"
+            autoComplete="current-password"
+            maxLength={64}
+            placeholder="•••••"
+            value={password}
+            aria-invalid={error ? true : undefined}
+            aria-describedby={error ? "code-error" : undefined}
+            onChange={(e) => {
+              setPassword(e.target.value);
               setError(null);
             }}
           />

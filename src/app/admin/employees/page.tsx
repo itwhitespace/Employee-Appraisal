@@ -80,17 +80,19 @@ export default function EmployeesPage() {
   if (error) return <div className="card p-8 text-center text-red-500">{error}</div>;
   if (!data) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;
 
-  const save = async (input: EmployeeInput): Promise<string | null> => {
+  const save = async (input: EmployeeInput, password: string): Promise<string | null> => {
     const adding = dialog === "new";
     const agreed = await confirm({
       title: adding ? "เพิ่มพนักงานคนนี้?" : "บันทึกการแก้ไข?",
-      message: `${input.name} (${input.code})`,
+      message: `${input.name} (${input.code})${
+        !adding && password ? " — รหัสผ่านจะถูกเปลี่ยนเป็นรหัสใหม่" : ""
+      }`,
       confirmLabel: "บันทึก",
     });
     if (!agreed) return null;
     try {
-      if (dialog === "new") await api.createEmployee(input);
-      else if (dialog) await api.updateEmployee(dialog.id, input);
+      if (dialog === "new") await api.createEmployee(input, password);
+      else if (dialog) await api.updateEmployee(dialog.id, input, password);
       await reload();
       setDialog(null);
       setNotice(null);
@@ -125,7 +127,7 @@ export default function EmployeesPage() {
         <div>
           <h1 className="page-title">ข้อมูลพนักงาน</h1>
           <p className="mt-1 text-sm text-muted">
-            {data.users.length} คน · รหัสพนักงาน 5 หลักใช้สำหรับเข้าสู่ระบบ
+            {data.users.length} คน · เข้าสู่ระบบด้วยรหัสพนักงาน 5 หลักและรหัสผ่าน
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
