@@ -6,9 +6,9 @@ import { COMPANY_NAME } from "@/lib/constants";
 
 /** Real employees, one per role, used for testing. Remove this list before real use. */
 const TEST_ACCOUNTS = [
-  { label: "User", code: "21503" },
-  { label: "Supervisor", code: "20501" },
-  { label: "Admin", code: "61803" },
+  { label: "User", name: "Suksan Roobun", code: "21503" },
+  { label: "Supervisor", name: "Boriphon Suwattana", code: "20501" },
+  { label: "Admin", name: "Pakorn Boonyapatkul", code: "61803" },
 ];
 
 export default function LoginPage() {
@@ -83,7 +83,10 @@ export default function LoginPage() {
                     setError(null);
                   }}
                 >
-                  <span className="font-medium">{account.label}</span>
+                  <span className="min-w-0 truncate">
+                    <span className="font-medium">{account.label}:</span>{" "}
+                    <span className="text-muted">{account.name}</span>
+                  </span>
                   <span className="font-semibold tabular-nums text-accent">{account.code}</span>
                 </button>
               </li>
