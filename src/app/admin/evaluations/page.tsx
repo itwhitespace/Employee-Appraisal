@@ -3,8 +3,10 @@
 import { useMemo, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import OverviewTable from "@/components/OverviewTable";
+import PdfExport, { type PdfJob } from "@/components/PdfExport";
 import { api, errorMessage } from "@/lib/api";
 import { displayName, formatCycle } from "@/lib/format";
+import { choosePdfTarget, pdfFileName } from "@/lib/pdf";
 import { overviewRows, useOverview, type OverviewRow, type OverviewStatus } from "@/lib/overview";
 
 type Filter = "not_submitted" | "self_submitted" | "completed";
@@ -29,6 +31,7 @@ export default function EvaluationsPage() {
   const { data, error, reload } = useOverview();
   const [filter, setFilter] = useState<Filter>("not_submitted");
   const [notice, setNotice] = useState<string | null>(null);
+  const [pdfJob, setPdfJob] = useState<PdfJob | null>(null);
 
   const rows = useMemo(() => (data ? overviewRows(data) : []), [data]);
 
@@ -47,6 +50,16 @@ export default function EvaluationsPage() {
       await api.clearEvaluation(row.employee.id);
       await reload();
       setNotice(null);
+    } catch (e) {
+      setNotice(errorMessage(e));
+    }
+  };
+
+  const downloadPdf = async (row: OverviewRow) => {
+    try {
+      // The "Save As" dialog has to open straight from the click.
+      const target = await choosePdfTarget(pdfFileName(data.cycle, row.employee));
+      if (target) setPdfJob({ employeeId: row.employee.id, cycleId: null, target });
     } catch (e) {
       setNotice(errorMessage(e));
     }
@@ -88,9 +101,21 @@ export default function EvaluationsPage() {
           cycle={data.cycle}
           viewer="admin"
           hidePosition
+          onPdf={(row) => void downloadPdf(row)}
+          pdfBusyId={pdfJob?.employeeId ?? null}
           onClear={(row) => void clear(row)}
         />
       </section>
+
+      {pdfJob && (
+        <PdfExport
+          job={pdfJob}
+          onDone={(error) => {
+            setPdfJob(null);
+            setNotice(error);
+          }}
+        />
+      )}
     </div>
   );
 }

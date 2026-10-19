@@ -6,6 +6,7 @@ const ICONS = {
   edit: "M4 16l.6-3.1 8.3-8.3a1.5 1.5 0 0 1 2.1 0l.4.4a1.5 1.5 0 0 1 0 2.1l-8.3 8.3L4 16Zm7.4-9.9 2.5 2.5",
   delete: "M4.5 6h11M8 6V4.5h4V6m-6 0 .6 9.5h6.8L14 6M8.5 8.5v4.5m3-4.5v4.5",
   save: "M4.5 10.5l3.5 3.5 7.5-8",
+  download: "M10 3.5v9m-3.5-3.5L10 12.5l3.5-3.5M4 14v2.5h12V14",
 };
 
 interface IconButtonProps {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import {
@@ -21,6 +21,7 @@ import {
   newId,
   tenureSince,
 } from "@/lib/format";
+import { choosePdfTarget, pdfFileName } from "@/lib/pdf";
 import { homePath } from "@/lib/permissions";
 import { getSectionQuestions, summarize } from "@/lib/scoring";
 import type {
@@ -36,6 +37,7 @@ import AssessmentTable from "./AssessmentTable";
 import { useConfirm } from "./ConfirmDialog";
 import CycleSelect from "./CycleSelect";
 import IdpSection from "./IdpSection";
+import PdfExport, { type PdfJob } from "./PdfExport";
 import SectionCard from "./SectionCard";
 import StatusBadge from "./StatusBadge";
 import SummaryTable from "./SummaryTable";
@@ -52,9 +54,21 @@ interface EvaluationFormProps {
   employeeId: string;
   /** A past cycle to look at, or null for the current one. */
   cycleId: string | null;
+  /**
+   * Set when the form is drawn off screen to be saved as PDF: called once it has loaded,
+   * with the element to capture. The action bar is left out.
+   */
+  onRendered?: (root: HTMLElement) => void;
+  /** With `onRendered`: called instead when the form cannot be opened. */
+  onLoadError?: (message: string) => void;
 }
 
-export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormProps) {
+export default function EvaluationForm({
+  employeeId,
+  cycleId,
+  onRendered,
+  onLoadError,
+}: EvaluationFormProps) {
   const { user } = useAuth();
   const router = useRouter();
   const confirm = useConfirm();
@@ -64,6 +78,12 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   const [flagMissing, setFlagMissing] = useState<Rater | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [busy, setBusy] = useState(false);
+  const [pdfJob, setPdfJob] = useState<PdfJob | null>(null);
+  const root = useRef<HTMLDivElement>(null);
+  const capture = Boolean(onRendered);
+  // Kept in a ref so that new callbacks from the parent do not reload the form.
+  const callbacks = useRef({ onRendered, onLoadError });
+  callbacks.current = { onRendered, onLoadError };
 
   const accept = ({ evaluation: loaded, ...rest }: EvaluationBundle) => {
     setContext(rest);
@@ -77,8 +97,21 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     api
       .evaluation(employeeId, cycleId)
       .then(accept)
-      .catch((e) => setLoadError(errorMessage(e)));
+      .catch((e) => {
+        setLoadError(errorMessage(e));
+        callbacks.current.onLoadError?.(errorMessage(e));
+      });
   }, [employeeId, cycleId]);
+
+  // Off-screen copy for a PDF: hand it over once, after the layout has settled.
+  const rendered = useRef(false);
+  useEffect(() => {
+    const ready = callbacks.current.onRendered;
+    if (!ready || rendered.current || !user || !context || !evaluation || !root.current) return;
+    rendered.current = true;
+    const element = root.current;
+    requestAnimationFrame(() => requestAnimationFrame(() => ready(element)));
+  }, [user, context, evaluation]);
 
   const summary = useMemo(
     () => (context && evaluation ? summarize(context.template, evaluation) : null),
@@ -124,8 +157,8 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   const canEditSupervisor = !readOnly && isSupervisor && status !== "completed";
   const canEditNotes = canEditSelf || canEditSupervisor;
   // Admin may correct the supervisor's scores of a confirmed result.
-  // A confirmed result can be printed or saved as PDF by the appraiser and admin.
-  const canPrint = status === "completed" && !closed && (isSupervisor || isAdmin);
+  // A confirmed result can be saved as PDF by the appraiser and admin.
+  const canSavePdf = !capture && status === "completed" && !closed && (isSupervisor || isAdmin);
   const canAdminScores = !readOnly && isAdmin && !isOwner && status === "completed";
   const canEditAnything = !readOnly && (canEditNotes || isAdmin);
 
@@ -226,12 +259,14 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     }
   };
 
-  const printForm = () => {
-    const title = document.title;
-    // Becomes the suggested file name of the PDF.
-    document.title = `Appraisal ${cycle.id.replace(/\//g, "-")} ${employee.code} ${displayName(employee)}`;
-    window.print();
-    document.title = title;
+  const downloadPdf = async () => {
+    try {
+      // The "Save As" dialog has to open straight from the click.
+      const target = await choosePdfTarget(pdfFileName(cycle, employee));
+      if (target) setPdfJob({ employeeId: employee.id, cycleId: cycle.current ? null : cycle.id, target });
+    } catch (e) {
+      setNotice({ tone: "error", text: errorMessage(e) });
+    }
   };
 
   const saveAsAdmin = () => {
@@ -305,10 +340,24 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
             }
           />
           <StatusBadge status={status} />
-          {canPrint && (
-            <button type="button" className="btn-secondary py-1.5 print:hidden" onClick={printForm}>
-              พิมพ์ / บันทึก PDF
+          {canSavePdf && (
+            <button
+              type="button"
+              className="btn-secondary py-1.5 print:hidden"
+              disabled={pdfJob !== null}
+              onClick={() => void downloadPdf()}
+            >
+              {pdfJob ? "กำลังสร้าง PDF…" : "ดาวน์โหลด PDF"}
             </button>
+          )}
+          {pdfJob && (
+            <PdfExport
+              job={pdfJob}
+              onDone={(error) => {
+                setPdfJob(null);
+                setNotice(error ? { tone: "error", text: error } : { tone: "ok", text: "บันทึก PDF แล้ว" });
+              }}
+            />
           )}
         </div>
       </div>
@@ -345,7 +394,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   }
 
   return (
-    <div className="fillable space-y-6 pb-28 print:space-y-4 print:pb-0">
+    <div ref={root} className="fillable space-y-6 pb-28 print:space-y-4 print:pb-0">
       {header}
 
       {/* Real-time summary */}
@@ -457,84 +506,86 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
       </SectionCard>
 
       {/* Fixed action bar */}
-      <div className="action-bar print:hidden">
-        <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-8">
-          <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
-            <div>
-              <span className="text-xs text-muted">Self </span>
-              <span className="font-semibold tabular-nums">{formatScore(summary.performance.self)}</span>
-            </div>
-            <div>
-              <span className="text-xs text-muted">Supervisor </span>
-              <span className="font-semibold tabular-nums text-accent">
-                {formatScore(summary.performance.supervisor)}
-              </span>
-            </div>
-            {notice && (
-              <div
-                role="status"
-                className={`chip py-1 ${
-                  notice.tone === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
-                }`}
-              >
-                {notice.text}
+      {!capture && (
+        <div className="action-bar print:hidden">
+          <div className="mx-auto flex max-w-[1400px] flex-wrap items-center justify-between gap-x-6 gap-y-2 px-4 py-3 sm:px-8">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+              <div>
+                <span className="text-xs text-muted">Self </span>
+                <span className="font-semibold tabular-nums">{formatScore(summary.performance.self)}</span>
               </div>
-            )}
-          </div>
+              <div>
+                <span className="text-xs text-muted">Supervisor </span>
+                <span className="font-semibold tabular-nums text-accent">
+                  {formatScore(summary.performance.supervisor)}
+                </span>
+              </div>
+              {notice && (
+                <div
+                  role="status"
+                  className={`chip py-1 ${
+                    notice.tone === "ok" ? "bg-emerald-50 text-emerald-700" : "bg-red-50 text-red-600"
+                  }`}
+                >
+                  {notice.text}
+                </div>
+              )}
+            </div>
 
-          <div className="flex flex-wrap gap-2">
-            {canEditSelf && (
-              <>
-                <button type="button" className="btn-secondary" disabled={busy} onClick={() => void send("save", "บันทึกร่างแล้ว")}>
-                  บันทึกร่าง
-                </button>
-                <button type="button" className="btn-primary" disabled={busy} onClick={() => void submit("self")}>
-                  ส่งแบบประเมินตนเอง
-                </button>
-              </>
-            )}
-            {canEditSupervisor && (
-              <>
-                {status === "self_submitted" && (
-                  <button type="button" className="btn-secondary" disabled={busy} onClick={() => void sendBack()}>
-                    ส่งกลับให้พนักงานแก้ไข
+            <div className="flex flex-wrap gap-2">
+              {canEditSelf && (
+                <>
+                  <button type="button" className="btn-secondary" disabled={busy} onClick={() => void send("save", "บันทึกร่างแล้ว")}>
+                    บันทึกร่าง
                   </button>
-                )}
-                <button type="button" className="btn-secondary" disabled={busy} onClick={() => void send("save", "บันทึกร่างแล้ว")}>
-                  บันทึกร่าง
+                  <button type="button" className="btn-primary" disabled={busy} onClick={() => void submit("self")}>
+                    ส่งแบบประเมินตนเอง
+                  </button>
+                </>
+              )}
+              {canEditSupervisor && (
+                <>
+                  {status === "self_submitted" && (
+                    <button type="button" className="btn-secondary" disabled={busy} onClick={() => void sendBack()}>
+                      ส่งกลับให้พนักงานแก้ไข
+                    </button>
+                  )}
+                  <button type="button" className="btn-secondary" disabled={busy} onClick={() => void send("save", "บันทึกร่างแล้ว")}>
+                    บันทึกร่าง
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary"
+                    disabled={busy || status !== "self_submitted"}
+                    title={status !== "self_submitted" ? "รอพนักงานส่งแบบประเมินตนเองก่อน" : undefined}
+                    onClick={() => void submit("supervisor")}
+                  >
+                    ยืนยันผลการประเมิน
+                  </button>
+                </>
+              )}
+              {isAdmin && !canEditNotes && !readOnly && (
+                <button type="button" className="btn-primary" disabled={busy} onClick={saveAsAdmin}>
+                  {canAdminScores ? "บันทึกการแก้ไข" : "บันทึกความเห็น"}
                 </button>
+              )}
+              {(isSupervisor || isAdmin) && status === "completed" && !readOnly && (
                 <button
                   type="button"
-                  className="btn-primary"
-                  disabled={busy || status !== "self_submitted"}
-                  title={status !== "self_submitted" ? "รอพนักงานส่งแบบประเมินตนเองก่อน" : undefined}
-                  onClick={() => void submit("supervisor")}
+                  className="btn-secondary"
+                  disabled={busy}
+                  onClick={() => void send("reopen", "เปิดให้ผู้ประเมินแก้ไขอีกครั้ง")}
                 >
-                  ยืนยันผลการประเมิน
+                  เปิดแก้ไขอีกครั้ง
                 </button>
-              </>
-            )}
-            {isAdmin && !canEditNotes && !readOnly && (
-              <button type="button" className="btn-primary" disabled={busy} onClick={saveAsAdmin}>
-                {canAdminScores ? "บันทึกการแก้ไข" : "บันทึกความเห็น"}
-              </button>
-            )}
-            {(isSupervisor || isAdmin) && status === "completed" && !readOnly && (
-              <button
-                type="button"
-                className="btn-secondary"
-                disabled={busy}
-                onClick={() => void send("reopen", "เปิดให้ผู้ประเมินแก้ไขอีกครั้ง")}
-              >
-                เปิดแก้ไขอีกครั้ง
-              </button>
-            )}
-            {!canEditAnything && !(isSupervisor && status === "completed") && (
-              <span className="text-sm text-muted">อ่านอย่างเดียว</span>
-            )}
+              )}
+              {!canEditAnything && !(isSupervisor && status === "completed") && (
+                <span className="text-sm text-muted">อ่านอย่างเดียว</span>
+              )}
+            </div>
           </div>
         </div>
-      </div>
+      )}
     </div>
   );
 }

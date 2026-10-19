@@ -16,6 +16,10 @@ interface OverviewTableProps {
   onClear?: (row: OverviewRow) => void;
   /** Leaves the position out of the name column. */
   hidePosition?: boolean;
+  /** Adds a PDF column with a download button on each confirmed form. */
+  onPdf?: (row: OverviewRow) => void;
+  /** Employee whose PDF is being made; every PDF button waits meanwhile. */
+  pdfBusyId?: string | null;
 }
 
 function actionLabel(row: OverviewRow, viewer: OverviewTableProps["viewer"], cycle: Cycle): string {
@@ -30,6 +34,8 @@ export default function OverviewTable({
   viewer,
   onClear,
   hidePosition,
+  onPdf,
+  pdfBusyId,
 }: OverviewTableProps) {
   const query = cycle.current ? "" : `?cycle=${encodeURIComponent(cycle.id)}`;
   return (
@@ -47,13 +53,17 @@ export default function OverviewTable({
             <th className="w-28 text-center">Performance</th>
             <th className="w-24 text-center">Potential</th>
             <th className="w-40">9-Box</th>
+            {onPdf && <th className="w-14 text-center">PDF</th>}
             <th className={onClear ? "w-32" : "w-20"} aria-label="แบบประเมิน" />
           </tr>
         </thead>
         <tbody>
           {rows.length === 0 && (
             <tr>
-              <td colSpan={viewer === "admin" ? 11 : 10} className="py-6 text-center text-muted">
+              <td
+                colSpan={(viewer === "admin" ? 11 : 10) + (onPdf ? 1 : 0)}
+                className="py-6 text-center text-muted"
+              >
                 ไม่พบพนักงาน
               </td>
             </tr>
@@ -83,6 +93,20 @@ export default function OverviewTable({
                   {formatScore(row.potential)}
                 </td>
                 <td>{row.position?.label ?? <span className="text-faint">รอคะแนน</span>}</td>
+                {onPdf && (
+                  <td className="!py-1.5 text-center">
+                    {row.status === "completed" ? (
+                      <IconButton
+                        icon="download"
+                        label={pdfBusyId === employee.id ? "กำลังสร้าง PDF…" : "ดาวน์โหลด PDF"}
+                        disabled={Boolean(pdfBusyId)}
+                        onClick={() => onPdf(row)}
+                      />
+                    ) : (
+                      <span className="text-faint">–</span>
+                    )}
+                  </td>
+                )}
                 <td className="whitespace-nowrap text-right">
                   <Link href={`/evaluate/${employee.id}${query}`} className="btn-text text-[13px]">
                     {actionLabel(row, viewer, cycle)}
