@@ -124,6 +124,8 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   const canEditSupervisor = !readOnly && isSupervisor && status !== "completed";
   const canEditNotes = canEditSelf || canEditSupervisor;
   // Admin may correct the supervisor's scores of a confirmed result.
+  // A confirmed result can be printed or saved as PDF by the appraiser and admin.
+  const canPrint = status === "completed" && !closed && (isSupervisor || isAdmin);
   const canAdminScores = !readOnly && isAdmin && !isOwner && status === "completed";
   const canEditAnything = !readOnly && (canEditNotes || isAdmin);
 
@@ -224,6 +226,14 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     }
   };
 
+  const printForm = () => {
+    const title = document.title;
+    // Becomes the suggested file name of the PDF.
+    document.title = `Appraisal ${cycle.id.replace(/\//g, "-")} ${employee.code} ${displayName(employee)}`;
+    window.print();
+    document.title = title;
+  };
+
   const saveAsAdmin = () => {
     if (canAdminScores && summary.missing.supervisor > 0) {
       setFlagMissing("supervisor");
@@ -295,6 +305,11 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
             }
           />
           <StatusBadge status={status} />
+          {canPrint && (
+            <button type="button" className="btn-secondary py-1.5 print:hidden" onClick={printForm}>
+              พิมพ์ / บันทึก PDF
+            </button>
+          )}
         </div>
       </div>
       <dl className="grid grid-cols-2 gap-x-6 gap-y-3 border-t border-line px-5 py-4 text-sm md:grid-cols-3 xl:grid-cols-4">
@@ -330,7 +345,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   }
 
   return (
-    <div className="fillable space-y-6 pb-28">
+    <div className="fillable space-y-6 pb-28 print:space-y-4 print:pb-0">
       {header}
 
       {/* Real-time summary */}

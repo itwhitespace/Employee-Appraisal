@@ -74,3 +74,32 @@ body {
     @apply fixed inset-x-0 bottom-0 z-20 border-t border-black/10 bg-white/80 backdrop-blur-xl lg:left-64;
   }
 }
+
+/* Printing a form (or saving it as PDF): the page as it is on screen, on landscape A4. */
+@media print {
+  @page {
+    size: A4 landscape;
+    margin: 8mm;
+  }
+  /* Fits the widest form tables (1080px) on the page. */
+  body {
+    zoom: 0.85;
+  }
+  .card {
+    @apply shadow-none;
+  }
+  .sheet tr {
+    break-inside: avoid;
+  }
+  .overflow-x-auto,
+  .overflow-hidden {
+    overflow: visible;
+  }
+  /* Long comments are printed in full, not cut at the box. */
+  textarea.field {
+    field-sizing: content;
+  }
+  .fillable .field:enabled {
+    @apply border-transparent bg-transparent;
+  }
+}

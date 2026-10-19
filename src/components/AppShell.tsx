@@ -131,8 +131,9 @@ function navItems(user: User): (NavItem | NavGroup)[] {
       },
     ];
   }
+  // Supervisors are not appraised themselves.
   if (user.role === "supervisor") {
-    return [{ href: "/team", label: "ทีมของฉัน", icon: ICONS.team }, ...ownForm];
+    return [{ href: "/team", label: "ทีมของฉัน", icon: ICONS.team }];
   }
   return ownForm;
 }
@@ -159,7 +160,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const department = DEPARTMENTS.find((d) => d.id === user.departmentId)?.name;
 
   return (
-    <div className="min-h-screen lg:pl-64">
+    <div className="min-h-screen lg:pl-64 print:pl-0">
       <aside className="z-30 flex flex-col border-b border-black/10 bg-white/80 backdrop-blur-xl print:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
         <div className="px-5 pb-2 pt-5 lg:pb-6 lg:pt-7">
           <div className="text-[15px] font-semibold tracking-tight text-ink">{COMPANY_NAME}</div>
@@ -191,7 +192,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
         </div>
       </aside>
 
-      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 lg:py-10">{children}</main>
+      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 lg:py-10 print:max-w-none print:p-0">{children}</main>
     </div>
   );
 }
