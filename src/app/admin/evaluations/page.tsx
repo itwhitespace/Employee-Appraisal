@@ -3,10 +3,9 @@
 import { useMemo, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import OverviewTable from "@/components/OverviewTable";
-import PdfExport, { type PdfJob } from "@/components/PdfExport";
 import { api, errorMessage } from "@/lib/api";
 import { displayName, formatCycle } from "@/lib/format";
-import { choosePdfTarget, pdfFileName } from "@/lib/pdf";
+import { choosePdfTarget, fetchPdf, pdfFileName, savePdf } from "@/lib/pdf";
 import { overviewRows, useOverview, type OverviewRow, type OverviewStatus } from "@/lib/overview";
 
 type Filter = "not_submitted" | "self_submitted" | "completed";
@@ -31,7 +30,7 @@ export default function EvaluationsPage() {
   const { data, error, reload } = useOverview();
   const [filter, setFilter] = useState<Filter>("not_submitted");
   const [notice, setNotice] = useState<string | null>(null);
-  const [pdfJob, setPdfJob] = useState<PdfJob | null>(null);
+  const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
 
   const rows = useMemo(() => (data ? overviewRows(data) : []), [data]);
 
@@ -59,9 +58,14 @@ export default function EvaluationsPage() {
     try {
       // The "Save As" dialog has to open straight from the click.
       const target = await choosePdfTarget(pdfFileName(data.cycle, row.employee));
-      if (target) setPdfJob({ employeeId: row.employee.id, cycleId: null, target });
+      if (!target) return;
+      setPdfBusyId(row.employee.id);
+      await savePdf(target, await fetchPdf(row.employee.id, null));
+      setNotice(null);
     } catch (e) {
       setNotice(errorMessage(e));
+    } finally {
+      setPdfBusyId(null);
     }
   };
 
@@ -102,20 +106,10 @@ export default function EvaluationsPage() {
           viewer="admin"
           hidePosition
           onPdf={(row) => void downloadPdf(row)}
-          pdfBusyId={pdfJob?.employeeId ?? null}
+          pdfBusyId={pdfBusyId}
           onClear={(row) => void clear(row)}
         />
       </section>
-
-      {pdfJob && (
-        <PdfExport
-          job={pdfJob}
-          onDone={(error) => {
-            setPdfJob(null);
-            setNotice(error);
-          }}
-        />
-      )}
     </div>
   );
 }

@@ -11,12 +11,17 @@ export async function handle(fn: () => Promise<unknown>): Promise<NextResponse> 
   try {
     return NextResponse.json(await fn());
   } catch (error) {
-    if (error instanceof HttpError) {
-      return NextResponse.json({ error: error.message }, { status: error.status });
-    }
-    console.error(error);
-    return NextResponse.json({ error: "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
+    return errorResponse(error);
   }
+}
+
+/** A thrown error as a JSON `{ error }` response; for routes that do not return JSON. */
+export function errorResponse(error: unknown): NextResponse {
+  if (error instanceof HttpError) {
+    return NextResponse.json({ error: error.message }, { status: error.status });
+  }
+  console.error(error);
+  return NextResponse.json({ error: "เกิดข้อผิดพลาดในระบบ กรุณาลองใหม่อีกครั้ง" }, { status: 500 });
 }
 
 /** The signed-in user, or a 401 / 403 when missing or not in one of `roles`. */

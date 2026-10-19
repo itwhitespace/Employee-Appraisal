@@ -9,7 +9,8 @@ import { getUser } from "./db";
  * The user is re-read from the database on every request, so a changed role
  * or a deleted account takes effect immediately.
  */
-const COOKIE = "wsp_session";
+export const SESSION_COOKIE = "wsp_session";
+const COOKIE = SESSION_COOKIE;
 const MAX_AGE_SECONDS = 60 * 60 * 12;
 
 function sign(payload: string): string {

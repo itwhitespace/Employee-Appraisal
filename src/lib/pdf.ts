@@ -1,12 +1,12 @@
 "use client";
 
+import { ApiError } from "./api";
 import { displayName } from "./format";
 import type { Cycle, User } from "./types";
 
 /**
- * Saving an appraisal form as PDF in the browser. The form on screen is captured block by
- * block (header, summary, each section) and laid out on landscape A4 pages, so the PDF
- * looks like the page; its text is part of the images and cannot be selected.
+ * Saving a confirmed appraisal form as PDF. The server prints the page with headless
+ * Chromium (real, selectable text); here the browser asks where to save it.
  */
 
 // The File System Access API is only in Chromium browsers and not yet in TypeScript's DOM types.
@@ -43,63 +43,20 @@ export async function choosePdfTarget(name: string): Promise<PdfTarget | null> {
   }
 }
 
-const PAGE_WIDTH = 297;
-const PAGE_HEIGHT = 210;
-const MARGIN = 8;
-const GAP = 4;
-const CONTENT_WIDTH = PAGE_WIDTH - MARGIN * 2;
-const CONTENT_BOTTOM = PAGE_HEIGHT - MARGIN;
-
-/** Each direct child of `root` is a block; a block taller than a page is split across pages. */
-export async function renderPdf(root: HTMLElement): Promise<Blob> {
-  const [{ toCanvas }, { jsPDF }] = await Promise.all([import("html-to-image"), import("jspdf")]);
-  await document.fonts.ready;
-
-  const pdf = new jsPDF({ orientation: "landscape", unit: "mm", format: "a4" });
-  let y = MARGIN;
-
-  const blocks = Array.from(root.children).filter(
-    (child): child is HTMLElement =>
-      child instanceof HTMLElement && !child.classList.contains("print:hidden") && child.offsetHeight > 0,
-  );
-
-  for (const block of blocks) {
-    const canvas = await toCanvas(block, {
-      pixelRatio: 1.5,
-      backgroundColor: "#ffffff",
-      // Buttons and hints that the printed page leaves out are left out here too.
-      filter: (node) => !(node instanceof HTMLElement && node.classList.contains("print:hidden")),
-    });
-    const mmPerPixel = CONTENT_WIDTH / canvas.width;
-    const height = canvas.height * mmPerPixel;
-
-    // Start a fresh page rather than split a block that would fit on one.
-    if (y > MARGIN && y + height > CONTENT_BOTTOM && height <= CONTENT_BOTTOM - MARGIN) {
-      pdf.addPage();
-      y = MARGIN;
-    }
-
-    let offset = 0;
-    while (offset < canvas.height) {
-      const room = Math.floor((CONTENT_BOTTOM - y) / mmPerPixel);
-      if (room <= 0) {
-        pdf.addPage();
-        y = MARGIN;
-        continue;
-      }
-      const slice = Math.min(canvas.height - offset, room);
-      const part = document.createElement("canvas");
-      part.width = canvas.width;
-      part.height = slice;
-      part.getContext("2d")?.drawImage(canvas, 0, offset, canvas.width, slice, 0, 0, canvas.width, slice);
-      pdf.addImage(part.toDataURL("image/jpeg", 0.88), "JPEG", MARGIN, y, CONTENT_WIDTH, slice * mmPerPixel);
-      offset += slice;
-      y += slice * mmPerPixel;
-    }
-    y += GAP;
+/** `cycleId` null = the current cycle. */
+export async function fetchPdf(employeeId: string, cycleId: string | null): Promise<Blob> {
+  const query = cycleId ? `?cycle=${encodeURIComponent(cycleId)}` : "";
+  let response: Response;
+  try {
+    response = await fetch(`/api/evaluations/${employeeId}/pdf${query}`, { cache: "no-store" });
+  } catch {
+    throw new ApiError(0, "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่");
   }
-
-  return pdf.output("blob");
+  if (!response.ok) {
+    const data = await response.json().catch(() => null);
+    throw new ApiError(response.status, data?.error ?? "สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง");
+  }
+  return response.blob();
 }
 
 export async function savePdf(target: PdfTarget, pdf: Blob): Promise<void> {

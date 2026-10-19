@@ -20,6 +20,7 @@ const config: Config = {
         sans: [
           "var(--font-inter)",
           "var(--font-thai)",
+          "var(--font-symbols)",
           "-apple-system",
           "BlinkMacSystemFont",
           "Segoe UI",

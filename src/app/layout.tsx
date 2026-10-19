@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { IBM_Plex_Sans_Thai, Inter } from "next/font/google";
+import { IBM_Plex_Sans_Thai, Inter, Noto_Sans_Math } from "next/font/google";
 import AppShell from "@/components/AppShell";
 import { ConfirmProvider } from "@/components/ConfirmDialog";
 import { AuthProvider } from "@/lib/auth";
@@ -13,6 +13,14 @@ const thai = IBM_Plex_Sans_Thai({
   variable: "--font-thai",
   display: "swap",
 });
+// "≥", "≤" and "→" are in neither; the server's headless browser, which renders the PDFs,
+// has no system fonts to fall back on.
+const symbols = Noto_Sans_Math({
+  subsets: ["math"],
+  weight: "400",
+  variable: "--font-symbols",
+  display: "swap",
+});
 
 export const metadata: Metadata = {
   title: "Performance Appraisal | Whitespace Partners",
@@ -21,7 +29,7 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html lang="th" className={`${inter.variable} ${thai.variable}`}>
+    <html lang="th" className={`${inter.variable} ${thai.variable} ${symbols.variable}`}>
       <body className="font-sans">
         <AuthProvider>
           <ConfirmProvider>

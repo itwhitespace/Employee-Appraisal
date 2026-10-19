@@ -103,14 +103,3 @@ body {
     @apply border-transparent bg-transparent;
   }
 }
-
-/* The off-screen copy of a form that is turned into a PDF (lib/pdf.ts): as it prints. */
-.pdf-capture textarea.field {
-  field-sizing: content;
-}
-.pdf-capture .fillable .field:enabled {
-  @apply border-transparent bg-transparent;
-}
-.pdf-capture .overflow-x-auto {
-  overflow: visible;
-}
