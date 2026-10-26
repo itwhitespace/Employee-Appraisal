@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import OverviewTable from "@/components/OverviewTable";
 import { api, errorMessage } from "@/lib/api";
+import { departmentRank } from "@/lib/evaluation";
 import { displayName, formatCycle } from "@/lib/format";
 import { choosePdfTarget, fetchPdf, pdfFileName, savePdf } from "@/lib/pdf";
 import { overviewRows, useOverview, type OverviewRow, type OverviewStatus } from "@/lib/overview";
@@ -20,6 +21,12 @@ const FILTERS: { id: Filter; label: string }[] = [
   { id: "completed", label: "เสร็จสิ้น" },
 ];
 
+/** By department, then the most senior first. */
+const byDepartment = (a: OverviewRow, b: OverviewRow) =>
+  departmentRank(a.employee.departmentId) - departmentRank(b.employee.departmentId) ||
+  b.employee.level - a.employee.level ||
+  a.employee.code.localeCompare(b.employee.code);
+
 const segment = (active: boolean) =>
   `rounded-full px-3.5 py-1.5 text-sm transition ${
     active ? "bg-ink font-medium text-white" : "bg-black/5 text-ink hover:bg-black/10"
@@ -32,7 +39,7 @@ export default function EvaluationsPage() {
   const [notice, setNotice] = useState<string | null>(null);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
 
-  const rows = useMemo(() => (data ? overviewRows(data) : []), [data]);
+  const rows = useMemo(() => (data ? overviewRows(data).sort(byDepartment) : []), [data]);
 
   if (error) return <div className="card p-8 text-center text-red-500">{error}</div>;
   if (!data) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;

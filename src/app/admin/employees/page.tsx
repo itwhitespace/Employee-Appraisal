@@ -8,7 +8,7 @@ import StatusBadge from "@/components/StatusBadge";
 import { api, errorMessage } from "@/lib/api";
 import { useAuth } from "@/lib/auth";
 import { DEPARTMENTS, ROLE_NAMES } from "@/lib/constants";
-import { findLevel, isEmployee } from "@/lib/evaluation";
+import { departmentRank, findLevel, isEmployee } from "@/lib/evaluation";
 import { formatDate } from "@/lib/format";
 import { useOverview } from "@/lib/overview";
 import type { EmployeeInput, Role, User } from "@/lib/types";
@@ -29,19 +29,24 @@ const segment = (active: boolean) =>
 
 const teamOf = (user: User) => user.team || NO_TEAM;
 
-/** Teams in department order (the studios first), people without a team last. */
-function teamRank(user: User): number {
-  const index = DEPARTMENTS.findIndex((d) => d.id === user.departmentId);
-  return !user.team ? DEPARTMENTS.length + 1 : index === -1 ? DEPARTMENTS.length : index;
-}
-
-/** By team, then the most senior first. */
-function byTeam(a: User, b: User): number {
-  return (
-    teamRank(a) - teamRank(b) ||
-    a.team.localeCompare(b.team, undefined, { numeric: true }) ||
-    (b.level ?? 0) - (a.level ?? 0) ||
-    a.code.localeCompare(b.code)
+/**
+ * By team, each team kept together even when its people are in different departments.
+ * Teams come in the order of the first department among their people (the studios first),
+ * people without a team last; inside a team, by department, then the most senior first.
+ */
+function sortByTeam(users: User[]): User[] {
+  const teamRank = new Map<string, number>();
+  for (const user of users) {
+    const rank = user.team ? departmentRank(user.departmentId) : DEPARTMENTS.length + 1;
+    teamRank.set(teamOf(user), Math.min(teamRank.get(teamOf(user)) ?? rank, rank));
+  }
+  return [...users].sort(
+    (a, b) =>
+      (teamRank.get(teamOf(a)) ?? 0) - (teamRank.get(teamOf(b)) ?? 0) ||
+      teamOf(a).localeCompare(teamOf(b), undefined, { numeric: true }) ||
+      departmentRank(a.departmentId) - departmentRank(b.departmentId) ||
+      (b.level ?? 0) - (a.level ?? 0) ||
+      a.code.localeCompare(b.code),
   );
 }
 
@@ -57,7 +62,7 @@ export default function EmployeesPage() {
   const [dialog, setDialog] = useState<DialogState>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
-  const sorted = useMemo(() => [...(data?.users ?? [])].sort(byTeam), [data]);
+  const sorted = useMemo(() => sortByTeam(data?.users ?? []), [data]);
 
   const teams = useMemo(() => {
     const counts = new Map<string, number>();

@@ -1,4 +1,4 @@
-import { ALL_SECTIONS, DEFAULT_WEIGHTS, WEIGHTED_SECTIONS } from "./constants";
+import { ALL_SECTIONS, DEFAULT_WEIGHTS, DEPARTMENTS, WEIGHTED_SECTIONS } from "./constants";
 import type {
   DepartmentId,
   Employee,
@@ -14,6 +14,12 @@ import type {
 
 export function isEmployee(user: User): user is Employee {
   return user.departmentId !== null && user.level !== null && user.supervisorId !== null;
+}
+
+/** Position of a department in DEPARTMENTS; no department comes last. */
+export function departmentRank(departmentId: DepartmentId | null): number {
+  const index = DEPARTMENTS.findIndex((d) => d.id === departmentId);
+  return index === -1 ? DEPARTMENTS.length : index;
 }
 
 export function findLevel(
