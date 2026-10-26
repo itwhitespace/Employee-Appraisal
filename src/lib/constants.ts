@@ -15,6 +15,7 @@ export const COMPANY_NAME = "Whitespace Partners";
 
 export const DEPARTMENTS: { id: DepartmentId; name: string }[] = [
   { id: "interior-designer", name: "Interior Designer" },
+  { id: "drafter-cad", name: "Drafter / CAD Drawing" },
   { id: "3d-visualizer", name: "3D Visualizer" },
   { id: "business-development", name: "Business Development" },
   { id: "business-administration", name: "Business Administration" },

@@ -1,5 +1,6 @@
 export type DepartmentId =
   | "interior-designer"
+  | "drafter-cad"
   | "3d-visualizer"
   | "business-development"
   | "business-administration"

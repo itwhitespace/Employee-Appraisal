@@ -32,6 +32,11 @@ interface CompetencySeed {
 }
 
 const ACCURACY_KPI: Record<DepartmentId, KpiSeed> = {
+  "drafter-cad": {
+    title: "Internal QC Rounds",
+    description: "จำนวนรอบแก้ไขจาก QC ภายในต่อชุดแบบ",
+    targets: ["≤ 2 รอบ", "≤ 1 รอบ", "≤ 1 รอบ"],
+  },
   "interior-designer": {
     title: "Drawing Accuracy (Internal QC)",
     description: "จำนวนรอบแก้ไขจาก QC ภายในต่อชุดแบบ",
@@ -81,6 +86,86 @@ function kpiSeeds(departmentId: DepartmentId): KpiSeed[] {
 }
 
 const COMPETENCIES: Record<DepartmentId, CompetencySeed[]> = {
+  "drafter-cad": [
+    {
+      title: "CAD Drafting Proficiency",
+      description:
+        "AutoCAD — layer, block, xref, layout, plot style, dimension ถูกต้องและรวดเร็ว",
+      expected: ["Basic", "Intermediate", "Advanced"],
+    },
+    {
+      title: "Construction Drawing Set",
+      description:
+        "ผัง, ผังฝ้า (RCP), รูปด้าน, รูปตัด, ผังพื้น/ผนัง, door & finish schedule ครบชุดตามมาตรฐาน",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "Joinery & Detail Drawing",
+      description:
+        "แบบเฟอร์นิเจอร์ built-in, millwork, display fixture และ detail รอยต่อวัสดุ (รวมงาน retail roll-out)",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "Building Systems Coordination",
+      description:
+        "ประสานแบบไฟฟ้า แสงสว่าง สุขาภิบาล ปรับอากาศ ดับเพลิง และข้อกำหนดของห้าง/เจ้าของอาคาร",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "Materials & Construction Methods",
+      description:
+        "ความรู้วัสดุ ขนาดมาตรฐาน วิธีก่อสร้าง/ติดตั้ง เพื่อเขียนแบบที่สร้างได้จริง",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "Drawing Standards & Templates",
+      description:
+        "มาตรฐาน CAD ของบริษัท — title block, naming, layer, revision cloud, transmittal",
+      expected: ["Basic", "Intermediate", "Intermediate"],
+    },
+    {
+      title: "Site Survey & As-built",
+      description:
+        "วัดพื้นที่จริง ตรวจหน้างาน และจัดทำแบบ as-built",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "Shop Drawing Review",
+      description:
+        "ตรวจ shop drawing ของผู้รับเหมาเทียบกับ design intent และ spec",
+      expected: ["Beginner", "Beginner", "Intermediate"],
+    },
+    {
+      title: "Quantity Take-off Support",
+      description:
+        "ถอดปริมาณวัสดุ/พื้นที่จากแบบเพื่อประกอบ BOQ",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "Design Intent Interpretation",
+      description:
+        "เข้าใจ sketch, 3D และ markup ของ designer แล้วแปลงเป็นแบบก่อสร้างได้ถูกต้อง",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+    {
+      title: "3D / BIM Tools",
+      description:
+        "SketchUp, Revit หรือเครื่องมือ 3D/BIM สำหรับตรวจ clash และสร้างแบบ",
+      expected: ["Beginner", "Basic", "Basic"],
+    },
+    {
+      title: "Accuracy, Self-check & Revision Control",
+      description:
+        "ตรวจทานแบบเองก่อนส่ง QC, ควบคุม revision และ version ของไฟล์",
+      expected: ["Basic", "Intermediate", "Intermediate"],
+    },
+    {
+      title: "Communication & Coordination",
+      description:
+        "ประสาน designer, PM, ผู้รับเหมา และเขียน drawing note ภาษาไทย/อังกฤษชัดเจน",
+      expected: ["Beginner", "Basic", "Intermediate"],
+    },
+  ],
   "interior-designer": [
     {
       title: "Design Sensibility & Concept",
@@ -298,6 +383,7 @@ const LEADERSHIP: Seed[] = [
 const LEADERSHIP_EXPECTED: PerLevel<ExpectedLevel> = ["Beginner", "Basic", "Intermediate"];
 
 const AI_EXAMPLES: Record<DepartmentId, string> = {
+  "drafter-cad": "เช่น LISP / script สร้าง block และ schedule อัตโนมัติ, AI ช่วยตรวจ checklist แบบ, แปลง/เขียน drawing note ภาษาอังกฤษ, สรุป markup จากลูกค้า",
   "interior-designer": "เช่น AI สร้าง mood board / concept image, ร่าง render เบื้องต้น, สรุป Minute",
   "3d-visualizer": "เช่น AI upscale / ปรับแก้ภาพ, สร้าง texture, ร่างมุมภาพเบื้องต้น",
   "business-development": "เช่น AI ร่าง proposal, สรุปข้อมูลลูกค้าและตลาด",

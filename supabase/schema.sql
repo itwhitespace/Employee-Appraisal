@@ -16,7 +16,7 @@ create table if not exists public.employees (
   team          text not null default '',
   -- Null department/level/supervisor = this person has no appraisal form (e.g. HR admin).
   department_id text check (department_id in
-                  ('interior-designer', '3d-visualizer', 'business-development',
+                  ('interior-designer', 'drafter-cad', '3d-visualizer', 'business-development',
                    'business-administration', 'it-support')),
   level         smallint check (level >= 1),
   supervisor_id uuid references public.employees (id) on delete set null,
@@ -134,7 +134,7 @@ alter table public.employees add constraint employees_appraisal_type_check
 alter table public.employees drop constraint if exists employees_department_id_check;
 alter table public.employees add constraint employees_department_id_check
   check (department_id in
-                  ('interior-designer', '3d-visualizer', 'business-development',
+                  ('interior-designer', 'drafter-cad', '3d-visualizer', 'business-development',
                    'business-administration', 'it-support'));
 alter table public.employees drop constraint if exists employees_level_check;
 alter table public.employees add constraint employees_level_check check (level >= 1);
@@ -156,6 +156,10 @@ insert into public.job_levels (department_id, level, name, title) values
   ('interior-designer', 4, 'Level 4', 'Associate / Lead Designer'),
   ('interior-designer', 5, 'Director', 'Studio Director'),
   ('interior-designer', 6, 'Senior Director', 'Senior Director'),
+  ('drafter-cad', 1, 'Level 1', 'Junior Drafter / CAD Operator'),
+  ('drafter-cad', 2, 'Level 2', 'Drafter'),
+  ('drafter-cad', 3, 'Level 3', 'Senior Drafter / CAD Technician'),
+  ('drafter-cad', 4, 'Level 4', 'Lead Drafter / Documentation Lead'),
   ('3d-visualizer', 1, 'Level 1', 'Junior 3D Visualizer'),
   ('3d-visualizer', 2, 'Level 2', '3D Visualizer'),
   ('3d-visualizer', 3, 'Level 3', 'Senior 3D Visualizer'),
