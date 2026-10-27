@@ -154,6 +154,8 @@ interface LevelRow {
   level: Level;
   name: string;
   title: string;
+  /** Missing until the column has been added by supabase/schema.sql. */
+  expected_years?: number | null;
 }
 
 export async function listLevels(): Promise<JobLevel[]> {
@@ -165,6 +167,7 @@ export async function listLevels(): Promise<JobLevel[]> {
     level: row.level,
     name: row.name,
     title: row.title,
+    expectedYears: row.expected_years == null ? null : Number(row.expected_years),
   }));
 }
 
@@ -176,6 +179,8 @@ export async function saveLevel(level: JobLevel): Promise<JobLevel> {
       level: level.level,
       name: level.name,
       title: level.title,
+      // Left out when not sent, so an upsert keeps the stored value.
+      ...(level.expectedYears !== undefined ? { expected_years: level.expectedYears } : {}),
     }),
   );
   return level;

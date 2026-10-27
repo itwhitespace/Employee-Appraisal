@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react";
 import NineBoxGrid, { type NineBoxPerson } from "@/components/NineBoxGrid";
-import OverviewTable from "@/components/OverviewTable";
+import TenureChart from "@/components/TenureChart";
 import CycleSelect from "@/components/CycleSelect";
 import { DEPARTMENTS } from "@/lib/constants";
 import { formatCycle, formatScore } from "@/lib/format";
@@ -104,11 +104,13 @@ export default function DashboardPage() {
 
       <section className="card overflow-hidden">
         <header className="px-5 py-4">
-          <h2 className="text-[17px] font-semibold tracking-tight">ผลการประเมินพนักงาน</h2>
-          <p className="text-xs text-muted">{visible.length} คน</p>
+          <h2 className="text-[17px] font-semibold tracking-tight">อายุงานเทียบผลงาน</h2>
+          <p className="text-xs text-muted">
+            อายุงานกับบริษัท ÷ ปีที่คาดหวังของระดับ (Career Matrix) เทียบกับ Performance Score ของ Supervisor
+          </p>
         </header>
-        <div className="border-t border-line">
-          <OverviewTable rows={visible} cycle={data.cycle} viewer="admin" />
+        <div className="border-t border-line p-5">
+          <TenureChart rows={visible} levels={data.levels} scales={data.scales} />
         </div>
       </section>
     </div>

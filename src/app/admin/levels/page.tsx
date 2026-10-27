@@ -24,8 +24,13 @@ interface LevelRowProps {
 function LevelRow({ level, headcount, onSave, onDelete }: LevelRowProps) {
   const [name, setName] = useState(level.name);
   const [title, setTitle] = useState(level.title);
+  const [years, setYears] = useState(level.expectedYears == null ? "" : String(level.expectedYears));
   const [busy, setBusy] = useState(false);
-  const dirty = name.trim() !== level.name || title.trim() !== level.title;
+  const yearsValue = years.trim() === "" ? null : Number(years);
+  const dirty =
+    name.trim() !== level.name ||
+    title.trim() !== level.title ||
+    yearsValue !== (level.expectedYears ?? null);
 
   const run = async (task: () => Promise<void>) => {
     setBusy(true);
@@ -52,13 +57,30 @@ function LevelRow({ level, headcount, onSave, onDelete }: LevelRowProps) {
           onChange={(e) => setTitle(e.target.value)}
         />
       </td>
+      <td>
+        <input
+          type="number"
+          className="field text-center tabular-nums"
+          min={0}
+          max={60}
+          step={0.5}
+          placeholder="–"
+          aria-label={`ปีที่คาดหวัง ลำดับ ${level.level}`}
+          value={years}
+          onChange={(e) => setYears(e.target.value)}
+        />
+      </td>
       <td className="pt-4 text-center tabular-nums text-muted">{headcount || "–"}</td>
       <td className="whitespace-nowrap !px-1.5 !py-1.5 text-right">
         <IconButton
           icon="save"
           label="บันทึก"
           disabled={!dirty || busy || !name.trim()}
-          onClick={() => run(() => onSave({ ...level, name: name.trim(), title: title.trim() }))}
+          onClick={() =>
+            run(() =>
+              onSave({ ...level, name: name.trim(), title: title.trim(), expectedYears: yearsValue }),
+            )
+          }
         />
         <IconButton
           icon="delete"
@@ -177,6 +199,7 @@ export default function LevelsPage() {
                 <th className="w-16 text-center">ลำดับ</th>
                 <th className="w-56">ชื่อระดับ</th>
                 <th>ชื่อตำแหน่ง</th>
+                <th className="w-32 text-center">ปีที่คาดหวัง</th>
                 <th className="w-24 text-center">พนักงาน</th>
                 <th className="w-24" aria-label="จัดการ" />
               </tr>
@@ -184,7 +207,7 @@ export default function LevelsPage() {
             <tbody>
               {levels.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="py-6 text-center text-muted">
+                  <td colSpan={6} className="py-6 text-center text-muted">
                     ฝ่ายนี้ยังไม่มี Level
                   </td>
                 </tr>
@@ -192,7 +215,7 @@ export default function LevelsPage() {
               {levels.map((level) => (
                 <LevelRow
                   // Remount after a save so the inputs pick up the stored values.
-                  key={`${level.departmentId}-${level.level}-${level.name}-${level.title}`}
+                  key={`${level.departmentId}-${level.level}-${level.name}-${level.title}-${level.expectedYears}`}
                   level={level}
                   headcount={headcount(level)}
                   onSave={save}
@@ -236,6 +259,10 @@ export default function LevelsPage() {
       <p className="text-xs text-muted">
         Level ที่เพิ่มใหม่จะได้แบบประเมินเริ่มต้นชุดเดียวกับ Level 3 ของฝ่ายนั้น แก้ไขข้อประเมินได้ที่เมนู
         กำหนดหัวข้อประเมิน
+      </p>
+      <p className="text-xs text-muted">
+        ปีที่คาดหวัง = อายุงานกับบริษัท (ปี) ที่คาดว่าคนในระดับนี้ควรขึ้นระดับถัดไปแล้ว ตามช่วงประสบการณ์ใน
+        Career Matrix ใช้กับกราฟอายุงานเทียบผลงานบน Dashboard · เว้นว่างไว้ถ้าไม่ต้องแสดงบนกราฟ เช่น ระดับสูงสุด
       </p>
     </div>
   );

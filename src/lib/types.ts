@@ -17,6 +17,11 @@ export interface JobLevel {
   name: string;
   /** Job title at this level, e.g. "Junior Interior Designer". */
   title: string;
+  /**
+   * Years with the company by which someone at this level is expected to move on (the end
+   * of the level's range in the Career Matrix). Null when not set, e.g. the top levels.
+   */
+  expectedYears?: number | null;
 }
 
 /** One row of the Rating Band table: the grade given from `min` up to the next band. */

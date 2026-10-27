@@ -185,6 +185,13 @@ insert into public.job_levels (department_id, level, name, title) values
   ('it-support', 4, 'Level 4', 'IT Manager')
 on conflict (department_id, level) do nothing;
 
+-- Years with the company by which each level is expected to move on (Career Matrix);
+-- the top levels have none. Used by the tenure chart on the dashboard; admin edits it.
+alter table public.job_levels add column if not exists expected_years numeric(4, 1);
+update public.job_levels
+set expected_years = case level when 1 then 3 when 2 then 5 when 3 then 7 when 4 then 12 when 5 then 15 end
+where expected_years is null and level between 1 and 5;
+
 -- Starting scales. Admin edits them later in the web app; existing rows are left alone.
 insert into public.rating_bands (position, min_score, grade, meaning, share, merit) values
   (1, 0.00, 'D - Unsatisfactory', 'ต่ำกว่ามาตรฐาน → Performance Improvement Plan (PIP) 90 วัน ไม่ปรับเงินเดือน', '≤ 5%', '0.00x'),

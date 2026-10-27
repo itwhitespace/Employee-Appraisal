@@ -50,7 +50,16 @@ export function parseJobLevel(body: Record<string, unknown>): JobLevel {
   if (!departmentId || !level) throw new HttpError(400, "ฝ่ายหรือ Level ไม่ถูกต้อง");
   const name = trimmed(body.name, 60);
   if (!name) throw new HttpError(400, "กรุณากรอกชื่อระดับ");
-  return { departmentId, level, name, title: trimmed(body.title) };
+  let expectedYears: number | null | undefined;
+  if (body.expectedYears === null || body.expectedYears === "") expectedYears = null;
+  else if (body.expectedYears !== undefined) {
+    const years = Number(body.expectedYears);
+    if (!Number.isFinite(years) || years <= 0 || years > 60) {
+      throw new HttpError(400, "ปีที่คาดหวังต้องเป็นตัวเลขระหว่าง 0 ถึง 60");
+    }
+    expectedYears = Math.round(years * 10) / 10;
+  }
+  return { departmentId, level, name, title: trimmed(body.title), expectedYears };
 }
 
 function dateOf(value: unknown, label: string): string | null {
