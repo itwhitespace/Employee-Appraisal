@@ -408,13 +408,15 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
             canEditSelf={canEditSelf}
             canEditSupervisor={canEditSupervisor || canAdminScores}
             canEditNotes={canEditNotes}
+            canEditPersonal={canEditSupervisor}
             flagMissing={flagMissing}
             onScore={setScore}
             personalIds={key === "A" ? personalIds : undefined}
             onPersonalChange={changePersonalKpi}
             onPersonalRemove={removePersonalKpi}
           />
-          {key === "A" && canEditNotes && (
+          {/* Personal KPIs are agreed with the appraiser, who enters them. */}
+          {key === "A" && canEditSupervisor && (
             <div className="border-t border-line px-5 py-3">
               <button type="button" className="btn-secondary" onClick={addPersonalKpi}>
                 + เพิ่ม KPI เฉพาะบุคคล

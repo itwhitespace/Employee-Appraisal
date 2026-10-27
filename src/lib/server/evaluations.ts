@@ -225,7 +225,8 @@ function mergeAllowed(
   const comments = record(incoming.comments);
 
   if (access.canSelf || access.canSupervisor) {
-    next.personalKpis = cleanPersonalKpis(incoming.personalKpis);
+    // Only the appraiser adds, renames or removes personal KPIs; the employee scores them.
+    if (access.canSupervisor) next.personalKpis = cleanPersonalKpis(incoming.personalKpis);
 
     const removedKpis = stored.personalKpis.filter(
       (old) => !next.personalKpis.some((kpi) => kpi.id === old.id),

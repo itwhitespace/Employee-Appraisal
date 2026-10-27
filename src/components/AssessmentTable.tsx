@@ -12,12 +12,14 @@ interface AssessmentTableProps {
   summary: SectionSummary;
   canEditSelf: boolean;
   canEditSupervisor: boolean;
-  /** Evidence, comments and personal KPIs: open to whoever is currently filling in the form. */
+  /** Evidence and comments: open to whoever is currently filling in the form. */
   canEditNotes: boolean;
+  /** Adding, renaming and removing personal KPIs: the appraiser only. */
+  canEditPersonal: boolean;
   /** Column whose empty cells are highlighted after a failed submit. */
   flagMissing: Rater | null;
   onScore: (questionId: string, patch: Partial<ItemScore>) => void;
-  /** Section A only: ids of the employee's own KPIs, whose title and target stay editable. */
+  /** Section A only: ids of the employee's own KPIs, whose title and target the appraiser may edit. */
   personalIds?: Set<string>;
   onPersonalChange?: (questionId: string, patch: Partial<Question>) => void;
   onPersonalRemove?: (questionId: string) => void;
@@ -31,6 +33,7 @@ export default function AssessmentTable({
   canEditSelf,
   canEditSupervisor,
   canEditNotes,
+  canEditPersonal,
   flagMissing,
   onScore,
   personalIds,
@@ -82,12 +85,12 @@ export default function AssessmentTable({
                         aria-label={`${label} ชื่อ KPI เฉพาะบุคคล`}
                         placeholder="ชื่อ KPI"
                         value={question.title}
-                        disabled={!canEditNotes}
+                        disabled={!canEditPersonal}
                         onChange={(e) => onPersonalChange?.(question.id, { title: e.target.value })}
                       />
                       <div className="mt-1 flex items-center gap-2 text-[11px] text-faint">
                         KPI เฉพาะบุคคล
-                        {canEditNotes && (
+                        {canEditPersonal && (
                           <button
                             type="button"
                             className="btn-text-danger"
@@ -109,7 +112,7 @@ export default function AssessmentTable({
                       aria-label={`${label} คำอธิบาย`}
                       placeholder="ตกลงร่วมกันต้นปี"
                       value={question.description}
-                      disabled={!canEditNotes}
+                      disabled={!canEditPersonal}
                       onChange={(e) =>
                         onPersonalChange?.(question.id, { description: e.target.value })
                       }
@@ -128,7 +131,7 @@ export default function AssessmentTable({
                         aria-label={`${label} Target`}
                         placeholder="เป้าหมาย"
                         value={question.target ?? ""}
-                        disabled={!canEditNotes}
+                        disabled={!canEditPersonal}
                         onChange={(e) => onPersonalChange?.(question.id, { target: e.target.value })}
                       />
                     ) : (
