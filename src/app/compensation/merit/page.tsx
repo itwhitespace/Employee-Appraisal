@@ -529,25 +529,27 @@ export default function MeritPage() {
         <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">ยอดขึ้นเงินเดือนรายคน</h2>
           <p className="text-xs text-muted">
-            มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · กรอกจำนวนเงินเองได้ (เช่น ปัดขึ้น)
-            แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ · ลบตัวเลขออกเพื่อกลับไปใช้ค่าที่ระบบแนะนำ
+            มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · ช่องสีเหลือง RoundUp กรอกยอดเองได้
+            แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ · ลบตัวเลขออกเพื่อกลับไปใช้ยอด Suggestion
             {overMax > 0 && ` · ${overMax} คนเงินเดือนใหม่เกิน Max ของกระบอก`}
           </p>
         </header>
         <div className="overflow-x-auto border-t border-line">
-          <table className="sheet min-w-[1240px]">
+          <table className="sheet min-w-[1480px]">
             <thead>
               <tr>
                 <th>พนักงาน</th>
                 <th className="text-center">Job level</th>
-                <th className="text-right">Base Salary</th>
+                <th className="!bg-slate-100 text-right">Base Salary</th>
                 <th className="text-center">Grade</th>
                 <th className="text-center">Performance Score</th>
                 <th className="text-center">Competency Score</th>
                 <th className="text-center">Compa-ratio</th>
                 <th className="text-center">Compa-ratio Grouping</th>
-                <th className="text-right">% ขึ้น</th>
-                <th className="w-32 text-right">ขึ้น (บาท)</th>
+                <th className="text-right">Merit Increase suggestion (%)</th>
+                <th className="text-right">Merit increase suggestion (บาท)</th>
+                <th className="w-32 !bg-yellow-200 text-right !text-yellow-900">RoundUp Merit Increase</th>
+                <th className="text-right">Existing Allowance</th>
                 <th className="text-right">เงินเดือนใหม่</th>
                 <th className="text-center">Compa ใหม่</th>
               </tr>
@@ -555,7 +557,7 @@ export default function MeritPage() {
             <tbody>
               {roster.length === 0 && (
                 <tr>
-                  <td colSpan={12} className="py-6 text-center text-muted">
+                  <td colSpan={14} className="py-6 text-center text-muted">
                     ยังไม่มีพนักงาน
                   </td>
                 </tr>
@@ -576,7 +578,7 @@ export default function MeritPage() {
                     >
                       {grade?.jobLevel || row.levelName || "–"}
                     </td>
-                    <td className="text-right tabular-nums">
+                    <td className="bg-slate-50 text-right tabular-nums">
                       {row.salary ? baht(row.salary.baseSalary) : "–"}
                     </td>
                     <td className="text-center tabular-nums">
@@ -602,29 +604,35 @@ export default function MeritPage() {
                         </span>
                       )}
                     </td>
-                    {line && noBudget ? (
-                      <td colSpan={4} className="text-center text-[11.5px] text-faint">
-                        รอกำหนดงบ
-                      </td>
-                    ) : line ? (
+                    {line && !noBudget ? (
                       <>
-                        <td className="text-right font-semibold tabular-nums text-teal-800">
-                          {pct(line.percent)}
-                        </td>
-                        <td>
+                        <td className="text-right tabular-nums">{pct(line.suggestedPercent)}</td>
+                        <td className="text-right tabular-nums">{baht(line.suggested)}</td>
+                        <td className="bg-yellow-50">
                           <input
                             type="number"
                             min={0}
                             step={100}
-                            aria-label={`จำนวนเงินขึ้นของ ${employee.name}`}
-                            className={`field text-right tabular-nums ${
-                              line.overridden ? "!border-amber-400 !bg-amber-50" : ""
+                            aria-label={`RoundUp Merit Increase ของ ${employee.name}`}
+                            className={`field text-right font-semibold tabular-nums ${
+                              line.overridden ? "!border-amber-400 !bg-yellow-100" : ""
                             }`}
                             placeholder={line.overridden ? "" : baht(line.amount)}
                             value={line.overridden ? plan.overrides[employee.id] : ""}
                             onChange={(e) => setOverride(employee.id, e.target.value)}
                           />
                         </td>
+                      </>
+                    ) : (
+                      <td colSpan={3} className="text-center text-[11.5px] text-faint">
+                        {line ? "รอกำหนดงบ" : `ไม่ได้ขึ้นรอบนี้ · ${reason}`}
+                      </td>
+                    )}
+                    <td className="text-right tabular-nums text-muted">
+                      {row.salary ? baht(row.salary.allowance) : "–"}
+                    </td>
+                    {line && !noBudget ? (
+                      <>
                         <td className="text-right font-medium tabular-nums">
                           {baht(line.newSalary)}
                           {line.overMax && (
@@ -638,9 +646,10 @@ export default function MeritPage() {
                         </td>
                       </>
                     ) : (
-                      <td colSpan={4} className="text-center text-[11.5px]">
-                        ไม่ได้ขึ้นรอบนี้ · {reason}
-                      </td>
+                      <>
+                        <td className="text-right text-faint">–</td>
+                        <td className="text-center text-faint">–</td>
+                      </>
                     )}
                   </tr>
                 );

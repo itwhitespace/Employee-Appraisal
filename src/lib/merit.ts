@@ -46,7 +46,11 @@ export interface MeritLine {
   step: number;
   /** Raise % ÷ anchor. */
   weight: number;
-  /** Monthly raise in baht. */
+  /** The matrix's raise in baht, before rounding: anchor × weight × base salary. */
+  suggested: number;
+  /** suggested ÷ base salary. */
+  suggestedPercent: number;
+  /** Monthly raise in baht actually given: `suggested` rounded up, or the amount set by hand. */
   amount: number;
   /** amount ÷ base salary. */
   percent: number;
@@ -90,8 +94,7 @@ const roundUp = (value: number, to: number) => (to > 0 ? Math.ceil(value / to - 
 /** Raises of everyone taking part, sharing the budget left after the amounts set by hand. */
 export function solveMerit(overview: CompensationOverview, plan: MeritPlan, today: string): MeritResult {
   const excluded: MeritResult["excluded"] = [];
-  const base: Omit<MeritLine, "amount" | "percent" | "overridden" | "newSalary" | "newRatio" | "overMax">[] =
-    [];
+  const base: Pick<MeritLine, "row" | "grade" | "baseSalary" | "ratio" | "group" | "step" | "weight">[] = [];
   for (const row of overview.rows) {
     const grade = overview.structure.grades.find((g) => g.grade === row.grade);
     const ratio = compaRatio(row.salary, grade);
@@ -142,11 +145,13 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
 
   const lines = base.map((line): MeritLine => {
     const override = plan.overrides[line.row.employee.id];
-    const amount =
-      override !== undefined ? override : roundUp(line.baseSalary * anchor * line.weight, plan.roundTo);
+    const suggested = line.baseSalary * anchor * line.weight;
+    const amount = override !== undefined ? override : roundUp(suggested, plan.roundTo);
     const newSalary = line.baseSalary + amount;
     return {
       ...line,
+      suggested,
+      suggestedPercent: anchor * line.weight,
       amount,
       percent: amount / line.baseSalary,
       overridden: override !== undefined,
