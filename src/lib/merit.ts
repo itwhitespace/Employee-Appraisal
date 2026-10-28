@@ -7,8 +7,10 @@ import type { CompensationOverview, CompensationRow, MeritPlan, SalaryGrade } fr
  * add up to the budget, which Excel did with Goal Seek.
  */
 
+/** No budget: it has to be entered and saved before the matrix is worked out. */
 export const DEFAULT_MERIT_PLAN: MeritPlan = {
-  targetPercent: 3,
+  targetPercent: null,
+  budgetAmount: null,
   rowMultipliers: [0.6, 0.8, 1, 1.2, 1.5],
   columnMultipliers: [1.5, 1.2, 1, 0.8, 0.6],
   roundTo: 0,
@@ -59,7 +61,10 @@ export interface MeritResult {
   excluded: { row: CompensationRow; reason: string }[];
   /** Monthly base pay of the people taking part, before the raise. */
   payroll: number;
-  budget: number;
+  /** Monthly budget in baht; null when the plan has none. */
+  budget: number | null;
+  /** budget ÷ payroll. */
+  budgetRatio: number | null;
   anchor: number;
   spend: number;
   /** budget − spend; a little above 0 when raises are rounded up. */
@@ -71,6 +76,13 @@ export function monthsBetween(start: string, today: string): number {
   const [y1, m1, d1] = start.split("-").map(Number);
   const [y2, m2, d2] = today.split("-").map(Number);
   return (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
+}
+
+/** Monthly budget in baht: the amount typed in, or the percentage of `payroll`. */
+export function budgetOf(plan: MeritPlan, payroll: number): number | null {
+  if (plan.budgetAmount !== null) return plan.budgetAmount;
+  if (plan.targetPercent !== null) return Math.round((payroll * plan.targetPercent) / 100);
+  return null;
 }
 
 const roundUp = (value: number, to: number) => (to > 0 ? Math.ceil(value / to - 1e-9) * to : value);
@@ -106,10 +118,10 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
   }
 
   const payroll = base.reduce((sum, line) => sum + line.baseSalary, 0);
-  const budget = Math.round((payroll * plan.targetPercent) / 100);
+  const budget = budgetOf(plan, payroll);
   const fixed = base.filter((line) => plan.overrides[line.row.employee.id] !== undefined);
   const shared = base.filter((line) => plan.overrides[line.row.employee.id] === undefined);
-  const left = budget - fixed.reduce((sum, line) => sum + plan.overrides[line.row.employee.id], 0);
+  const left = (budget ?? 0) - fixed.reduce((sum, line) => sum + plan.overrides[line.row.employee.id], 0);
   const totalWeight = shared.reduce((sum, line) => sum + line.baseSalary * line.weight, 0);
 
   const spendAt = (anchor: number) =>
@@ -145,6 +157,7 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
   });
   const spend = lines.reduce((sum, line) => sum + line.amount, 0);
   // To the satang, and never "-0".
-  const gap = Math.round((budget - spend) * 100) / 100 || 0;
-  return { lines, excluded, payroll, budget, anchor, spend, gap };
+  const gap = Math.round(((budget ?? 0) - spend) * 100) / 100 || 0;
+  const budgetRatio = budget !== null && payroll > 0 ? budget / payroll : null;
+  return { lines, excluded, payroll, budget, budgetRatio, anchor, spend, gap };
 }

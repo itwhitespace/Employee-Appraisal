@@ -347,12 +347,15 @@ export interface CompensationAuditEntry {
 }
 
 /**
- * How a cycle's merit increase is worked out. The budget is a percentage of the monthly base
- * pay of the people taking part, before the raise, so it stays put while the matrix is solved.
+ * How a cycle's merit increase is worked out. The budget is either a baht amount or a
+ * percentage of the monthly base pay of the people taking part, before the raise, so it stays
+ * put while the matrix is solved. Neither set = no budget yet.
  */
 export interface MeritPlan {
-  /** Percent of monthly base pay, e.g. 3 = 3%. */
-  targetPercent: number;
+  /** Percent of monthly base pay, e.g. 3 = 3%; used when `budgetAmount` is null. */
+  targetPercent: number | null;
+  /** Monthly budget in baht, typed in; takes the place of `targetPercent`. */
+  budgetAmount: number | null;
   /** Competency 1 … 5, e.g. 0.6 … 1.5; scores between them are interpolated per 0.1. */
   rowMultipliers: number[];
   /** One per Compa-ratio group, lowest Compa-ratio first. */

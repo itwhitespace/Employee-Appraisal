@@ -28,7 +28,9 @@ export async function PUT(request: Request) {
     const plan = parseMeritPlan(await readJson(request));
     const { cycleId } = (await meritData()).overview;
     await saveMeritPlan(cycleId, plan, user.id);
-    await logCompensation(user.id, `บันทึกแผนขึ้นเงินเดือน ${cycleId} (งบ ${plan.targetPercent}%)`);
+    const budget =
+      plan.budgetAmount !== null ? `${plan.budgetAmount.toLocaleString()} บาท` : `${plan.targetPercent}%`;
+    await logCompensation(user.id, `บันทึกแผนขึ้นเงินเดือน ${cycleId} (งบ ${budget})`);
     return meritData();
   });
 }

@@ -229,8 +229,18 @@ export function parseMeritPlan(body: Record<string, unknown>): MeritPlan {
     if (!UUID.test(id)) throw new HttpError(400, "รหัสพนักงานไม่ถูกต้อง");
     overrides[id] = Math.round(number(amount, "จำนวนเงินที่กำหนดเอง", 0, MAX_SALARY) * 100) / 100;
   }
+  const budgetAmount =
+    body.budgetAmount === null || body.budgetAmount === undefined
+      ? null
+      : Math.round(number(body.budgetAmount, "งบประมาณ", 0, MAX_SALARY * 100));
+  const targetPercent =
+    budgetAmount !== null || body.targetPercent === null || body.targetPercent === undefined
+      ? null
+      : Math.round(number(body.targetPercent, "% งบประมาณ", 0, 100) * 100) / 100;
+  if (budgetAmount === null && targetPercent === null) throw new HttpError(400, "กรุณากรอกงบประมาณ");
   return {
-    targetPercent: Math.round(number(body.targetPercent, "% งบประมาณ", 0, 100) * 100) / 100,
+    targetPercent,
+    budgetAmount,
     rowMultipliers: multipliers(body.rowMultipliers, "ตัวคูณ Competency "),
     columnMultipliers: multipliers(body.columnMultipliers, "ตัวคูณ Compa-ratio "),
     roundTo: Math.round(number(body.roundTo, "การปัดเศษ", 0, 10_000)),
