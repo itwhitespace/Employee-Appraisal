@@ -42,6 +42,7 @@ export async function compensationOverview(): Promise<CompensationOverview> {
     const template =
       approved?.snapshot?.template ?? findTemplate(templates, user.departmentId, user.level);
     const history = salaries[user.id] ?? [];
+    const levelName = findLevel(levels, user.departmentId, user.level)?.name ?? null;
     return {
       employee: {
         id: user.id,
@@ -52,11 +53,9 @@ export async function compensationOverview(): Promise<CompensationOverview> {
         level: user.level,
         startDate: user.startDate,
       },
-      levelName: findLevel(levels, user.departmentId, user.level)?.name ?? null,
-      grade:
-        structure.levelGrades.find(
-          (row) => row.departmentId === user.departmentId && row.level === user.level,
-        )?.grade ?? null,
+      levelName,
+      // Grades go by the level's name, the same in every department.
+      grade: (levelName && structure.grades.find((g) => g.levelName === levelName)?.grade) || null,
       salary: salaryInEffect(history, today),
       history,
       performance: approved ? summarize(template, approved).performance.supervisor : null,

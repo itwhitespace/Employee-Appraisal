@@ -8,6 +8,8 @@ import type {
   EvaluationBundle,
   FormTemplate,
   JobLevel,
+  MeritData,
+  MeritPlan,
   OverviewData,
   SalaryRecord,
   SalaryStructure,
@@ -112,6 +114,9 @@ export const api = {
   salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
   saveSalary: (employeeId: string, record: SalaryRecord) =>
     request<CompensationOverview>(`/api/compensation/salaries/${employeeId}`, "PUT", record),
+
+  merit: () => request<MeritData>("/api/compensation/merit"),
+  saveMerit: (plan: MeritPlan) => request<MeritData>("/api/compensation/merit", "PUT", plan),
 
   saveLevel: (level: JobLevel) => request<{ level: JobLevel }>("/api/levels", "PUT", level),
   deleteLevel: (level: Pick<JobLevel, "departmentId" | "level">) =>

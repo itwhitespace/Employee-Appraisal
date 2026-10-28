@@ -168,14 +168,11 @@ create table if not exists public.salary_grades (
   check (min_salary <= mid_salary and mid_salary <= max_salary)
 );
 
--- The salary grade each department's level is paid on.
-create table if not exists public.salary_grade_levels (
-  department_id text not null,
-  level         smallint not null,
-  grade         smallint not null references public.salary_grades (grade) on delete cascade,
-  primary key (department_id, level),
-  foreign key (department_id, level) references public.job_levels (department_id, level) on delete cascade
-);
+-- Each grade names its job level (MD, SM, SD, D, 4 … 1) and the level of the web app it pays,
+-- the same in every department. Grades used to be mapped per department.
+alter table public.salary_grades add column if not exists job_level text not null default '';
+alter table public.salary_grades add column if not exists level_name text unique;
+drop table if exists public.salary_grade_levels;
 
 -- Who opened or changed compensation data, and when.
 create table if not exists public.compensation_audit (
@@ -200,9 +197,17 @@ create table if not exists public.salaries (
   unique (employee_id, effective_date)
 );
 
+-- The merit increase of each cycle: budget, matrix multipliers and any amounts set by hand.
+create table if not exists public.merit_plans (
+  cycle_id   text primary key references public.cycles (id) on delete cascade,
+  plan       jsonb not null,
+  updated_by uuid references public.employees (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
 alter table public.salaries            enable row level security;
 alter table public.salary_grades       enable row level security;
-alter table public.salary_grade_levels enable row level security;
+alter table public.merit_plans         enable row level security;
 alter table public.compensation_audit  enable row level security;
 
 -- First cycle; later ones are added by admin in the web app.

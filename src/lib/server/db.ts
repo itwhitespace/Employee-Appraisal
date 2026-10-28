@@ -13,6 +13,7 @@ import type {
   FormTemplate,
   JobLevel,
   Level,
+  MeritPlan,
   SalaryRecord,
   SalaryStructure,
   Scales,
@@ -500,15 +501,11 @@ export async function saveEvaluation(evaluation: Evaluation): Promise<void> {
 interface SalaryGradeRow {
   grade: number;
   name: string;
+  job_level: string;
+  level_name: string | null;
   min_salary: number;
   mid_salary: number;
   max_salary: number;
-}
-
-interface LevelGradeRow {
-  department_id: DepartmentId;
-  level: Level;
-  grade: number;
 }
 
 interface AuditRow {
@@ -517,32 +514,25 @@ interface AuditRow {
   employees: { name: string } | null;
 }
 
-/** Postgres code of a value that has no matching row, e.g. a level that was removed. */
-const FOREIGN_KEY_VIOLATION = "23503";
-
 export async function getSalaryStructure(): Promise<SalaryStructure> {
-  const [grades, levelGrades] = await Promise.all([
-    scaleRows<SalaryGradeRow>("salary_grades", "grade"),
-    scaleRows<LevelGradeRow>("salary_grade_levels", "department_id"),
-  ]);
+  const grades = await scaleRows<SalaryGradeRow>("salary_grades", "grade");
   return {
     grades: grades.map((row) => ({
       grade: row.grade,
       name: row.name,
+      jobLevel: row.job_level,
+      levelName: row.level_name,
       min: Number(row.min_salary),
       mid: Number(row.mid_salary),
       max: Number(row.max_salary),
     })),
-    levelGrades: levelGrades.map((row) => ({
-      departmentId: row.department_id,
-      level: row.level,
-      grade: row.grade,
-    })),
   };
 }
 
-/** Replaces the whole structure: grades left out are removed, with the levels mapped to them. */
+/** Replaces the whole structure: grades left out are removed. */
 export async function saveSalaryStructure(structure: SalaryStructure): Promise<SalaryStructure> {
+  // Level names are unique, so a level moved to another grade must first leave its old one.
+  check(await db().from("salary_grades").update({ level_name: null }).gte("grade", 0));
   check(
     await db()
       .from("salary_grades")
@@ -550,6 +540,8 @@ export async function saveSalaryStructure(structure: SalaryStructure): Promise<S
         structure.grades.map((grade) => ({
           grade: grade.grade,
           name: grade.name,
+          job_level: grade.jobLevel,
+          level_name: grade.levelName,
           min_salary: grade.min,
           mid_salary: grade.mid,
           max_salary: grade.max,
@@ -560,24 +552,30 @@ export async function saveSalaryStructure(structure: SalaryStructure): Promise<S
   let stale = db().from("salary_grades").delete();
   stale = kept.length ? stale.not("grade", "in", `(${kept.join(",")})`) : stale.gte("grade", 0);
   check(await stale);
-
-  check(await db().from("salary_grade_levels").delete().gte("grade", 0));
-  if (structure.levelGrades.length) {
-    const result = await db()
-      .from("salary_grade_levels")
-      .insert(
-        structure.levelGrades.map((row) => ({
-          department_id: row.departmentId,
-          level: row.level,
-          grade: row.grade,
-        })),
-      );
-    if (result.error?.code === FOREIGN_KEY_VIOLATION) {
-      throw new HttpError(409, "มี Level ที่ถูกลบไปแล้ว กรุณาโหลดหน้าใหม่แล้วบันทึกอีกครั้ง");
-    }
-    check(result);
-  }
   return getSalaryStructure();
+}
+
+interface MeritPlanRow {
+  plan: MeritPlan;
+  updated_at: string;
+}
+
+export async function getMeritPlan(cycleId: string): Promise<{ plan: MeritPlan; updatedAt: string } | null> {
+  const row = check(
+    await db().from("merit_plans").select("plan, updated_at").eq("cycle_id", cycleId).maybeSingle(),
+  ) as MeritPlanRow | null;
+  return row ? { plan: row.plan, updatedAt: row.updated_at } : null;
+}
+
+export async function saveMeritPlan(cycleId: string, plan: MeritPlan, actorId: string): Promise<void> {
+  check(
+    await db().from("merit_plans").upsert({
+      cycle_id: cycleId,
+      plan,
+      updated_by: actorId,
+      updated_at: new Date().toISOString(),
+    }),
+  );
 }
 
 interface SalaryRow {

@@ -295,22 +295,19 @@ export type EmployeeInput = Omit<User, "id" | "compensationAccess">;
 export interface SalaryGrade {
   /** 1 = the highest band. */
   grade: number;
+  /** Title, e.g. "Studio Director". */
   name: string;
+  /** Short code of the Job Grade table: MD, SM, SD, D, 4 … 1. */
+  jobLevel: string;
+  /** The level of the web app paid on this grade, in every department; null = none yet. */
+  levelName: string | null;
   min: number;
   mid: number;
   max: number;
 }
 
-/** Which salary grade a department's level is paid on. */
-export interface LevelGrade {
-  departmentId: DepartmentId;
-  level: Level;
-  grade: number;
-}
-
 export interface SalaryStructure {
   grades: SalaryGrade[];
-  levelGrades: LevelGrade[];
 }
 
 /** Pay from `effectiveDate` on; a raise adds a new record, so the history stays. */
@@ -325,7 +322,7 @@ export interface SalaryRecord {
 export interface CompensationRow {
   employee: Pick<User, "id" | "code" | "name" | "nickname" | "departmentId" | "level" | "startDate">;
   levelName: string | null;
-  /** From the level's mapping on the salary structure page; null when not mapped. */
+  /** The grade whose level is the employee's level; null when there is none. */
   grade: number | null;
   /** The record in effect today; null when there is none yet. */
   salary: SalaryRecord | null;
@@ -347,4 +344,30 @@ export interface CompensationAuditEntry {
   at: string;
   actorName: string;
   action: string;
+}
+
+/**
+ * How a cycle's merit increase is worked out. The budget is a percentage of the monthly base
+ * pay of the people taking part, before the raise, so it stays put while the matrix is solved.
+ */
+export interface MeritPlan {
+  /** Percent of monthly base pay, e.g. 3 = 3%. */
+  targetPercent: number;
+  /** Competency 1 … 5, e.g. 0.6 … 1.5; scores between them are interpolated per 0.1. */
+  rowMultipliers: number[];
+  /** One per Compa-ratio group, lowest Compa-ratio first. */
+  columnMultipliers: number[];
+  /** Each raise is rounded up to this many baht; 0 = not rounded. */
+  roundTo: number;
+  /** People who have worked fewer months than this on the plan's date take no part. */
+  minTenureMonths: number;
+  /** Monthly raise in baht set by hand, keyed by employee id; the rest share what is left. */
+  overrides: Record<string, number>;
+}
+
+export interface MeritData {
+  overview: CompensationOverview;
+  /** The saved plan of the cycle; null = never saved. */
+  plan: MeritPlan | null;
+  updatedAt: string | null;
 }

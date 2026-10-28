@@ -4,7 +4,6 @@ import { useEffect, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import IconButton from "@/components/IconButton";
 import { api, errorMessage } from "@/lib/api";
-import { DEPARTMENTS } from "@/lib/constants";
 import type { CompensationAuditEntry, JobLevel, SalaryGrade, SalaryStructure } from "@/lib/types";
 
 interface Notice {
@@ -16,25 +15,31 @@ interface Notice {
 interface GradeDraft {
   grade: string;
   name: string;
+  jobLevel: string;
+  /** "" = no level. */
+  levelName: string;
   min: string;
   max: string;
 }
-
-/** Keyed by "departmentId:level"; "" = no grade. */
-type Mapping = Record<string, string>;
-
-const levelKey = (level: Pick<JobLevel, "departmentId" | "level">) => `${level.departmentId}:${level.level}`;
 
 const toGradeDrafts = (grades: SalaryGrade[]): GradeDraft[] =>
   grades.map((g) => ({
     grade: String(g.grade),
     name: g.name,
+    jobLevel: g.jobLevel,
+    levelName: g.levelName ?? "",
     min: String(g.min),
     max: String(g.max),
   }));
 
-const toMapping = (structure: SalaryStructure): Mapping =>
-  Object.fromEntries(structure.levelGrades.map((row) => [levelKey(row), String(row.grade)]));
+/** Level names in use, lowest first; the same name is one level across departments. */
+function levelNames(levels: JobLevel[]): string[] {
+  const lowest = new Map<string, number>();
+  for (const level of levels) {
+    lowest.set(level.name, Math.min(lowest.get(level.name) ?? Infinity, level.level));
+  }
+  return [...lowest.keys()].sort((a, b) => lowest.get(a)! - lowest.get(b)! || a.localeCompare(b));
+}
 
 const baht = (value: number) => value.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 const orDash = (value: number | null) => (value === null ? "–" : baht(value));
@@ -58,7 +63,6 @@ function spread(grade: GradeDraft): string {
 export default function SalaryStructurePage() {
   const confirm = useConfirm();
   const [grades, setGrades] = useState<GradeDraft[] | null>(null);
-  const [mapping, setMapping] = useState<Mapping>({});
   const [levels, setLevels] = useState<JobLevel[]>([]);
   const [audit, setAudit] = useState<CompensationAuditEntry[]>([]);
   const [dirty, setDirty] = useState(false);
@@ -71,7 +75,6 @@ export default function SalaryStructurePage() {
       .salaryStructure()
       .then((data) => {
         setGrades(toGradeDrafts(data.structure.grades));
-        setMapping(toMapping(data.structure));
         setLevels(data.levels);
         setAudit(data.audit);
       })
@@ -106,43 +109,33 @@ export default function SalaryStructurePage() {
 
   const addGrade = () => {
     const next = Math.max(0, ...grades.map((g) => Number(g.grade) || 0)) + 1;
-    setGrades([...grades, { grade: String(next), name: "", min: "", max: "" }]);
+    setGrades([...grades, { grade: String(next), name: "", jobLevel: "", levelName: "", min: "", max: "" }]);
     touched();
   };
 
-  const setLevelGrade = (level: JobLevel, grade: string) => {
-    setMapping({ ...mapping, [levelKey(level)]: grade });
-    touched();
-  };
-
-  // Only grades with a number and a name can be picked for a level.
-  const gradeOptions = grades.filter((g) => g.grade.trim() !== "" && g.name.trim() !== "");
-  const midOf = (grade: string) => {
-    const found = grades.find((g) => g.grade === grade);
-    return found ? midpoint(found) : null;
-  };
+  const names = levelNames(levels);
+  const levelCount = (name: string) => levels.filter((level) => level.name === name).length;
 
   const save = async () => {
     if (grades.some((g) => [g.grade, g.name, g.min, g.max].some((v) => v.trim() === ""))) {
       setNotice({ tone: "error", text: "กรุณากรอกข้อมูลกระบอกเงินเดือนให้ครบทุกช่อง" });
       return;
     }
-    const known = new Set(grades.map((g) => g.grade));
+    const picked = grades.map((g) => g.levelName).filter(Boolean);
+    if (new Set(picked).size !== picked.length) {
+      setNotice({ tone: "error", text: "Level หนึ่งใช้ได้กับกระบอกเดียว" });
+      return;
+    }
     const structure: SalaryStructure = {
       grades: grades.map((g) => ({
         grade: Number(g.grade),
         name: g.name.trim(),
+        jobLevel: g.jobLevel.trim(),
+        levelName: g.levelName || null,
         min: Number(g.min),
         mid: midpoint(g) ?? 0,
         max: Number(g.max),
       })),
-      // A level mapped to a grade that was just removed loses its grade.
-      levelGrades: levels.flatMap((level) => {
-        const grade = mapping[levelKey(level)];
-        return grade && known.has(grade)
-          ? [{ departmentId: level.departmentId, level: level.level, grade: Number(grade) }]
-          : [];
-      }),
     };
     const agreed = await confirm({
       title: "บันทึกโครงสร้างเงินเดือน?",
@@ -154,7 +147,6 @@ export default function SalaryStructurePage() {
     try {
       const saved = await api.saveSalaryStructure(structure);
       setGrades(toGradeDrafts(saved.structure.grades));
-      setMapping(toMapping(saved.structure));
       setAudit(saved.audit);
       setDirty(false);
       setNotice({ tone: "ok", text: "บันทึกแล้ว" });
@@ -194,14 +186,18 @@ export default function SalaryStructurePage() {
       <section className="card overflow-hidden">
         <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">กระบอกเงินเดือน</h2>
-          <p className="text-xs text-muted">Grade 1 คือกระบอกสูงสุด · จำนวนเงินเป็นบาทต่อเดือน</p>
+          <p className="text-xs text-muted">
+            Grade 1 คือกระบอกสูงสุด · จำนวนเงินเป็นบาทต่อเดือน · ทุกฝ่ายที่อยู่ Level เดียวกันใช้กระบอกเดียวกัน
+          </p>
         </header>
         <div className="overflow-x-auto border-t border-line">
-          <table className="sheet min-w-[760px]">
+          <table className="sheet min-w-[980px]">
             <thead>
               <tr>
-                <th className="w-24 text-center">Job Grade</th>
-                <th>ชื่อกระบอก</th>
+                <th className="w-20 text-center">Job Grade</th>
+                <th>Title</th>
+                <th className="w-20 text-center">Job level</th>
+                <th className="w-48">Level ในระบบ</th>
                 <th className="w-32 text-right">Max</th>
                 <th className="w-32 text-right">Mid</th>
                 <th className="w-32 text-right">Min</th>
@@ -212,7 +208,7 @@ export default function SalaryStructurePage() {
             <tbody>
               {grades.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="py-6 text-center text-muted">
+                  <td colSpan={9} className="py-6 text-center text-muted">
                     ยังไม่มีกระบอกเงินเดือน
                   </td>
                 </tr>
@@ -234,10 +230,38 @@ export default function SalaryStructurePage() {
                     <input
                       className="field font-semibold"
                       maxLength={80}
-                      aria-label={`ชื่อกระบอก แถว ${index + 1}`}
+                      aria-label={`Title แถว ${index + 1}`}
                       value={grade.name}
                       onChange={(e) => editGrade(index, { name: e.target.value })}
                     />
+                  </td>
+                  <td>
+                    <input
+                      className="field text-center font-semibold"
+                      maxLength={10}
+                      placeholder="เช่น MD"
+                      aria-label={`Job level แถว ${index + 1}`}
+                      value={grade.jobLevel}
+                      onChange={(e) => editGrade(index, { jobLevel: e.target.value })}
+                    />
+                  </td>
+                  <td>
+                    <select
+                      className="field"
+                      aria-label={`Level ในระบบ แถว ${index + 1}`}
+                      value={grade.levelName}
+                      onChange={(e) => editGrade(index, { levelName: e.target.value })}
+                    >
+                      <option value="">– ไม่มี</option>
+                      {names.map((name) => {
+                        const taken = grades.some((g, i) => i !== index && g.levelName === name);
+                        return (
+                          <option key={name} value={name} disabled={taken}>
+                            {name} ({levelCount(name)} ฝ่าย){taken ? " · ใช้แล้ว" : ""}
+                          </option>
+                        );
+                      })}
+                    </select>
                   </td>
                   <td>
                     <input
@@ -278,60 +302,6 @@ export default function SalaryStructurePage() {
           <button type="button" className="btn-secondary" onClick={addGrade}>
             + เพิ่มกระบอก
           </button>
-        </div>
-      </section>
-
-      <section className="card overflow-hidden">
-        <header className="border-l-4 border-teal-500 px-5 py-4">
-          <h2 className="text-[17px] font-semibold tracking-tight">Level ของแต่ละฝ่ายใช้กระบอกไหน</h2>
-          <p className="text-xs text-muted">
-            Level ที่ยังไม่กำหนดกระบอกจะคำนวณ Compa-ratio ไม่ได้
-          </p>
-        </header>
-        <div className="grid gap-px border-t border-line bg-line md:grid-cols-2">
-          {DEPARTMENTS.map((department) => {
-            const own = levels.filter((level) => level.departmentId === department.id);
-            if (own.length === 0) return null;
-            return (
-              <div key={department.id} className="bg-white px-5 py-4">
-                <h3 className="mb-2 text-sm font-semibold text-teal-800">{department.name}</h3>
-                <table className="w-full text-sm">
-                  <tbody>
-                    {own.map((level) => {
-                      const grade = mapping[levelKey(level)] ?? "";
-                      const mid = midOf(grade);
-                      return (
-                        <tr key={level.level} className="border-t border-line first:border-t-0">
-                          <td className="py-1.5 pr-3">
-                            <div className="font-medium">{level.name}</div>
-                            <div className="text-xs text-faint">{level.title}</div>
-                          </td>
-                          <td className="w-44 py-1.5">
-                            <select
-                              className="field py-1.5"
-                              aria-label={`กระบอกของ ${department.name} ${level.name}`}
-                              value={grade}
-                              onChange={(e) => setLevelGrade(level, e.target.value)}
-                            >
-                              <option value="">– ไม่กำหนด</option>
-                              {gradeOptions.map((g) => (
-                                <option key={g.grade} value={g.grade}>
-                                  Grade {g.grade} · {g.name}
-                                </option>
-                              ))}
-                            </select>
-                          </td>
-                          <td className="w-28 py-1.5 text-right tabular-nums text-teal-700">
-                            {mid === null ? "" : `Mid ${baht(mid)}`}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            );
-          })}
         </div>
       </section>
 

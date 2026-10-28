@@ -120,12 +120,14 @@ const ICONS = {
   scale: "M10 3.5l1.9 4 4.4.6-3.2 3 .8 4.4-3.9-2.1-3.9 2.1.8-4.4-3.2-3 4.4-.6z",
   cycles: "M4 5.5h12v11H4zM4 8.5h12M7 3.5v3M13 3.5v3",
   builder: "M4 6h7m4 0h1M4 10h2m4 0h6M4 14h8m4 0h0M13 4.5v3M8 8.5v3M14 12.5v3",
+  raise: "M3.5 14.5l4.5-4.5 3 3 5.5-5.5M12 7.5h4.5V12",
   money: "M3 5.5h14v9H3zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.5 8v4M14.5 8v4",
 };
 
 /** The compensation pages: a space of their own, opened in a separate tab. */
 const COMPENSATION_ITEMS: NavItem[] = [
   { href: "/compensation/salaries", label: "เงินเดือนพนักงาน", icon: ICONS.people },
+  { href: "/compensation/merit", label: "ขึ้นเงินเดือน", icon: ICONS.raise },
   { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels },
 ];
 

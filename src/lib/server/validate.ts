@@ -16,7 +16,7 @@ import type {
   FormTemplate,
   JobLevel,
   Level,
-  LevelGrade,
+  MeritPlan,
   Question,
   RatingBand,
   Role,
@@ -174,7 +174,7 @@ export function parseScales(body: Record<string, unknown>): Scales {
 
 const MAX_SALARY = 10_000_000;
 
-/** The salary structure page: every grade and which grade each level is paid on. */
+/** The salary structure page: every grade, with the level it pays. */
 export function parseSalaryStructure(body: Record<string, unknown>): SalaryStructure {
   const rows = Array.isArray(body.grades) ? body.grades : [];
   if (rows.length > 30) throw new HttpError(400, "กระบอกเงินเดือนมากเกินไป");
@@ -187,7 +187,7 @@ export function parseSalaryStructure(body: Record<string, unknown>): SalaryStruc
     const grade = levelOf(raw.grade);
     if (!grade) throw new HttpError(400, "Job Grade ต้องเป็นเลขจำนวนเต็มตั้งแต่ 1");
     const name = trimmed(raw.name, 80);
-    if (!name) throw new HttpError(400, `กรุณากรอกชื่อของ Grade ${grade}`);
+    if (!name) throw new HttpError(400, `กรุณากรอก Title ของ Grade ${grade}`);
     const min = money(raw.min);
     const mid = money(raw.mid);
     const max = money(raw.max);
@@ -197,32 +197,46 @@ export function parseSalaryStructure(body: Record<string, unknown>): SalaryStruc
     if (!(min <= mid && mid <= max) || mid === 0) {
       throw new HttpError(400, `Grade ${grade}: ต้องเรียง Min ≤ Mid ≤ Max และ Mid มากกว่า 0`);
     }
-    return { grade, name, min, mid, max };
+    const levelName = trimmed(raw.levelName, 60) || null;
+    return { grade, name, jobLevel: trimmed(raw.jobLevel, 10), levelName, min, mid, max };
   });
   grades.sort((a, b) => a.grade - b.grade);
   if (new Set(grades.map((g) => g.grade)).size !== grades.length) {
     throw new HttpError(400, "Job Grade ต้องไม่ซ้ำกัน");
   }
+  const levelNames = grades.flatMap((g) => (g.levelName ? [g.levelName] : []));
+  if (new Set(levelNames).size !== levelNames.length) {
+    throw new HttpError(400, "Level หนึ่งใช้ได้กับกระบอกเดียว");
+  }
+  return { grades };
+}
 
-  const known = new Set(grades.map((g) => g.grade));
-  const seen = new Set<string>();
-  const levelGrades = (Array.isArray(body.levelGrades) ? body.levelGrades : []).flatMap(
-    (item): LevelGrade[] => {
-      const raw = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
-      const departmentId = departmentOf(raw.departmentId);
-      const level = levelOf(raw.level);
-      const grade = levelOf(raw.grade);
-      if (!departmentId || !level) throw new HttpError(400, "ฝ่ายหรือ Level ไม่ถูกต้อง");
-      // A level with no grade is simply left unmapped.
-      if (grade === null) return [];
-      if (!known.has(grade)) throw new HttpError(400, `ไม่มี Grade ${grade} ในโครงสร้างเงินเดือน`);
-      const key = `${departmentId}:${level}`;
-      if (seen.has(key)) throw new HttpError(400, "มี Level ที่ถูกกำหนด Grade ซ้ำ");
-      seen.add(key);
-      return [{ departmentId, level, grade }];
-    },
-  );
-  return { grades, levelGrades };
+/** The merit increase page. */
+export function parseMeritPlan(body: Record<string, unknown>): MeritPlan {
+  const number = (value: unknown, label: string, min: number, max: number) => {
+    if (typeof value !== "number" || !(value >= min && value <= max)) {
+      throw new HttpError(400, `${label}ต้องเป็นตัวเลข ${min} ถึง ${max}`);
+    }
+    return value;
+  };
+  const multipliers = (value: unknown, label: string) => {
+    if (!Array.isArray(value) || value.length !== 5) throw new HttpError(400, `${label}ต้องมี 5 ค่า`);
+    return value.map((item) => Math.round(number(item, label, 0, 5) * 1000) / 1000);
+  };
+  const overrides: Record<string, number> = {};
+  const rawOverrides = body.overrides && typeof body.overrides === "object" ? body.overrides : {};
+  for (const [id, amount] of Object.entries(rawOverrides as Record<string, unknown>).slice(0, 1000)) {
+    if (!UUID.test(id)) throw new HttpError(400, "รหัสพนักงานไม่ถูกต้อง");
+    overrides[id] = Math.round(number(amount, "จำนวนเงินที่กำหนดเอง", 0, MAX_SALARY) * 100) / 100;
+  }
+  return {
+    targetPercent: Math.round(number(body.targetPercent, "% งบประมาณ", 0, 100) * 100) / 100,
+    rowMultipliers: multipliers(body.rowMultipliers, "ตัวคูณ Competency "),
+    columnMultipliers: multipliers(body.columnMultipliers, "ตัวคูณ Compa-ratio "),
+    roundTo: Math.round(number(body.roundTo, "การปัดเศษ", 0, 10_000)),
+    minTenureMonths: Math.round(number(body.minTenureMonths, "อายุงานขั้นต่ำ", 0, 120)),
+    overrides,
+  };
 }
 
 /** One salary record from the salary page. */

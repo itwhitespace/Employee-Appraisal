@@ -11,7 +11,7 @@ import { parseSalaryStructure } from "@/lib/server/validate";
 // Reads the session cookie, so it can never be prerendered.
 export const dynamic = "force-dynamic";
 
-/** The salary structure, the levels it is mapped to, and the recent access record. */
+/** The salary structure, the levels it can pay, and the recent access record. */
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationUser();
@@ -25,7 +25,7 @@ export async function GET() {
   });
 }
 
-/** Replaces the whole structure. Body: { grades, levelGrades }. */
+/** Replaces the whole structure. Body: { grades }. */
 export async function PUT(request: Request) {
   return handle(async () => {
     const user = await requireCompensationUser();
