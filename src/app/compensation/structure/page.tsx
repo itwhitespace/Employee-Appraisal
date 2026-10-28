@@ -197,14 +197,14 @@ export default function SalaryStructurePage() {
           <p className="text-xs text-muted">Grade 1 คือกระบอกสูงสุด · จำนวนเงินเป็นบาทต่อเดือน</p>
         </header>
         <div className="overflow-x-auto border-t border-line">
-          <table className="sheet min-w-[860px]">
+          <table className="sheet min-w-[760px]">
             <thead>
               <tr>
                 <th className="w-24 text-center">Job Grade</th>
                 <th>ชื่อกระบอก</th>
-                <th className="w-36 text-right">Max</th>
-                <th className="w-36 text-right">Mid</th>
-                <th className="w-36 text-right">Min</th>
+                <th className="w-32 text-right">Max</th>
+                <th className="w-32 text-right">Mid</th>
+                <th className="w-32 text-right">Min</th>
                 <th className="w-24 text-center">ความกว้าง</th>
                 <th className="w-14" aria-label="จัดการ" />
               </tr>
@@ -251,7 +251,7 @@ export default function SalaryStructurePage() {
                     />
                   </td>
                   {/* Mid is always halfway between Min and Max. */}
-                  <td className="bg-teal-50/60 pt-4 text-right font-semibold tabular-nums text-teal-700">
+                  <td className="bg-teal-50/60 text-right font-semibold tabular-nums text-teal-700">
                     {orDash(midpoint(grade))}
                   </td>
                   <td>
@@ -265,7 +265,7 @@ export default function SalaryStructurePage() {
                       onChange={(e) => editGrade(index, { min: e.target.value })}
                     />
                   </td>
-                  <td className="pt-4 text-center tabular-nums text-muted">{spread(grade)}</td>
+                  <td className="text-center tabular-nums text-muted">{spread(grade)}</td>
                   <td className="!px-1.5 !py-1.5 text-right">
                     <IconButton icon="delete" label="ลบ" tone="danger" onClick={() => removeGrade(index)} />
                   </td>

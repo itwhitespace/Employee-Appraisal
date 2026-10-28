@@ -13,6 +13,7 @@ import type {
   FormTemplate,
   JobLevel,
   Level,
+  SalaryRecord,
   SalaryStructure,
   Scales,
   User,
@@ -577,6 +578,49 @@ export async function saveSalaryStructure(structure: SalaryStructure): Promise<S
     check(result);
   }
   return getSalaryStructure();
+}
+
+interface SalaryRow {
+  employee_id: string;
+  effective_date: string;
+  base_salary: number;
+  allowance: number;
+  note: string;
+}
+
+const toSalaryRecord = (row: SalaryRow): SalaryRecord => ({
+  effectiveDate: row.effective_date,
+  baseSalary: Number(row.base_salary),
+  allowance: Number(row.allowance),
+  note: row.note,
+});
+
+/** Every salary record keyed by employee id, newest first. */
+export async function listSalaryHistory(): Promise<Record<string, SalaryRecord[]>> {
+  const rows = await scaleRows<SalaryRow>("salaries", "employee_id");
+  const byEmployee: Record<string, SalaryRecord[]> = {};
+  for (const row of rows) (byEmployee[row.employee_id] ??= []).push(toSalaryRecord(row));
+  for (const history of Object.values(byEmployee)) {
+    history.sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+  }
+  return byEmployee;
+}
+
+/** Adds a record, or corrects the one that starts on the same date. */
+export async function saveSalary(employeeId: string, record: SalaryRecord, actorId: string): Promise<void> {
+  check(
+    await db().from("salaries").upsert(
+      {
+        employee_id: employeeId,
+        effective_date: record.effectiveDate,
+        base_salary: record.baseSalary,
+        allowance: record.allowance,
+        note: record.note,
+        created_by: actorId,
+      },
+      { onConflict: "employee_id,effective_date" },
+    ),
+  );
 }
 
 /** Records who opened or changed compensation data. */

@@ -125,6 +125,7 @@ const ICONS = {
 
 /** The compensation pages: a space of their own, opened in a separate tab. */
 const COMPENSATION_ITEMS: NavItem[] = [
+  { href: "/compensation/salaries", label: "เงินเดือนพนักงาน", icon: ICONS.people },
   { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels },
 ];
 

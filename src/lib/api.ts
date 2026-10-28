@@ -1,5 +1,6 @@
 import type {
   CompensationAuditEntry,
+  CompensationOverview,
   Cycle,
   EmployeeInput,
   Evaluation,
@@ -8,6 +9,7 @@ import type {
   FormTemplate,
   JobLevel,
   OverviewData,
+  SalaryRecord,
   SalaryStructure,
   Scales,
   User,
@@ -106,6 +108,10 @@ export const api = {
       "PUT",
       structure,
     ),
+
+  salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
+  saveSalary: (employeeId: string, record: SalaryRecord) =>
+    request<CompensationOverview>(`/api/compensation/salaries/${employeeId}`, "PUT", record),
 
   saveLevel: (level: JobLevel) => request<{ level: JobLevel }>("/api/levels", "PUT", level),
   deleteLevel: (level: Pick<JobLevel, "departmentId" | "level">) =>

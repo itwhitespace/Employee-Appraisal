@@ -42,9 +42,21 @@ body {
     @apply border-accent bg-white;
   }
 
-  /* Compensation pages: teal headings and outlined inputs, set apart from the appraisal. */
+  /* Compensation pages: compact teal tables and outlined inputs, set apart from the appraisal. */
+  .compensation .sheet {
+    @apply text-[12.5px];
+  }
   .compensation .sheet th {
-    @apply border-teal-100 bg-teal-50 font-semibold text-teal-800;
+    @apply border-teal-100 bg-teal-50 px-2.5 py-2 text-[11.5px] font-semibold text-teal-800;
+  }
+  .compensation .sheet td {
+    @apply px-2.5 py-1.5 align-middle;
+  }
+  .compensation .sheet tbody tr {
+    @apply transition-colors hover:bg-teal-50/40;
+  }
+  .compensation .field {
+    @apply py-1 text-[12.5px];
   }
   .compensation .field:enabled {
     @apply border-teal-200 bg-white hover:border-teal-400 hover:bg-white focus:border-teal-500 focus:ring-teal-500/15;

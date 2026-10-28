@@ -21,6 +21,7 @@ import type {
   RatingBand,
   Role,
   SalaryGrade,
+  SalaryRecord,
   SalaryStructure,
   Scales,
   SectionKey,
@@ -222,6 +223,26 @@ export function parseSalaryStructure(body: Record<string, unknown>): SalaryStruc
     },
   );
   return { grades, levelGrades };
+}
+
+/** One salary record from the salary page. */
+export function parseSalaryRecord(body: Record<string, unknown>): SalaryRecord {
+  const effectiveDate = dateOf(body.effectiveDate, "วันที่มีผล");
+  if (!effectiveDate) throw new HttpError(400, "กรุณาเลือกวันที่มีผล");
+  const amount = (value: unknown, label: string) => {
+    if (typeof value !== "number" || !(value >= 0 && value <= MAX_SALARY)) {
+      throw new HttpError(400, `${label}ต้องเป็นตัวเลข 0 ถึง ${MAX_SALARY.toLocaleString()}`);
+    }
+    return Math.round(value * 100) / 100;
+  };
+  const baseSalary = amount(body.baseSalary, "เงินเดือนฐาน");
+  if (baseSalary === 0) throw new HttpError(400, "กรุณากรอกเงินเดือนฐาน");
+  return {
+    effectiveDate,
+    baseSalary,
+    allowance: amount(body.allowance ?? 0, "เบี้ยเลี้ยง"),
+    note: trimmed(body.note, 200),
+  };
 }
 
 function parseQuestions(value: unknown): Question[] {

@@ -313,6 +313,35 @@ export interface SalaryStructure {
   levelGrades: LevelGrade[];
 }
 
+/** Pay from `effectiveDate` on; a raise adds a new record, so the history stays. */
+export interface SalaryRecord {
+  effectiveDate: string;
+  baseSalary: number;
+  allowance: number;
+  note: string;
+}
+
+/** One appraised employee on the salary page. */
+export interface CompensationRow {
+  employee: Pick<User, "id" | "code" | "name" | "nickname" | "departmentId" | "level" | "startDate">;
+  levelName: string | null;
+  /** From the level's mapping on the salary structure page; null when not mapped. */
+  grade: number | null;
+  /** The record in effect today; null when there is none yet. */
+  salary: SalaryRecord | null;
+  /** Newest first, including any that start later than today. */
+  history: SalaryRecord[];
+  /** Supervisor's Performance Score, only once admin has approved the result. */
+  performance: number | null;
+}
+
+export interface CompensationOverview {
+  /** The cycle the Performance Scores are from. */
+  cycleId: string;
+  structure: SalaryStructure;
+  rows: CompensationRow[];
+}
+
 /** One line of the record of who opened or changed compensation data. */
 export interface CompensationAuditEntry {
   at: string;

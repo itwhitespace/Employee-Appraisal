@@ -186,6 +186,21 @@ create table if not exists public.compensation_audit (
 );
 create index if not exists compensation_audit_at_idx on public.compensation_audit (at desc);
 
+-- Pay of each employee from `effective_date` on. A raise adds a row, so the history stays;
+-- saving again with the same date corrects that row.
+create table if not exists public.salaries (
+  id             bigint generated always as identity primary key,
+  employee_id    uuid not null references public.employees (id) on delete cascade,
+  effective_date date not null,
+  base_salary    numeric(12, 2) not null check (base_salary > 0),
+  allowance      numeric(12, 2) not null default 0 check (allowance >= 0),
+  note           text not null default '',
+  created_by     uuid references public.employees (id) on delete set null,
+  created_at     timestamptz not null default now(),
+  unique (employee_id, effective_date)
+);
+
+alter table public.salaries            enable row level security;
 alter table public.salary_grades       enable row level security;
 alter table public.salary_grade_levels enable row level security;
 alter table public.compensation_audit  enable row level security;
