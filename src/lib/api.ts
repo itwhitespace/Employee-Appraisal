@@ -1,4 +1,5 @@
 import type {
+  CompensationAuditEntry,
   Cycle,
   EmployeeInput,
   Evaluation,
@@ -7,6 +8,7 @@ import type {
   FormTemplate,
   JobLevel,
   OverviewData,
+  SalaryStructure,
   Scales,
   User,
 } from "./types";
@@ -92,6 +94,18 @@ export const api = {
 
   scales: () => request<{ scales: Scales }>("/api/scales"),
   saveScales: (scales: Scales) => request<{ scales: Scales }>("/api/scales", "PUT", scales),
+
+  /** Compensation access only; every call is recorded. */
+  salaryStructure: () =>
+    request<{ structure: SalaryStructure; levels: JobLevel[]; audit: CompensationAuditEntry[] }>(
+      "/api/compensation/structure",
+    ),
+  saveSalaryStructure: (structure: SalaryStructure) =>
+    request<{ structure: SalaryStructure; audit: CompensationAuditEntry[] }>(
+      "/api/compensation/structure",
+      "PUT",
+      structure,
+    ),
 
   saveLevel: (level: JobLevel) => request<{ level: JobLevel }>("/api/levels", "PUT", level),
   deleteLevel: (level: Pick<JobLevel, "departmentId" | "level">) =>

@@ -111,6 +111,11 @@ export interface User {
   startDate: string | null;
   levelSince: string | null;
   appraisalType: AppraisalType;
+  /**
+   * May open the compensation pages (salary structure, Compa-ratio). Granted only in the
+   * database, never from the app, so no admin can give it to themselves.
+   */
+  compensationAccess: boolean;
 }
 
 /** A user who has an appraisal form. */
@@ -280,4 +285,37 @@ export type EvaluationAction =
   | "unapprove";
 
 /** Fields admin can set when adding or editing an employee. */
-export type EmployeeInput = Omit<User, "id">;
+export type EmployeeInput = Omit<User, "id" | "compensationAccess">;
+
+/* ------------------------------------------------------------------ */
+/* Compensation                                                        */
+/* ------------------------------------------------------------------ */
+
+/** One band of the salary structure; Compa-ratio = base salary ÷ `mid`. */
+export interface SalaryGrade {
+  /** 1 = the highest band. */
+  grade: number;
+  name: string;
+  min: number;
+  mid: number;
+  max: number;
+}
+
+/** Which salary grade a department's level is paid on. */
+export interface LevelGrade {
+  departmentId: DepartmentId;
+  level: Level;
+  grade: number;
+}
+
+export interface SalaryStructure {
+  grades: SalaryGrade[];
+  levelGrades: LevelGrade[];
+}
+
+/** One line of the record of who opened or changed compensation data. */
+export interface CompensationAuditEntry {
+  at: string;
+  actorName: string;
+  action: string;
+}

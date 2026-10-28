@@ -153,6 +153,43 @@ alter table public.evaluations add column if not exists approved_at timestamptz;
 alter table public.evaluations add column if not exists approved_by uuid
   references public.employees (id) on delete set null;
 
+-- Compensation (salary structure, Compa-ratio). Only people with compensation_access may
+-- open it; the flag is set here in SQL, never from the web app, so no admin can grant it
+-- to themselves. The tables start empty: salary figures are never kept in this file.
+alter table public.employees add column if not exists compensation_access boolean not null default false;
+
+-- Salary bands; grade 1 is the highest. Compa-ratio = base salary / mid_salary.
+create table if not exists public.salary_grades (
+  grade      smallint primary key check (grade >= 1),
+  name       text not null,
+  min_salary numeric(12, 2) not null check (min_salary >= 0),
+  mid_salary numeric(12, 2) not null check (mid_salary > 0),
+  max_salary numeric(12, 2) not null,
+  check (min_salary <= mid_salary and mid_salary <= max_salary)
+);
+
+-- The salary grade each department's level is paid on.
+create table if not exists public.salary_grade_levels (
+  department_id text not null,
+  level         smallint not null,
+  grade         smallint not null references public.salary_grades (grade) on delete cascade,
+  primary key (department_id, level),
+  foreign key (department_id, level) references public.job_levels (department_id, level) on delete cascade
+);
+
+-- Who opened or changed compensation data, and when.
+create table if not exists public.compensation_audit (
+  id       bigint generated always as identity primary key,
+  at       timestamptz not null default now(),
+  actor_id uuid references public.employees (id) on delete set null,
+  action   text not null
+);
+create index if not exists compensation_audit_at_idx on public.compensation_audit (at desc);
+
+alter table public.salary_grades       enable row level security;
+alter table public.salary_grade_levels enable row level security;
+alter table public.compensation_audit  enable row level security;
+
 -- First cycle; later ones are added by admin in the web app.
 insert into public.cycles (id, period, is_current)
 select 'FY2026/27', 'ต.ค. 2026 – ก.ย. 2027', true

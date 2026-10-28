@@ -32,6 +32,13 @@ export async function requireUser(roles?: Role[]): Promise<User> {
   return user;
 }
 
+/** The signed-in user, or a 401 / 403 unless they may see compensation data. */
+export async function requireCompensationUser(): Promise<User> {
+  const user = await requireUser();
+  if (!user.compensationAccess) throw new HttpError(403, "คุณไม่มีสิทธิ์ใช้งานส่วนนี้");
+  return user;
+}
+
 export async function readJson(request: Request): Promise<Record<string, unknown>> {
   const body = await request.json().catch(() => null);
   if (!body || typeof body !== "object" || Array.isArray(body)) {

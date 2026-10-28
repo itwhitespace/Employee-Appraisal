@@ -107,9 +107,25 @@ const ICONS = {
   scale: "M10 3.5l1.9 4 4.4.6-3.2 3 .8 4.4-3.9-2.1-3.9 2.1.8-4.4-3.2-3 4.4-.6z",
   cycles: "M4 5.5h12v11H4zM4 8.5h12M7 3.5v3M13 3.5v3",
   builder: "M4 6h7m4 0h1M4 10h2m4 0h6M4 14h8m4 0h0M13 4.5v3M8 8.5v3M14 12.5v3",
+  money: "M3 5.5h14v9H3zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.5 8v4M14.5 8v4",
 };
 
 function navItems(user: User): (NavItem | NavGroup)[] {
+  const compensation: NavGroup[] = user.compensationAccess
+    ? [
+        {
+          label: "ค่าตอบแทน",
+          icon: ICONS.money,
+          children: [
+            { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels },
+          ],
+        },
+      ]
+    : [];
+  return [...roleItems(user), ...compensation];
+}
+
+function roleItems(user: User): (NavItem | NavGroup)[] {
   const ownForm: NavItem[] = isEmployee(user)
     ? [{ href: `/evaluate/${user.id}`, label: "แบบประเมินของฉัน", icon: ICONS.form }]
     : [];

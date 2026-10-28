@@ -16,9 +16,12 @@ import type {
   FormTemplate,
   JobLevel,
   Level,
+  LevelGrade,
   Question,
   RatingBand,
   Role,
+  SalaryGrade,
+  SalaryStructure,
   Scales,
   SectionKey,
   Weights,
@@ -166,6 +169,59 @@ export function parseScales(body: Record<string, unknown>): Scales {
     performance: parseThresholds(body.performance, "Performance Band"),
     nineBox,
   };
+}
+
+const MAX_SALARY = 10_000_000;
+
+/** The salary structure page: every grade and which grade each level is paid on. */
+export function parseSalaryStructure(body: Record<string, unknown>): SalaryStructure {
+  const rows = Array.isArray(body.grades) ? body.grades : [];
+  if (rows.length > 30) throw new HttpError(400, "กระบอกเงินเดือนมากเกินไป");
+
+  const money = (value: unknown) =>
+    typeof value === "number" && value >= 0 && value <= MAX_SALARY ? Math.round(value * 100) / 100 : NaN;
+
+  const grades = rows.map((item): SalaryGrade => {
+    const raw = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+    const grade = levelOf(raw.grade);
+    if (!grade) throw new HttpError(400, "Job Grade ต้องเป็นเลขจำนวนเต็มตั้งแต่ 1");
+    const name = trimmed(raw.name, 80);
+    if (!name) throw new HttpError(400, `กรุณากรอกชื่อของ Grade ${grade}`);
+    const min = money(raw.min);
+    const mid = money(raw.mid);
+    const max = money(raw.max);
+    if ([min, mid, max].some(Number.isNaN)) {
+      throw new HttpError(400, `เงินเดือนของ Grade ${grade} ต้องเป็นตัวเลข 0 ถึง ${MAX_SALARY.toLocaleString()}`);
+    }
+    if (!(min <= mid && mid <= max) || mid === 0) {
+      throw new HttpError(400, `Grade ${grade}: ต้องเรียง Min ≤ Mid ≤ Max และ Mid มากกว่า 0`);
+    }
+    return { grade, name, min, mid, max };
+  });
+  grades.sort((a, b) => a.grade - b.grade);
+  if (new Set(grades.map((g) => g.grade)).size !== grades.length) {
+    throw new HttpError(400, "Job Grade ต้องไม่ซ้ำกัน");
+  }
+
+  const known = new Set(grades.map((g) => g.grade));
+  const seen = new Set<string>();
+  const levelGrades = (Array.isArray(body.levelGrades) ? body.levelGrades : []).flatMap(
+    (item): LevelGrade[] => {
+      const raw = (item && typeof item === "object" ? item : {}) as Record<string, unknown>;
+      const departmentId = departmentOf(raw.departmentId);
+      const level = levelOf(raw.level);
+      const grade = levelOf(raw.grade);
+      if (!departmentId || !level) throw new HttpError(400, "ฝ่ายหรือ Level ไม่ถูกต้อง");
+      // A level with no grade is simply left unmapped.
+      if (grade === null) return [];
+      if (!known.has(grade)) throw new HttpError(400, `ไม่มี Grade ${grade} ในโครงสร้างเงินเดือน`);
+      const key = `${departmentId}:${level}`;
+      if (seen.has(key)) throw new HttpError(400, "มี Level ที่ถูกกำหนด Grade ซ้ำ");
+      seen.add(key);
+      return [{ departmentId, level, grade }];
+    },
+  );
+  return { grades, levelGrades };
 }
 
 function parseQuestions(value: unknown): Question[] {

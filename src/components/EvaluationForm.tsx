@@ -125,17 +125,18 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   const canEditSelf = !readOnly && isOwner && status === "draft";
   const canEditSupervisor =
     !readOnly && isSupervisor && (status === "draft" || status === "self_submitted");
-  const canEditNotes = canEditSelf || canEditSupervisor;
-  // Admin may correct the supervisor's scores of a confirmed result.
+  // Admin may correct everything the supervisor entered while the result waits for approval.
+  const canAdminEdit = !readOnly && isAdmin && !isOwner && status === "completed";
+  const canEditSupervisorSide = canEditSupervisor || canAdminEdit;
+  const canEditNotes = canEditSelf || canEditSupervisorSide;
   // A confirmed result can be saved as PDF by the appraiser and admin.
   const canSavePdf =
     (status === "completed" || status === "approved") && !closed && (isSupervisor || isAdmin);
-  const canAdminScores = !readOnly && isAdmin && !isOwner && status === "completed";
   const canEditAnything = !readOnly && (canEditNotes || isAdmin);
 
   const commentAccess: Record<keyof SignOffComments, boolean> = {
     employee: canEditSelf,
-    supervisor: canEditSupervisor,
+    supervisor: canEditSupervisorSide,
     director: isAdmin && !readOnly,
     hr: isAdmin && !readOnly,
   };
@@ -246,12 +247,12 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
   };
 
   const saveAsAdmin = () => {
-    if (canAdminScores && summary.missing.supervisor > 0) {
+    if (canAdminEdit && summary.missing.supervisor > 0) {
       setFlagMissing("supervisor");
       setNotice({ tone: "error", text: `ยังบันทึกไม่ได้: ${blockedBy("supervisor")}` });
       return;
     }
-    void send("save", canAdminScores ? "บันทึกการแก้ไขแล้ว" : "บันทึกความเห็นแล้ว");
+    void send("save", canAdminEdit ? "บันทึกการแก้ไขแล้ว" : "บันทึกความเห็นแล้ว");
   };
 
   /** Approval works in a past cycle too, so it names the cycle shown. */
@@ -334,8 +335,8 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
       : status === "approved"
         ? "อนุมัติผลแล้ว — พนักงานเห็นแบบประเมินฉบับเต็ม แก้ไขได้หลังยกเลิกการอนุมัติ"
         : `มุมมอง Admin — ดูได้ทั้งหมด และกรอกความเห็นของ Director และ HR / MD ได้${
-            canAdminScores
-              ? " รวมถึงแก้ไขคะแนนในคอลัมน์ Supervisor ได้ ตรวจเรียบร้อยแล้วกด “อนุมัติผล”"
+            canAdminEdit
+              ? " รวมถึงแก้ไขฝั่งผู้ประเมินได้ทั้งหมด (คะแนน Supervisor, ความเห็น, KPI เฉพาะบุคคล, IDP) ตรวจเรียบร้อยแล้วกด “อนุมัติผล”"
               : ""
           }`;
 
@@ -452,9 +453,9 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
             scores={shown.scores}
             summary={summary.sections[key]}
             canEditSelf={canEditSelf}
-            canEditSupervisor={canEditSupervisor || canAdminScores}
+            canEditSupervisor={canEditSupervisorSide}
             canEditNotes={canEditNotes}
-            canEditPersonal={canEditSupervisor}
+            canEditPersonal={canEditSupervisorSide}
             flagMissing={flagMissing}
             onScore={setScore}
             personalIds={key === "A" ? personalIds : undefined}
@@ -462,7 +463,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
             onPersonalRemove={removePersonalKpi}
           />
           {/* Personal KPIs are agreed with the appraiser, who enters them. */}
-          {key === "A" && canEditSupervisor && (
+          {key === "A" && canEditSupervisorSide && (
             <div className="border-t border-line px-5 py-3">
               <button type="button" className="btn-secondary" onClick={addPersonalKpi}>
                 + เพิ่ม KPI เฉพาะบุคคล
@@ -483,7 +484,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
         <IdpSection
           idp={shown.idp}
           canEdit={canEditNotes}
-          canEditRecommendation={canEditSupervisor}
+          canEditRecommendation={canEditSupervisorSide}
           onChange={(idp) => patch((prev) => ({ ...prev, idp }))}
         />
       </SectionCard>
@@ -576,9 +577,9 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
                 </button>
               </>
             )}
-            {isAdmin && !canEditNotes && !readOnly && status !== "approved" && (
+            {isAdmin && !canEditSelf && !canEditSupervisor && !readOnly && status !== "approved" && (
               <button type="button" className="btn-primary" disabled={busy} onClick={saveAsAdmin}>
-                {canAdminScores ? "บันทึกการแก้ไข" : "บันทึกความเห็น"}
+                {canAdminEdit ? "บันทึกการแก้ไข" : "บันทึกความเห็น"}
               </button>
             )}
             {(isSupervisor || isAdmin) && status === "completed" && !readOnly && (

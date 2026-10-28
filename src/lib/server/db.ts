@@ -5,6 +5,7 @@ import { findLevel } from "../evaluation";
 import type {
   BandLevel,
   BandThresholds,
+  CompensationAuditEntry,
   Cycle,
   DepartmentId,
   EmployeeInput,
@@ -12,6 +13,7 @@ import type {
   FormTemplate,
   JobLevel,
   Level,
+  SalaryStructure,
   Scales,
   User,
 } from "../types";
@@ -44,6 +46,8 @@ interface EmployeeRow {
   start_date: string | null;
   level_since: string | null;
   appraisal_type: User["appraisalType"];
+  /** Missing until the column has been added by supabase/schema.sql. */
+  compensation_access?: boolean | null;
   /** Never sent to the browser: toUser leaves it out. */
   password_hash?: string | null;
 }
@@ -63,8 +67,10 @@ const toUser = (row: EmployeeRow): User => ({
   startDate: row.start_date,
   levelSince: row.level_since,
   appraisalType: row.appraisal_type,
+  compensationAccess: row.compensation_access === true,
 });
 
+// compensation_access is left out, so saving an employee never changes it.
 const toEmployeeRow = (input: EmployeeInput): Omit<EmployeeRow, "id"> => ({
   code: input.code,
   name: input.name,
@@ -486,4 +492,105 @@ export async function saveEvaluation(evaluation: Evaluation): Promise<void> {
     snapshot: evaluation.snapshot,
   };
   check(await db().from("evaluations").upsert(row));
+}
+
+/* --------------------------- compensation ---------------------------- */
+
+interface SalaryGradeRow {
+  grade: number;
+  name: string;
+  min_salary: number;
+  mid_salary: number;
+  max_salary: number;
+}
+
+interface LevelGradeRow {
+  department_id: DepartmentId;
+  level: Level;
+  grade: number;
+}
+
+interface AuditRow {
+  at: string;
+  action: string;
+  employees: { name: string } | null;
+}
+
+/** Postgres code of a value that has no matching row, e.g. a level that was removed. */
+const FOREIGN_KEY_VIOLATION = "23503";
+
+export async function getSalaryStructure(): Promise<SalaryStructure> {
+  const [grades, levelGrades] = await Promise.all([
+    scaleRows<SalaryGradeRow>("salary_grades", "grade"),
+    scaleRows<LevelGradeRow>("salary_grade_levels", "department_id"),
+  ]);
+  return {
+    grades: grades.map((row) => ({
+      grade: row.grade,
+      name: row.name,
+      min: Number(row.min_salary),
+      mid: Number(row.mid_salary),
+      max: Number(row.max_salary),
+    })),
+    levelGrades: levelGrades.map((row) => ({
+      departmentId: row.department_id,
+      level: row.level,
+      grade: row.grade,
+    })),
+  };
+}
+
+/** Replaces the whole structure: grades left out are removed, with the levels mapped to them. */
+export async function saveSalaryStructure(structure: SalaryStructure): Promise<SalaryStructure> {
+  check(
+    await db()
+      .from("salary_grades")
+      .upsert(
+        structure.grades.map((grade) => ({
+          grade: grade.grade,
+          name: grade.name,
+          min_salary: grade.min,
+          mid_salary: grade.mid,
+          max_salary: grade.max,
+        })),
+      ),
+  );
+  const kept = structure.grades.map((grade) => grade.grade);
+  let stale = db().from("salary_grades").delete();
+  stale = kept.length ? stale.not("grade", "in", `(${kept.join(",")})`) : stale.gte("grade", 0);
+  check(await stale);
+
+  check(await db().from("salary_grade_levels").delete().gte("grade", 0));
+  if (structure.levelGrades.length) {
+    const result = await db()
+      .from("salary_grade_levels")
+      .insert(
+        structure.levelGrades.map((row) => ({
+          department_id: row.departmentId,
+          level: row.level,
+          grade: row.grade,
+        })),
+      );
+    if (result.error?.code === FOREIGN_KEY_VIOLATION) {
+      throw new HttpError(409, "มี Level ที่ถูกลบไปแล้ว กรุณาโหลดหน้าใหม่แล้วบันทึกอีกครั้ง");
+    }
+    check(result);
+  }
+  return getSalaryStructure();
+}
+
+/** Records who opened or changed compensation data. */
+export async function logCompensation(actorId: string, action: string): Promise<void> {
+  check(await db().from("compensation_audit").insert({ actor_id: actorId, action }));
+}
+
+export async function listCompensationAudit(limit = 30): Promise<CompensationAuditEntry[]> {
+  const rows = check(
+    await db()
+      .from("compensation_audit")
+      .select("at, action, employees(name)")
+      .order("at", { ascending: false })
+      .limit(limit),
+  ) as unknown as AuditRow[];
+  return rows.map((row) => ({ at: row.at, actorName: row.employees?.name ?? "–", action: row.action }));
 }

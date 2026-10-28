@@ -13,6 +13,7 @@ export function homePath(user: User): string {
 export function canAccessPath(user: User, pathname: string): boolean {
   if (pathname.startsWith("/admin")) return user.role === "admin";
   if (pathname.startsWith("/team")) return user.role === "supervisor";
+  if (pathname.startsWith("/compensation")) return user.compensationAccess;
   return true;
 }
 

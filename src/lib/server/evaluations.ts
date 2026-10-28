@@ -96,8 +96,11 @@ interface Access {
   canSelf: boolean;
   /** Supervisor may edit their assessment. */
   canSupervisor: boolean;
-  /** Admin may correct the supervisor's scores of a confirmed result. */
-  canAdminScores: boolean;
+  /**
+   * Admin may correct everything the supervisor entered in a result waiting for approval,
+   * without sending it back.
+   */
+  canAdminEdit: boolean;
 }
 
 function accessOf(viewer: User, employee: Employee, evaluation: Evaluation): Access {
@@ -111,7 +114,7 @@ function accessOf(viewer: User, employee: Employee, evaluation: Evaluation): Acc
     canSelf: isOwner && evaluation.status === "draft",
     canSupervisor:
       isSupervisor && (evaluation.status === "draft" || evaluation.status === "self_submitted"),
-    canAdminScores: isAdmin && !isOwner && evaluation.status === "completed",
+    canAdminEdit: isAdmin && !isOwner && evaluation.status === "completed",
   };
 }
 
@@ -227,9 +230,10 @@ function mergeAllowed(
   const idp = record(incoming.idp);
   const comments = record(incoming.comments);
 
-  if (access.canSelf || access.canSupervisor) {
+  const asSupervisor = access.canSupervisor || access.canAdminEdit;
+  if (access.canSelf || asSupervisor) {
     // Only the appraiser adds, renames or removes personal KPIs; the employee scores them.
-    if (access.canSupervisor) next.personalKpis = cleanPersonalKpis(incoming.personalKpis);
+    if (asSupervisor) next.personalKpis = cleanPersonalKpis(incoming.personalKpis);
 
     const removedKpis = stored.personalKpis.filter(
       (old) => !next.personalKpis.some((kpi) => kpi.id === old.id),
@@ -243,7 +247,7 @@ function mergeAllowed(
       const sent = record(incomingScores[question.id]);
       next.scores[question.id] = {
         self: access.canSelf ? score(sent.self) : previous.self,
-        supervisor: access.canSupervisor ? score(sent.supervisor) : previous.supervisor,
+        supervisor: asSupervisor ? score(sent.supervisor) : previous.supervisor,
         comment: text(sent.comment, previous.comment),
         evidence: text(sent.evidence, previous.evidence),
       };
@@ -254,24 +258,15 @@ function mergeAllowed(
       improvements: text(idp.improvements, stored.idp.improvements),
       careerGoal: text(idp.careerGoal, stored.idp.careerGoal),
       plan: Array.isArray(idp.plan) ? cleanPlan(idp.plan) : stored.idp.plan,
-      recommendation: access.canSupervisor
+      recommendation: asSupervisor
         ? text(idp.recommendation, stored.idp.recommendation)
         : stored.idp.recommendation,
     };
     next.idp = nextIdp;
-  } else if (access.canAdminScores) {
-    const incomingScores = record(incoming.scores);
-    const questions = Object.values(getSectionQuestions(template, next)).flat();
-    for (const question of questions) {
-      next.scores[question.id] = {
-        ...(stored.scores[question.id] ?? EMPTY_SCORE),
-        supervisor: score(record(incomingScores[question.id]).supervisor),
-      };
-    }
   }
 
   if (access.canSelf) next.comments.employee = text(comments.employee, stored.comments.employee);
-  if (access.canSupervisor) {
+  if (asSupervisor) {
     next.comments.supervisor = text(comments.supervisor, stored.comments.supervisor);
   }
   if (access.isAdmin) {
@@ -331,8 +326,11 @@ export async function updateEvaluation(
   switch (action) {
     case "save":
       // A confirmed result stays complete while admin corrects it.
-      if (access.canAdminScores && missing().supervisor > 0) {
+      if (access.canAdminEdit && missing().supervisor > 0) {
         throw new HttpError(400, "ยังกรอกคะแนน Supervisor ไม่ครบทุกข้อ");
+      }
+      if (access.canAdminEdit && untitledKpi) {
+        throw new HttpError(400, "มี KPI เฉพาะบุคคลที่ยังไม่ได้ตั้งชื่อ");
       }
       break;
     case "submit_self":
