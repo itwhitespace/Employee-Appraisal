@@ -12,12 +12,11 @@ interface Notice {
   text: string;
 }
 
-/** A grade while it is being edited: numbers are kept as typed. */
+/** A grade while it is being edited: numbers are kept as typed. Mid is worked out from them. */
 interface GradeDraft {
   grade: string;
   name: string;
   min: string;
-  mid: string;
   max: string;
 }
 
@@ -31,7 +30,6 @@ const toGradeDrafts = (grades: SalaryGrade[]): GradeDraft[] =>
     grade: String(g.grade),
     name: g.name,
     min: String(g.min),
-    mid: String(g.mid),
     max: String(g.max),
   }));
 
@@ -39,9 +37,16 @@ const toMapping = (structure: SalaryStructure): Mapping =>
   Object.fromEntries(structure.levelGrades.map((row) => [levelKey(row), String(row.grade)]));
 
 const baht = (value: number) => value.toLocaleString("th-TH", { maximumFractionDigits: 0 });
+const orDash = (value: number | null) => (value === null ? "–" : baht(value));
 
 const dateTime = (iso: string) =>
   new Date(iso).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+
+/** Midpoint of the band; null until both ends are filled in. */
+function midpoint(grade: GradeDraft): number | null {
+  if (grade.min.trim() === "" || grade.max.trim() === "") return null;
+  return (Number(grade.min) + Number(grade.max)) / 2;
+}
 
 /** (Max − Min) ÷ Min: how wide the band is. */
 function spread(grade: GradeDraft): string {
@@ -101,7 +106,7 @@ export default function SalaryStructurePage() {
 
   const addGrade = () => {
     const next = Math.max(0, ...grades.map((g) => Number(g.grade) || 0)) + 1;
-    setGrades([...grades, { grade: String(next), name: "", min: "", mid: "", max: "" }]);
+    setGrades([...grades, { grade: String(next), name: "", min: "", max: "" }]);
     touched();
   };
 
@@ -114,11 +119,11 @@ export default function SalaryStructurePage() {
   const gradeOptions = grades.filter((g) => g.grade.trim() !== "" && g.name.trim() !== "");
   const midOf = (grade: string) => {
     const found = grades.find((g) => g.grade === grade);
-    return found && found.mid.trim() !== "" ? Number(found.mid) : null;
+    return found ? midpoint(found) : null;
   };
 
   const save = async () => {
-    if (grades.some((g) => [g.grade, g.name, g.min, g.mid, g.max].some((v) => v.trim() === ""))) {
+    if (grades.some((g) => [g.grade, g.name, g.min, g.max].some((v) => v.trim() === ""))) {
       setNotice({ tone: "error", text: "กรุณากรอกข้อมูลกระบอกเงินเดือนให้ครบทุกช่อง" });
       return;
     }
@@ -128,7 +133,7 @@ export default function SalaryStructurePage() {
         grade: Number(g.grade),
         name: g.name.trim(),
         min: Number(g.min),
-        mid: Number(g.mid),
+        mid: midpoint(g) ?? 0,
         max: Number(g.max),
       })),
       // A level mapped to a grade that was just removed loses its grade.
@@ -187,7 +192,7 @@ export default function SalaryStructurePage() {
       </div>
 
       <section className="card overflow-hidden">
-        <header className="px-5 py-4">
+        <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">กระบอกเงินเดือน</h2>
           <p className="text-xs text-muted">Grade 1 คือกระบอกสูงสุด · จำนวนเงินเป็นบาทต่อเดือน</p>
         </header>
@@ -197,9 +202,9 @@ export default function SalaryStructurePage() {
               <tr>
                 <th className="w-24 text-center">Job Grade</th>
                 <th>ชื่อกระบอก</th>
-                <th className="w-36 text-right">Min</th>
-                <th className="w-36 text-right">Mid</th>
                 <th className="w-36 text-right">Max</th>
+                <th className="w-36 text-right">Mid</th>
+                <th className="w-36 text-right">Min</th>
                 <th className="w-24 text-center">ความกว้าง</th>
                 <th className="w-14" aria-label="จัดการ" />
               </tr>
@@ -234,19 +239,32 @@ export default function SalaryStructurePage() {
                       onChange={(e) => editGrade(index, { name: e.target.value })}
                     />
                   </td>
-                  {(["min", "mid", "max"] as const).map((field) => (
-                    <td key={field}>
-                      <input
-                        type="number"
-                        className="field text-right tabular-nums"
-                        min={0}
-                        step={500}
-                        aria-label={`${field.toUpperCase()} แถว ${index + 1}`}
-                        value={grade[field]}
-                        onChange={(e) => editGrade(index, { [field]: e.target.value })}
-                      />
-                    </td>
-                  ))}
+                  <td>
+                    <input
+                      type="number"
+                      className="field text-right tabular-nums"
+                      min={0}
+                      step={500}
+                      aria-label={`MAX แถว ${index + 1}`}
+                      value={grade.max}
+                      onChange={(e) => editGrade(index, { max: e.target.value })}
+                    />
+                  </td>
+                  {/* Mid is always halfway between Min and Max. */}
+                  <td className="bg-teal-50/60 pt-4 text-right font-semibold tabular-nums text-teal-700">
+                    {orDash(midpoint(grade))}
+                  </td>
+                  <td>
+                    <input
+                      type="number"
+                      className="field text-right tabular-nums"
+                      min={0}
+                      step={500}
+                      aria-label={`MIN แถว ${index + 1}`}
+                      value={grade.min}
+                      onChange={(e) => editGrade(index, { min: e.target.value })}
+                    />
+                  </td>
                   <td className="pt-4 text-center tabular-nums text-muted">{spread(grade)}</td>
                   <td className="!px-1.5 !py-1.5 text-right">
                     <IconButton icon="delete" label="ลบ" tone="danger" onClick={() => removeGrade(index)} />
@@ -264,7 +282,7 @@ export default function SalaryStructurePage() {
       </section>
 
       <section className="card overflow-hidden">
-        <header className="px-5 py-4">
+        <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">Level ของแต่ละฝ่ายใช้กระบอกไหน</h2>
           <p className="text-xs text-muted">
             Level ที่ยังไม่กำหนดกระบอกจะคำนวณ Compa-ratio ไม่ได้
@@ -276,7 +294,7 @@ export default function SalaryStructurePage() {
             if (own.length === 0) return null;
             return (
               <div key={department.id} className="bg-white px-5 py-4">
-                <h3 className="mb-2 text-sm font-semibold">{department.name}</h3>
+                <h3 className="mb-2 text-sm font-semibold text-teal-800">{department.name}</h3>
                 <table className="w-full text-sm">
                   <tbody>
                     {own.map((level) => {
@@ -303,7 +321,7 @@ export default function SalaryStructurePage() {
                               ))}
                             </select>
                           </td>
-                          <td className="w-28 py-1.5 text-right tabular-nums text-muted">
+                          <td className="w-28 py-1.5 text-right tabular-nums text-teal-700">
                             {mid === null ? "" : `Mid ${baht(mid)}`}
                           </td>
                         </tr>
@@ -318,7 +336,7 @@ export default function SalaryStructurePage() {
       </section>
 
       <section className="card overflow-hidden">
-        <header className="px-5 py-4">
+        <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">ประวัติการเข้าถึง</h2>
           <p className="text-xs text-muted">ทุกครั้งที่มีคนเปิดดูหรือแก้ข้อมูลค่าตอบแทน · 30 รายการล่าสุด</p>
         </header>

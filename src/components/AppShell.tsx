@@ -14,6 +14,8 @@ interface NavItem {
   label: string;
   /** SVG path data, drawn on a 20x20 grid. */
   icon: string;
+  /** Opens in a new browser tab. */
+  newTab?: boolean;
 }
 
 /** A menu that opens to show its sub-menu instead of leading to a page. */
@@ -49,16 +51,27 @@ function NavIcon({ path, className = "" }: { path: string; className?: string })
 
 const ROW = "flex shrink-0 items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition";
 
+const NEW_TAB = "M8.5 4.5h-4v11h11v-4M11.5 3.5h5v5M16.5 3.5l-7 7";
+
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const active = isActive(pathname, item.href);
+  const activeColor = pathname.startsWith("/compensation") ? "bg-teal-600" : "bg-accent";
   return (
     <Link
       href={item.href}
+      target={item.newTab ? "_blank" : undefined}
+      rel={item.newTab ? "noopener" : undefined}
       aria-current={active ? "page" : undefined}
-      className={`${ROW} ${active ? "bg-accent font-medium text-white" : "text-ink hover:bg-black/5"}`}
+      className={`${ROW} ${active ? `${activeColor} font-medium text-white` : "text-ink hover:bg-black/5"}`}
     >
       <NavIcon path={item.icon} />
-      {item.label}
+      <span className="flex-1">{item.label}</span>
+      {item.newTab && (
+        <>
+          <NavIcon path={NEW_TAB} className="!h-3.5 !w-3.5 text-faint" />
+          <span className="sr-only">(เปิดแท็บใหม่)</span>
+        </>
+      )}
     </Link>
   );
 }
@@ -110,17 +123,15 @@ const ICONS = {
   money: "M3 5.5h14v9H3zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.5 8v4M14.5 8v4",
 };
 
-function navItems(user: User): (NavItem | NavGroup)[] {
-  const compensation: NavGroup[] = user.compensationAccess
-    ? [
-        {
-          label: "ค่าตอบแทน",
-          icon: ICONS.money,
-          children: [
-            { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels },
-          ],
-        },
-      ]
+/** The compensation pages: a space of their own, opened in a separate tab. */
+const COMPENSATION_ITEMS: NavItem[] = [
+  { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels },
+];
+
+function navItems(user: User, inCompensation: boolean): (NavItem | NavGroup)[] {
+  if (inCompensation) return COMPENSATION_ITEMS;
+  const compensation: NavItem[] = user.compensationAccess
+    ? [{ href: COMPENSATION_ITEMS[0].href, label: "ค่าตอบแทน", icon: ICONS.money, newTab: true }]
     : [];
   return [...roleItems(user), ...compensation];
 }
@@ -160,7 +171,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const router = useRouter();
 
   const onLogin = pathname === "/login";
+  const inCompensation = pathname.startsWith("/compensation");
   const allowed = user ? canAccessPath(user, pathname) : false;
+
+  // Tells the two tabs apart.
+  useEffect(() => {
+    document.title = inCompensation
+      ? "Compensation | Whitespace Partners"
+      : "Performance Appraisal | Whitespace Partners";
+  }, [inCompensation]);
 
   useEffect(() => {
     if (!ready) return;
@@ -172,7 +191,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Render nothing while the session loads or a redirect is pending.
   if (!ready || !user || !allowed) return null;
 
-  const items = navItems(user);
+  const items = navItems(user, inCompensation);
   const department = DEPARTMENTS.find((d) => d.id === user.departmentId)?.name;
 
   return (
@@ -180,7 +199,14 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <aside className="z-30 flex flex-col border-b border-black/10 bg-white/80 backdrop-blur-xl print:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
         <div className="px-5 pb-2 pt-5 lg:pb-6 lg:pt-7">
           <div className="text-[15px] font-semibold tracking-tight text-ink">{COMPANY_NAME}</div>
-          <div className="text-xs text-faint">Performance Appraisal{cycle ? ` · ${cycle.id}` : ""}</div>
+          {inCompensation ? (
+            <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">
+              <NavIcon path={ICONS.money} className="!h-3.5 !w-3.5" />
+              Compensation
+            </div>
+          ) : (
+            <div className="text-xs text-faint">Performance Appraisal{cycle ? ` · ${cycle.id}` : ""}</div>
+          )}
         </div>
 
         <nav className="flex gap-1 overflow-x-auto px-3 pb-3 lg:flex-1 lg:flex-col lg:pb-0">
@@ -202,13 +228,26 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             {user.team && <div className="truncate text-xs text-faint">{user.team}</div>}
             {department && <div className="truncate text-xs text-faint">{department}</div>}
           </div>
-          <button type="button" className="btn-secondary shrink-0 py-1.5 text-xs" onClick={() => void logout()}>
-            ออกจากระบบ
-          </button>
+          <div className="flex shrink-0 gap-2 lg:flex-col">
+            {inCompensation && (
+              <Link href={homePath(user)} className="btn-secondary py-1.5 text-xs">
+                ไประบบประเมิน
+              </Link>
+            )}
+            <button type="button" className="btn-secondary py-1.5 text-xs" onClick={() => void logout()}>
+              ออกจากระบบ
+            </button>
+          </div>
         </div>
       </aside>
 
-      <main className="mx-auto max-w-[1400px] px-4 py-6 sm:px-8 lg:py-10 print:max-w-none print:p-0">{children}</main>
+      <main
+        className={`mx-auto max-w-[1400px] px-4 py-6 sm:px-8 lg:py-10 print:max-w-none print:p-0 ${
+          inCompensation ? "compensation" : ""
+        }`}
+      >
+        {children}
+      </main>
     </div>
   );
 }
