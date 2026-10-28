@@ -74,8 +74,9 @@ function dateOf(value: unknown, label: string): string | null {
 export function parsePassword(body: Record<string, unknown>): string | null {
   const password = typeof body.password === "string" ? body.password.trim() : "";
   if (!password) return null;
-  if (password.length < 5 || password.length > 64) {
-    throw new HttpError(400, "รหัสผ่านต้องมีอย่างน้อย 5 ตัวอักษร");
+  // The last five digits of the national ID.
+  if (!/^\d{5}$/.test(password)) {
+    throw new HttpError(400, "รหัสผ่านต้องเป็นตัวเลข 5 หลัก (เลขบัตรประชาชน 5 ตัวท้าย)");
   }
   return password;
 }

@@ -18,8 +18,8 @@ export default function LoginPage() {
       setError("กรุณากรอกรหัสพนักงาน 5 หลัก");
       return;
     }
-    if (!password) {
-      setError("กรุณากรอกรหัสผ่าน");
+    if (!/^\d{5}$/.test(password)) {
+      setError("กรุณากรอกรหัสผ่าน 5 หลัก");
       return;
     }
     setBusy(true);
@@ -74,12 +74,12 @@ export default function LoginPage() {
             className="field py-3 text-center text-xl font-semibold tracking-[0.4em]"
             inputMode="numeric"
             autoComplete="current-password"
-            maxLength={64}
+            maxLength={5}
             value={password}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "code-error" : undefined}
             onChange={(e) => {
-              setPassword(e.target.value);
+              setPassword(e.target.value.replace(/\D/g, "").slice(0, 5));
               setError(null);
             }}
           />

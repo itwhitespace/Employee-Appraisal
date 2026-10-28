@@ -5,6 +5,7 @@ import NineBoxGrid, { type NineBoxPerson } from "@/components/NineBoxGrid";
 import TenureChart from "@/components/TenureChart";
 import CycleSelect from "@/components/CycleSelect";
 import { DEPARTMENTS } from "@/lib/constants";
+import { isConfirmed } from "@/lib/evaluation";
 import { formatCycle, formatScore } from "@/lib/format";
 import { overviewRows, useOverview, type OverviewStatus } from "@/lib/overview";
 import type { DepartmentId } from "@/lib/types";
@@ -35,7 +36,7 @@ export default function DashboardPage() {
             name: row.employee.name,
             performance: row.performance,
             potential: row.potential,
-            confirmed: row.status === "completed",
+            confirmed: isConfirmed(row.status),
           },
         ]
       : [],
@@ -43,7 +44,8 @@ export default function DashboardPage() {
 
   const tiles = [
     { label: "พนักงานทั้งหมด", value: String(visible.length) },
-    { label: "เสร็จสิ้น", value: String(countOf("completed")) },
+    { label: "เสร็จสิ้น", value: String(countOf("approved")) },
+    { label: "รออนุมัติ", value: String(countOf("completed")) },
     { label: "รอผู้ประเมิน", value: String(countOf("self_submitted")) },
     { label: "ยังไม่ส่ง", value: String(countOf("draft") + countOf("not_started")) },
     { label: "Performance เฉลี่ย", value: formatScore(averagePerformance) },
@@ -83,7 +85,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-5">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
         {tiles.map((tile) => (
           <div key={tile.label} className="card px-5 py-4">
             <div className="text-xs text-muted">{tile.label}</div>

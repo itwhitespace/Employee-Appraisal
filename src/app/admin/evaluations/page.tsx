@@ -9,16 +9,19 @@ import { displayName, formatCycle } from "@/lib/format";
 import { choosePdfTarget, fetchPdf, pdfFileName, savePdf } from "@/lib/pdf";
 import { overviewRows, useOverview, type OverviewRow, type OverviewStatus } from "@/lib/overview";
 
-type Filter = "not_submitted" | "self_submitted" | "completed";
+type Filter = "not_submitted" | "self_submitted" | "completed" | "approved";
 
 /** A form the employee is still filling in is listed with those not started yet. */
 const filterOf = (status: OverviewStatus): Filter =>
-  status === "self_submitted" || status === "completed" ? status : "not_submitted";
+  status === "self_submitted" || status === "completed" || status === "approved"
+    ? status
+    : "not_submitted";
 
 const FILTERS: { id: Filter; label: string }[] = [
   { id: "not_submitted", label: "ยังไม่เริ่ม" },
   { id: "self_submitted", label: "รอผู้ประเมิน" },
-  { id: "completed", label: "เสร็จสิ้น" },
+  { id: "completed", label: "รออนุมัติ" },
+  { id: "approved", label: "เสร็จสิ้น" },
 ];
 
 /** By department, then the most senior first. */
@@ -38,6 +41,8 @@ export default function EvaluationsPage() {
   const [filter, setFilter] = useState<Filter>("not_submitted");
   const [notice, setNotice] = useState<string | null>(null);
   const [pdfBusyId, setPdfBusyId] = useState<string | null>(null);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [approving, setApproving] = useState(false);
 
   const rows = useMemo(() => (data ? overviewRows(data).sort(byDepartment) : []), [data]);
 
@@ -59,6 +64,36 @@ export default function EvaluationsPage() {
     } catch (e) {
       setNotice(errorMessage(e));
     }
+  };
+
+  const shown = rows.filter((row) => filterOf(row.status) === filter);
+  const chosen = shown.filter((row) => selected.has(row.employee.id));
+
+  /** Approves one form or several; the employees then see their whole form. */
+  const approve = async (targets: OverviewRow[]) => {
+    if (targets.length === 0) return;
+    const agreed = await confirm({
+      title: targets.length === 1 ? "อนุมัติผลการประเมิน?" : `อนุมัติผลการประเมิน ${targets.length} ใบ?`,
+      message:
+        targets.length === 1
+          ? `${displayName(targets[0].employee)} จะเห็นแบบประเมินฉบับเต็ม รวมคะแนนและความเห็นทั้งหมด`
+          : "พนักงานทุกคนที่เลือกจะเห็นแบบประเมินฉบับเต็ม รวมคะแนนและความเห็นทั้งหมด",
+      confirmLabel: "อนุมัติ",
+    });
+    if (!agreed) return;
+    setApproving(true);
+    const failed: string[] = [];
+    for (const row of targets) {
+      try {
+        await api.setApproval(row.employee.id, "approve");
+      } catch (e) {
+        failed.push(`${displayName(row.employee)}: ${errorMessage(e)}`);
+      }
+    }
+    setApproving(false);
+    setSelected(new Set());
+    await reload();
+    setNotice(failed.length > 0 ? `อนุมัติไม่สำเร็จ ${failed.length} ใบ — ${failed.join(", ")}` : null);
   };
 
   const downloadPdf = async (row: OverviewRow) => {
@@ -89,7 +124,10 @@ export default function EvaluationsPage() {
             key={option.id}
             type="button"
             aria-pressed={filter === option.id}
-            onClick={() => setFilter(option.id)}
+            onClick={() => {
+              setFilter(option.id);
+              setSelected(new Set());
+            }}
             className={segment(filter === option.id)}
           >
             {option.label}{" "}
@@ -100,6 +138,22 @@ export default function EvaluationsPage() {
         ))}
       </div>
 
+      {filter === "completed" && shown.length > 0 && (
+        <div className="flex flex-wrap items-center gap-3">
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={approving || chosen.length === 0}
+            onClick={() => void approve(chosen)}
+          >
+            {approving ? "กำลังอนุมัติ…" : `อนุมัติที่เลือก (${chosen.length})`}
+          </button>
+          <span className="text-sm text-muted">
+            ตรวจผลแล้วติ๊กเลือก หรือกดไอคอนอนุมัติท้ายแถว พนักงานจะเห็นแบบประเมินฉบับเต็มหลังอนุมัติ
+          </span>
+        </div>
+      )}
+
       {notice && (
         <p role="alert" className="rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-600">
           {notice}
@@ -108,13 +162,30 @@ export default function EvaluationsPage() {
 
       <section className="card overflow-hidden">
         <OverviewTable
-          rows={rows.filter((row) => filterOf(row.status) === filter)}
+          rows={shown}
           cycle={data.cycle}
           viewer="admin"
           hidePosition
           onPdf={(row) => void downloadPdf(row)}
           pdfBusyId={pdfBusyId}
           onClear={(row) => void clear(row)}
+          onApprove={(row) => void approve([row])}
+          selection={
+            filter === "completed"
+              ? {
+                  ids: selected,
+                  onToggle: (id) =>
+                    setSelected((prev) => {
+                      const next = new Set(prev);
+                      if (next.has(id)) next.delete(id);
+                      else next.add(id);
+                      return next;
+                    }),
+                  onToggleAll: (checked) =>
+                    setSelected(checked ? new Set(shown.map((row) => row.employee.id)) : new Set()),
+                }
+              : undefined
+          }
         />
       </section>
     </div>

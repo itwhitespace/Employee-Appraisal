@@ -109,7 +109,8 @@ function accessOf(viewer: User, employee: Employee, evaluation: Evaluation): Acc
     isSupervisor,
     isAdmin,
     canSelf: isOwner && evaluation.status === "draft",
-    canSupervisor: isSupervisor && evaluation.status !== "completed",
+    canSupervisor:
+      isSupervisor && (evaluation.status === "draft" || evaluation.status === "self_submitted"),
     canAdminScores: isAdmin && !isOwner && evaluation.status === "completed",
   };
 }
@@ -181,10 +182,12 @@ function toBundle(
 ): EvaluationBundle {
   const access = accessOf(viewer, context.employee, evaluation);
   const ownerOnly = access.isOwner && !access.isSupervisor && !access.isAdmin;
-  // The employee never sees the supervisor's input, and once the result is confirmed
-  // the whole form is closed to them until the next cycle.
+  // The employee does not see the supervisor's input while the form is in progress; once
+  // the result is confirmed the form is closed to them until admin approves it, and then
+  // they see all of it.
   const closed = ownerOnly && evaluation.status === "completed";
-  const supervisorHidden = ownerOnly && !closed;
+  const supervisorHidden =
+    ownerOnly && (evaluation.status === "draft" || evaluation.status === "self_submitted");
   return {
     cycle: context.cycle,
     cycles: context.cycles,
@@ -283,17 +286,45 @@ export async function updateEvaluation(
   employeeId: string,
   incoming: Record<string, unknown>,
   action: EvaluationAction,
+  /** Approval may be given or taken back in a past cycle; every other change is to the open one. */
+  cycleId?: string | null,
 ): Promise<EvaluationBundle> {
-  const context = await loadContext(viewer, employeeId);
+  const approval = action === "approve" || action === "unapprove";
+  const context = await loadContext(viewer, employeeId, approval ? cycleId : null);
   const stored = context.evaluation;
   const access = accessOf(viewer, context.employee, stored);
+  const now = new Date().toISOString();
+
+  if (approval) {
+    if (!access.isAdmin) throw new HttpError(403, "เฉพาะ Admin ที่อนุมัติผลได้");
+    // Only the status changes: nothing sent with the request is taken.
+    const next: Evaluation = structuredClone(stored);
+    if (action === "approve") {
+      if (stored.status !== "completed") {
+        throw new HttpError(409, "อนุมัติได้เฉพาะแบบประเมินที่ผู้ประเมินยืนยันผลแล้ว");
+      }
+      next.status = "approved";
+      next.approvedAt = now;
+      next.approvedBy = viewer.id;
+    } else {
+      if (stored.status !== "approved") throw new HttpError(409, "แบบประเมินนี้ยังไม่ได้อนุมัติ");
+      next.status = "completed";
+      next.approvedAt = null;
+      next.approvedBy = null;
+    }
+    next.updatedAt = now;
+    await saveEvaluation(next);
+    return toBundle(viewer, context, next);
+  }
+  if (stored.status === "approved") {
+    throw new HttpError(403, "แบบประเมินนี้อนุมัติแล้ว ต้องยกเลิกการอนุมัติก่อนจึงจะแก้ไขได้");
+  }
 
   if (!access.canSelf && !access.canSupervisor && !access.isAdmin && action !== "reopen") {
     throw new HttpError(403, "แบบประเมินนี้แก้ไขไม่ได้ในขั้นตอนปัจจุบัน");
   }
 
   const next = mergeAllowed(stored, incoming, context.template, access);
-  const now = new Date().toISOString();
   const missing = () => summarize(context.template, next).missing;
   const untitledKpi = next.personalKpis.some((kpi) => kpi.title.trim() === "");
 

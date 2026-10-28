@@ -73,7 +73,9 @@ export default function EmployeeDialog({
     if (!form.name.trim()) return setError("กรุณากรอกชื่อ-สกุล");
     const newPassword = password.trim();
     if (!editing && !newPassword) return setError("กรุณากำหนดรหัสผ่าน");
-    if (newPassword && newPassword.length < 5) return setError("รหัสผ่านต้องมีอย่างน้อย 5 ตัวอักษร");
+    if (newPassword && !/^\d{5}$/.test(newPassword)) {
+      return setError("รหัสผ่านต้องเป็นตัวเลข 5 หลัก (เลขบัตรประชาชน 5 ตัวท้าย)");
+    }
     setBusy(true);
     const problem = await onSave(form, newPassword);
     setBusy(false);
@@ -128,11 +130,12 @@ export default function EmployeeDialog({
             <input
               className="field tabular-nums"
               autoComplete="off"
-              maxLength={64}
+              inputMode="numeric"
+              maxLength={5}
               placeholder={editing ? "เว้นว่างไว้ถ้าไม่เปลี่ยน" : "เลขบัตรประชาชน 5 ตัวท้าย"}
               value={password}
               onChange={(e) => {
-                setPassword(e.target.value);
+                setPassword(e.target.value.replace(/\D/g, "").slice(0, 5));
                 setError(null);
               }}
             />

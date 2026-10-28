@@ -17,13 +17,22 @@ export async function GET(request: Request, { params }: Context) {
   );
 }
 
-/** Body: `{ evaluation, action }`. The server keeps only the fields the caller may change. */
+/**
+ * Body: `{ evaluation, action }`. The server keeps only the fields the caller may change.
+ * `?cycle=` names a past cycle, for approving (or un-approving) a form there.
+ */
 export async function PUT(request: Request, { params }: Context) {
   return handle(async () => {
     const viewer = await requireUser();
     const body = await readJson(request);
     const evaluation = (body.evaluation ?? {}) as Record<string, unknown>;
-    return updateEvaluation(viewer, params.employeeId, evaluation, body.action as EvaluationAction);
+    return updateEvaluation(
+      viewer,
+      params.employeeId,
+      evaluation,
+      body.action as EvaluationAction,
+      new URL(request.url).searchParams.get("cycle"),
+    );
   });
 }
 

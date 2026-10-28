@@ -159,9 +159,10 @@ export interface SignOffComments {
 /**
  * draft          - employee is filling in the self-assessment
  * self_submitted - waiting for the supervisor's assessment
- * completed      - supervisor has confirmed the result
+ * completed      - supervisor has confirmed the result; waiting for admin to approve it
+ * approved       - admin has approved it; the employee now sees the whole form
  */
-export type EvaluationStatus = "draft" | "self_submitted" | "completed";
+export type EvaluationStatus = "draft" | "self_submitted" | "completed" | "approved";
 
 /** An appraisal round. */
 export interface Cycle {
@@ -213,6 +214,9 @@ export interface Evaluation {
   updatedAt: string | null;
   selfSubmittedAt: string | null;
   completedAt: string | null;
+  approvedAt: string | null;
+  /** Id of the admin who approved it. */
+  approvedBy: string | null;
   snapshot: EvaluationSnapshot | null;
 }
 
@@ -262,9 +266,18 @@ export interface EvaluationBundle {
  * submit_self - employee sends the self-assessment to the supervisor
  * send_back   - supervisor returns it to the employee
  * confirm     - supervisor confirms the result
- * reopen      - supervisor / admin reopens a confirmed result
+ * reopen      - supervisor / admin reopens a confirmed result (before it is approved)
+ * approve     - admin approves a confirmed result; the employee sees it
+ * unapprove   - admin takes the approval back
  */
-export type EvaluationAction = "save" | "submit_self" | "send_back" | "confirm" | "reopen";
+export type EvaluationAction =
+  | "save"
+  | "submit_self"
+  | "send_back"
+  | "confirm"
+  | "reopen"
+  | "approve"
+  | "unapprove";
 
 /** Fields admin can set when adding or editing an employee. */
 export type EmployeeInput = Omit<User, "id">;

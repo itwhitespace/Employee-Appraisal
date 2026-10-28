@@ -123,11 +123,13 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
 
   const { status } = evaluation;
   const canEditSelf = !readOnly && isOwner && status === "draft";
-  const canEditSupervisor = !readOnly && isSupervisor && status !== "completed";
+  const canEditSupervisor =
+    !readOnly && isSupervisor && (status === "draft" || status === "self_submitted");
   const canEditNotes = canEditSelf || canEditSupervisor;
   // Admin may correct the supervisor's scores of a confirmed result.
   // A confirmed result can be saved as PDF by the appraiser and admin.
-  const canSavePdf = status === "completed" && !closed && (isSupervisor || isAdmin);
+  const canSavePdf =
+    (status === "completed" || status === "approved") && !closed && (isSupervisor || isAdmin);
   const canAdminScores = !readOnly && isAdmin && !isOwner && status === "completed";
   const canEditAnything = !readOnly && (canEditNotes || isAdmin);
 
@@ -222,7 +224,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     } else {
       const agreed = await confirm({
         title: "ยืนยันผลการประเมิน?",
-        message: "พนักงานจะเห็นเพียงว่าการประเมินเสร็จสิ้นแล้ว",
+        message: "ผลจะส่งให้ Admin อนุมัติ พนักงานจะเห็นแบบประเมินฉบับเต็มเมื่ออนุมัติแล้ว",
       });
       if (agreed) void send("confirm", "ยืนยันผลการประเมินแล้ว");
     }
@@ -252,6 +254,40 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     void send("save", canAdminScores ? "บันทึกการแก้ไขแล้ว" : "บันทึกความเห็นแล้ว");
   };
 
+  /** Approval works in a past cycle too, so it names the cycle shown. */
+  const runApproval = async (action: "approve" | "unapprove", message: string) => {
+    setBusy(true);
+    try {
+      accept(await api.setApproval(employee.id, action, cycle.current ? null : cycle.id));
+      setFlagMissing(null);
+      setNotice({ tone: "ok", text: message });
+    } catch (e) {
+      setNotice({ tone: "error", text: errorMessage(e) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const approve = async () => {
+    const agreed = await confirm({
+      title: "อนุมัติผลการประเมิน?",
+      message:
+        "พนักงานจะเห็นแบบประเมินฉบับเต็ม รวมคะแนนและความเห็นทั้งหมด (การแก้ไขที่ยังไม่ได้บันทึกจะไม่ถูกรวม)",
+      confirmLabel: "อนุมัติ",
+    });
+    if (agreed) void runApproval("approve", "อนุมัติผลแล้ว");
+  };
+
+  const unapprove = async () => {
+    const agreed = await confirm({
+      title: "ยกเลิกการอนุมัติ?",
+      message: "พนักงานจะไม่เห็นผลจนกว่าจะอนุมัติอีกครั้ง และแก้ไขแบบประเมินนี้ได้อีก",
+      confirmLabel: "ยกเลิกการอนุมัติ",
+      tone: "danger",
+    });
+    if (agreed) void runApproval("unapprove", "ยกเลิกการอนุมัติแล้ว");
+  };
+
   const sendBack = async () => {
     const agreed = await confirm({
       title: "ส่งกลับให้พนักงานแก้ไข?",
@@ -273,6 +309,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     ["วันเริ่มงาน", formatDate(employee.startDate)],
     ["อายุงาน", tenureSince(employee.startDate) ?? undefined],
     ["วันที่ประเมิน", formatDate(evaluation.completedAt)],
+    ["วันที่อนุมัติ", formatDate(evaluation.approvedAt)],
     ["บันทึกล่าสุด", formatDateTime(evaluation.updatedAt)],
   ];
 
@@ -283,16 +320,24 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
       ? "กรอกคะแนนในคอลัมน์ Self ให้ครบทุกข้อ แล้วกดส่งแบบประเมินตนเอง"
       : status === "self_submitted"
         ? "ส่งแบบประเมินตนเองแล้ว — รอผู้ประเมินให้คะแนน"
-        : "การประเมินเสร็จสิ้นแล้ว"
+        : status === "approved"
+          ? "ผลการประเมินได้รับการอนุมัติแล้ว ดูคะแนนและความเห็นทั้งหมดได้ด้านล่าง"
+          : "การประเมินเสร็จสิ้นแล้ว — รอการอนุมัติผล"
     : isSupervisor
       ? status === "draft"
         ? "พนักงานยังไม่ได้ส่งแบบประเมินตนเอง คุณกรอกคะแนน Supervisor ล่วงหน้าได้ แต่ยืนยันผลได้หลังพนักงานส่งแล้ว"
         : status === "self_submitted"
           ? "พนักงานส่งแบบประเมินตนเองแล้ว — กรอกคะแนนในคอลัมน์ Supervisor แล้วกดยืนยันผล"
-          : "คุณยืนยันผลการประเมินนี้แล้ว"
-      : `มุมมอง Admin — ดูได้ทั้งหมด และกรอกความเห็นของ Director และ HR / MD ได้${
-          canAdminScores ? " รวมถึงแก้ไขคะแนนในคอลัมน์ Supervisor ได้" : ""
-        }`;
+          : status === "approved"
+            ? "Admin อนุมัติผลแล้ว พนักงานเห็นแบบประเมินฉบับเต็ม"
+            : "คุณยืนยันผลการประเมินนี้แล้ว — รอ Admin อนุมัติ"
+      : status === "approved"
+        ? "อนุมัติผลแล้ว — พนักงานเห็นแบบประเมินฉบับเต็ม แก้ไขได้หลังยกเลิกการอนุมัติ"
+        : `มุมมอง Admin — ดูได้ทั้งหมด และกรอกความเห็นของ Director และ HR / MD ได้${
+            canAdminScores
+              ? " รวมถึงแก้ไขคะแนนในคอลัมน์ Supervisor ได้ ตรวจเรียบร้อยแล้วกด “อนุมัติผล”"
+              : ""
+          }`;
 
   const header = (
     <section className="card overflow-hidden">
@@ -351,9 +396,10 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
     return (
       <div className="space-y-6">
         {header}
-        <p role="status" className="py-6 text-center text-3xl font-semibold tracking-tight text-emerald-600">
-          การประเมินเสร็จสิ้นแล้ว
-        </p>
+        <div role="status" className="py-6 text-center">
+          <p className="text-3xl font-semibold tracking-tight text-emerald-600">การประเมินเสร็จสิ้นแล้ว</p>
+          <p className="mt-2 text-sm text-muted">รอการอนุมัติผล ผลการประเมินจะแสดงที่หน้านี้เมื่ออนุมัติแล้ว</p>
+        </div>
       </div>
     );
   }
@@ -530,7 +576,7 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
                 </button>
               </>
             )}
-            {isAdmin && !canEditNotes && !readOnly && (
+            {isAdmin && !canEditNotes && !readOnly && status !== "approved" && (
               <button type="button" className="btn-primary" disabled={busy} onClick={saveAsAdmin}>
                 {canAdminScores ? "บันทึกการแก้ไข" : "บันทึกความเห็น"}
               </button>
@@ -542,7 +588,17 @@ export default function EvaluationForm({ employeeId, cycleId }: EvaluationFormPr
                 disabled={busy}
                 onClick={() => void send("reopen", "เปิดให้ผู้ประเมินแก้ไขอีกครั้ง")}
               >
-                เปิดแก้ไขอีกครั้ง
+                {isAdmin && !isSupervisor ? "ส่งกลับให้ผู้ประเมิน" : "เปิดแก้ไขอีกครั้ง"}
+              </button>
+            )}
+            {isAdmin && status === "completed" && (
+              <button type="button" className="btn-primary" disabled={busy} onClick={() => void approve()}>
+                อนุมัติผล
+              </button>
+            )}
+            {isAdmin && status === "approved" && (
+              <button type="button" className="btn-secondary" disabled={busy} onClick={() => void unapprove()}>
+                ยกเลิกการอนุมัติ
               </button>
             )}
             {!canEditAnything && !(isSupervisor && status === "completed") && (

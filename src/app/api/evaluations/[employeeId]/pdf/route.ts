@@ -22,7 +22,7 @@ export async function GET(request: Request, { params }: Context) {
     if (viewer.role !== "admin" && viewer.id !== bundle.employee.supervisorId) {
       throw new HttpError(403, "คุณไม่มีสิทธิ์ดาวน์โหลดแบบประเมินนี้");
     }
-    if (bundle.evaluation.status !== "completed") {
+    if (bundle.evaluation.status !== "completed" && bundle.evaluation.status !== "approved") {
       throw new HttpError(409, "ดาวน์โหลด PDF ได้เฉพาะแบบประเมินที่เสร็จสิ้นแล้ว");
     }
 

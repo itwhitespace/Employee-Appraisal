@@ -40,10 +40,12 @@ A database with no employees gets these accounts; the password of each is its ow
 
 - **Employee** — sees only their own form; fills in the Self column and submits it.
 - **Supervisor** — sees their direct reports; fills in the Supervisor column and confirms the result.
-  The employee never sees the supervisor's scores or comments; once the result is confirmed
-  their own form shows only their details and "การประเมินเสร็จสิ้นแล้ว" until the next cycle.
+  The employee does not see the supervisor's scores while the form is in progress; once the result
+  is confirmed it waits for admin approval.
 - **Admin** — dashboard and 9-Box grid, employee management, and the Form Builder for editing
-  the questions and weights of every section per department and level.
+  the questions and weights of every section per department and level. Admin approves confirmed
+  results (one by one or several at once on the evaluation list); only then does the employee
+  see their whole form, read-only.
 
 ## Scoring
 

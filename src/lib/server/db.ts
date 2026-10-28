@@ -409,6 +409,9 @@ interface EvaluationRow {
   updated_at: string | null;
   self_submitted_at: string | null;
   completed_at: string | null;
+  /** Missing until the columns have been added by supabase/schema.sql. */
+  approved_at?: string | null;
+  approved_by?: string | null;
   snapshot: Evaluation["snapshot"];
 }
 
@@ -423,6 +426,8 @@ const toEvaluation = (row: EvaluationRow): Evaluation => ({
   updatedAt: row.updated_at,
   selfSubmittedAt: row.self_submitted_at,
   completedAt: row.completed_at,
+  approvedAt: row.approved_at ?? null,
+  approvedBy: row.approved_by ?? null,
   snapshot: row.snapshot ?? null,
 });
 
@@ -476,6 +481,8 @@ export async function saveEvaluation(evaluation: Evaluation): Promise<void> {
     updated_at: evaluation.updatedAt,
     self_submitted_at: evaluation.selfSubmittedAt,
     completed_at: evaluation.completedAt,
+    approved_at: evaluation.approvedAt,
+    approved_by: evaluation.approvedBy,
     snapshot: evaluation.snapshot,
   };
   check(await db().from("evaluations").upsert(row));

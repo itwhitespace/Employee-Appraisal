@@ -57,9 +57,15 @@ export function createEmptyEvaluation(employeeId: string, cycle: string): Evalua
     updatedAt: null,
     selfSubmittedAt: null,
     completedAt: null,
+    approvedAt: null,
+    approvedBy: null,
     snapshot: null,
   };
 }
+
+/** The supervisor has confirmed the result (approved or still waiting for it). */
+export const isConfirmed = (status: string): boolean =>
+  status === "completed" || status === "approved";
 
 /** The copy an employee gets before the supervisor's result is confirmed. */
 export function withoutSupervisorInput(evaluation: Evaluation): Evaluation {
@@ -81,6 +87,7 @@ export function withoutContent(evaluation: Evaluation): Evaluation {
     updatedAt: evaluation.updatedAt,
     selfSubmittedAt: evaluation.selfSubmittedAt,
     completedAt: evaluation.completedAt,
+    approvedAt: evaluation.approvedAt,
   };
 }
 

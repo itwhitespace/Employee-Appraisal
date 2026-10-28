@@ -64,7 +64,8 @@ create unique index if not exists cycles_one_current on public.cycles (is_curren
 create table if not exists public.evaluations (
   employee_id       uuid not null references public.employees (id) on delete cascade,
   cycle             text not null,
-  status            text not null default 'draft' check (status in ('draft', 'self_submitted', 'completed')),
+  status            text not null default 'draft'
+                    check (status in ('draft', 'self_submitted', 'completed', 'approved')),
   scores            jsonb not null default '{}'::jsonb,
   personal_kpis     jsonb not null default '[]'::jsonb,
   idp               jsonb not null,
@@ -142,6 +143,15 @@ alter table public.form_templates drop constraint if exists form_templates_level
 alter table public.form_templates add constraint form_templates_level_check check (level >= 1);
 
 alter table public.evaluations add column if not exists snapshot jsonb;
+
+-- Admin approval: after the supervisor confirms ("completed") admin approves ("approved"),
+-- and only then does the employee see the whole form.
+alter table public.evaluations drop constraint if exists evaluations_status_check;
+alter table public.evaluations add constraint evaluations_status_check
+  check (status in ('draft', 'self_submitted', 'completed', 'approved'));
+alter table public.evaluations add column if not exists approved_at timestamptz;
+alter table public.evaluations add column if not exists approved_by uuid
+  references public.employees (id) on delete set null;
 
 -- First cycle; later ones are added by admin in the web app.
 insert into public.cycles (id, period, is_current)

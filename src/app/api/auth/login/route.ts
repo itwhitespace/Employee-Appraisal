@@ -3,15 +3,15 @@ import { handle, HttpError, readJson } from "@/lib/server/http";
 import { verifyPassword } from "@/lib/server/password";
 import { startSession } from "@/lib/server/session";
 
-/** Sign in with the 5-digit employee code and the password. */
+/** Sign in with the 5-digit employee code and the 5-digit password (end of the national ID). */
 export async function POST(request: Request) {
   return handle(async () => {
     const { code, password } = await readJson(request);
     if (typeof code !== "string" || !/^\d{5}$/.test(code)) {
       throw new HttpError(400, "กรุณากรอกรหัสพนักงาน 5 หลัก");
     }
-    if (typeof password !== "string" || !password) {
-      throw new HttpError(400, "กรุณากรอกรหัสผ่าน");
+    if (typeof password !== "string" || !/^\d{5}$/.test(password)) {
+      throw new HttpError(400, "กรุณากรอกรหัสผ่าน 5 หลัก");
     }
     const record = await getLoginRecord(code);
     // One message for both cases, so a wrong guess does not reveal which codes exist.

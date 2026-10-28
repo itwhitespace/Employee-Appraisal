@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import CycleSelect from "@/components/CycleSelect";
 import OverviewTable from "@/components/OverviewTable";
 import { useAuth } from "@/lib/auth";
+import { isConfirmed } from "@/lib/evaluation";
 import { formatCycle } from "@/lib/format";
 import { overviewRows, useOverview } from "@/lib/overview";
 
@@ -29,7 +30,7 @@ export default function TeamPage() {
   const tiles = [
     { label: "สมาชิกในทีม", value: rows.length },
     { label: "รอคุณประเมิน", value: rows.filter((row) => row.status === "self_submitted").length },
-    { label: "เสร็จสิ้น", value: rows.filter((row) => row.status === "completed").length },
+    { label: "ยืนยันผลแล้ว", value: rows.filter((row) => isConfirmed(row.status)).length },
   ];
 
   return (

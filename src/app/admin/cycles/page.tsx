@@ -124,11 +124,22 @@ export default function CyclesPage() {
   };
 
   const open = async (cycle: CycleWithCount) => {
+    // Forms still waiting for approval can be approved later, but admin should know first.
+    const waiting = current
+      ? await api
+          .overview()
+          .then((data) => Object.values(data.evaluations).filter((e) => e.status === "completed").length)
+          .catch(() => 0)
+      : 0;
     const agreed = await confirm({
       title: `เริ่มรอบประเมิน ${cycle.id}?`,
-      message: current
-        ? `รอบ ${current.id} จะถูกปิดและดูได้อย่างเดียว ทุกคนจะเริ่มกรอกแบบประเมินของรอบ ${cycle.id}`
-        : `ทุกคนจะเริ่มกรอกแบบประเมินของรอบ ${cycle.id}`,
+      message:
+        (current
+          ? `รอบ ${current.id} จะถูกปิดและดูได้อย่างเดียว ทุกคนจะเริ่มกรอกแบบประเมินของรอบ ${cycle.id}`
+          : `ทุกคนจะเริ่มกรอกแบบประเมินของรอบ ${cycle.id}`) +
+        (waiting > 0
+          ? ` · ยังมีแบบประเมิน ${waiting} ใบในรอบ ${current?.id} ที่รอ Admin อนุมัติ (อนุมัติย้อนหลังได้)`
+          : ""),
       confirmLabel: "เริ่มรอบนี้",
     });
     // The sidebar shows the open cycle, so the session is re-read after the switch.

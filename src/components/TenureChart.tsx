@@ -1,5 +1,5 @@
 import { BAND_NAMES } from "@/lib/constants";
-import { findLevel } from "@/lib/evaluation";
+import { findLevel, isConfirmed } from "@/lib/evaluation";
 import { displayName, formatScore } from "@/lib/format";
 import type { OverviewRow } from "@/lib/overview";
 import { scoreBand } from "@/lib/scoring";
@@ -147,7 +147,7 @@ export default function TenureChart({ rows, levels, scales }: TenureChartProps) 
           const { employee } = point.row;
           const band = point.potential === null ? null : scoreBand(point.potential, scales.potential);
           const color = band === null ? "#86868b" : POTENTIAL_COLORS[band];
-          const confirmed = point.row.status === "completed";
+          const confirmed = isConfirmed(point.row.status);
           return (
             <a key={employee.id} href={`/evaluate/${employee.id}`}>
               <title>

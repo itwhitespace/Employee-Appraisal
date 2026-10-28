@@ -59,6 +59,13 @@ export const api = {
   updateEvaluation: (employeeId: string, evaluation: Evaluation, action: EvaluationAction) =>
     request<EvaluationBundle>(`/api/evaluations/${employeeId}`, "PUT", { evaluation, action }),
 
+  /** Admin only: approves a confirmed result, or takes the approval back. */
+  setApproval: (employeeId: string, action: "approve" | "unapprove", cycleId: string | null = null) =>
+    request<EvaluationBundle>(`/api/evaluations/${employeeId}${cycleQuery(cycleId)}`, "PUT", {
+      evaluation: {},
+      action,
+    }),
+
   /** Admin only: deletes the form of the current cycle so the employee starts again. */
   clearEvaluation: (employeeId: string) =>
     request<{ ok: true }>(`/api/evaluations/${employeeId}`, "DELETE"),
