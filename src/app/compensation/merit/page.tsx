@@ -212,8 +212,8 @@ export default function MeritPage() {
       : [...TARGET_PRESETS, typedPercent].sort((x, y) => x - y);
   const shownPercent =
     typedPercent ?? (result.budgetRatio === null ? null : Math.round(result.budgetRatio * 10000) / 100);
-  // The matrix and the raises appear once the cycle's first budget has been saved.
   const firstTime = data.plan === null;
+  const noBudget = result.budget === null;
   const status =
     result.budget === null
       ? { label: "ยังไม่กำหนดงบ", tone: "bg-black/5 text-muted" }
@@ -266,8 +266,8 @@ export default function MeritPage() {
           </header>
           {firstTime && (
             <p className="border-t border-amber-200 bg-amber-50 px-5 py-2.5 text-sm text-amber-800">
-              รอบนี้ยังไม่มีงบประมาณ: กรอกงบ (หรือคลิกแถวในตาราง Target) แล้วกดบันทึก ระบบจึงจะคำนวณ Matrix
-              และยอดขึ้นรายคน
+              รอบนี้ยังไม่ได้บันทึกงบประมาณ: กรอกงบ (หรือคลิกแถวในตาราง Target) แล้วกดบันทึก · % ใน Matrix
+              และยอดขึ้นรายคนจะคำนวณเมื่อมีงบ
             </p>
           )}
           <table className="sheet border-t border-line">
@@ -348,7 +348,7 @@ export default function MeritPage() {
                 <td className="text-muted">ปัดเศษขึ้น</td>
                 <td>
                   <select
-                    className="field ml-auto w-32"
+                    className="field ml-auto block w-32"
                     aria-label="ปัดเศษขึ้น"
                     value={plan.roundTo}
                     onChange={(e) => edit({ roundTo: Number(e.target.value) })}
@@ -369,7 +369,7 @@ export default function MeritPage() {
                     min={0}
                     max={120}
                     aria-label="อายุงานขั้นต่ำ (เดือน)"
-                    className="field ml-auto w-24 text-right tabular-nums"
+                    className="field ml-auto block w-24 text-right tabular-nums"
                     value={plan.minTenureMonths}
                     onChange={(e) =>
                       edit({
@@ -429,226 +429,226 @@ export default function MeritPage() {
         </section>
       </div>
 
-      {!firstTime && (
-        <section className="card overflow-hidden">
-          <header className="flex flex-wrap items-center justify-between gap-3 border-l-4 border-teal-500 px-5 py-4">
-            <div>
-              <h2 className="text-[17px] font-semibold tracking-tight">Merit Increase Matrix</h2>
-              <p className="text-xs text-muted">
-                % ขึ้น = ค่ากลาง × ตัวคูณ Competency × ตัวคูณ Compa-ratio · ตัวเลขสีแดงแก้ได้ ·
-                คะแนนระหว่างจำนวนเต็มไล่ระดับทุก 0.1
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <button type="button" className={segment(!everyStep)} onClick={() => setEveryStep(false)}>
-                5 แถว
-              </button>
-              <button type="button" className={segment(everyStep)} onClick={() => setEveryStep(true)}>
-                ทุก 0.1 คะแนน
-              </button>
-            </div>
-          </header>
-          <div className="max-h-[560px] overflow-auto border-t border-line">
-            <table className="sheet min-w-[760px]">
-              <thead className="sticky top-0 z-10">
-                <tr>
-                  <th className="w-28 text-center">Competency</th>
-                  <th className="w-24 text-center">ตัวคูณ</th>
-                  {COMPA_GROUPS.map((group, i) => (
-                    <th key={group.label} className="text-center">
-                      <div>{group.label}</div>
-                      <div className="mt-1 flex justify-center">
-                        <MultiplierInput
-                          value={plan.columnMultipliers[i]}
-                          label={`ตัวคูณ Compa-ratio ${group.label}`}
-                          onChange={(value) => setColumnMultiplier(i, value)}
-                        />
-                      </div>
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {matrixRows.map((step) => {
-                  const whole = Number.isInteger(step);
-                  const multiplier = rowMultiplier(step, plan.rowMultipliers);
-                  return (
-                    <tr key={step} className={whole && everyStep ? "bg-teal-50/40" : ""}>
-                      <td
-                        className={`text-center tabular-nums ${whole ? "font-semibold text-teal-900" : "text-muted"}`}
-                      >
-                        {everyStep ? step.toFixed(1) : step}
-                      </td>
-                      <td className="text-center tabular-nums">
-                        {whole ? (
-                          <div className="flex justify-center">
-                            <MultiplierInput
-                              value={plan.rowMultipliers[step - 1]}
-                              label={`ตัวคูณ Competency ${step}`}
-                              onChange={(value) => setRowMultiplier(step - 1, value)}
-                            />
-                          </div>
-                        ) : (
-                          <span className="text-[11.5px] text-muted">
-                            {Math.round(multiplier * 1000) / 10}%
-                          </span>
-                        )}
-                      </td>
-                      {COMPA_GROUPS.map((group, i) => {
-                        const count = countAt(step, i);
-                        const center = step === 3 && i === 2;
-                        return (
-                          <td
-                            key={group.label}
-                            className={`text-center tabular-nums ${center ? "bg-lime-100 font-semibold" : ""} ${
-                              count ? "!bg-teal-100/70" : ""
-                            }`}
-                          >
-                            {pct(anchor * multiplier * plan.columnMultipliers[i])}
-                            {count > 0 && (
-                              <span className="ml-1.5 rounded-full bg-teal-600 px-1.5 text-[10.5px] font-semibold text-white">
-                                {count}
-                              </span>
-                            )}
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <p className="border-t border-line px-5 py-2 text-xs text-muted">
-            ตัวเลขในวงกลมคือจำนวนคนในช่องนั้น
-            {!everyStep &&
-              " (แบบ 5 แถว นับคนที่คะแนนปัดเป็นจำนวนเต็มแล้วตรงแถว แต่ % ของแต่ละคนคิดตามคะแนนทศนิยม 1 ตำแหน่ง)"}
-          </p>
-        </section>
-      )}
-
-      {!firstTime && (
-        <section className="card overflow-hidden">
-          <header className="border-l-4 border-teal-500 px-5 py-4">
-            <h2 className="text-[17px] font-semibold tracking-tight">ยอดขึ้นเงินเดือนรายคน</h2>
+      <section className="card overflow-hidden">
+        <header className="flex flex-wrap items-center justify-between gap-3 border-l-4 border-teal-500 px-5 py-4">
+          <div>
+            <h2 className="text-[17px] font-semibold tracking-tight">Merit Increase Matrix</h2>
             <p className="text-xs text-muted">
-              มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · กรอกจำนวนเงินเองได้ (เช่น ปัดขึ้น)
-              แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ · ลบตัวเลขออกเพื่อกลับไปใช้ค่าที่ระบบแนะนำ
-              {overMax > 0 && ` · ${overMax} คนเงินเดือนใหม่เกิน Max ของกระบอก`}
+              % ขึ้น = ค่ากลาง × ตัวคูณ Competency × ตัวคูณ Compa-ratio · ตัวเลขสีแดงแก้ได้ ·
+              คะแนนระหว่างจำนวนเต็มไล่ระดับทุก 0.1
             </p>
-          </header>
-          <div className="overflow-x-auto border-t border-line">
-            <table className="sheet min-w-[1240px]">
-              <thead>
-                <tr>
-                  <th>พนักงาน</th>
-                  <th className="text-center">Job level</th>
-                  <th className="text-right">Base Salary</th>
-                  <th className="text-center">Grade</th>
-                  <th className="text-center">Performance Score</th>
-                  <th className="text-center">Competency Score</th>
-                  <th className="text-center">Compa-ratio</th>
-                  <th className="text-center">Compa-ratio Grouping</th>
-                  <th className="text-right">% ขึ้น</th>
-                  <th className="w-32 text-right">ขึ้น (บาท)</th>
-                  <th className="text-right">เงินเดือนใหม่</th>
-                  <th className="text-center">Compa ใหม่</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roster.length === 0 && (
-                  <tr>
-                    <td colSpan={12} className="py-6 text-center text-muted">
-                      ยังไม่มีพนักงาน
-                    </td>
-                  </tr>
-                )}
-                {roster.map(({ row, grade, ratio, line, reason }) => {
-                  const { employee } = row;
-                  return (
-                    <tr key={employee.id} className={line ? "" : "bg-canvas/60 text-muted"}>
-                      <td>
-                        <div className={line ? "font-medium" : ""}>{displayName(employee)}</div>
-                        <div className="text-[11px] text-faint">
-                          {employee.code} · {DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}
-                        </div>
-                      </td>
-                      <td
-                        className="whitespace-nowrap text-center font-medium"
-                        title={row.levelName ?? undefined}
-                      >
-                        {grade?.jobLevel || row.levelName || "–"}
-                      </td>
-                      <td className="text-right tabular-nums">
-                        {row.salary ? baht(row.salary.baseSalary) : "–"}
-                      </td>
-                      <td className="text-center tabular-nums">
-                        {grade ? <span className="font-medium text-teal-800">{grade.grade}</span> : "–"}
-                      </td>
-                      <td className="text-center tabular-nums">
-                        {row.performance === null ? (
-                          <span className="text-[11px] text-faint">ยังไม่อนุมัติ</span>
-                        ) : (
-                          <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
-                        )}
-                      </td>
-                      <td className="text-center tabular-nums">
-                        {row.performance === null ? "–" : scoreStep(row.performance).toFixed(1)}
-                      </td>
-                      <td className="text-center tabular-nums">{ratio === null ? "–" : percent(ratio)}</td>
-                      <td className="text-center">
-                        {ratio === null ? (
-                          "–"
-                        ) : (
-                          <span className={`chip ${COMPA_GROUPS[compaGroup(ratio)].tone}`}>
-                            {COMPA_GROUPS[compaGroup(ratio)].label}
-                          </span>
-                        )}
-                      </td>
-                      {line ? (
-                        <>
-                          <td className="text-right font-semibold tabular-nums text-teal-800">
-                            {pct(line.percent)}
-                          </td>
-                          <td>
-                            <input
-                              type="number"
-                              min={0}
-                              step={100}
-                              aria-label={`จำนวนเงินขึ้นของ ${employee.name}`}
-                              className={`field text-right tabular-nums ${
-                                line.overridden ? "!border-amber-400 !bg-amber-50" : ""
-                              }`}
-                              placeholder={line.overridden ? "" : baht(line.amount)}
-                              value={line.overridden ? plan.overrides[employee.id] : ""}
-                              onChange={(e) => setOverride(employee.id, e.target.value)}
-                            />
-                          </td>
-                          <td className="text-right font-medium tabular-nums">
-                            {baht(line.newSalary)}
-                            {line.overMax && (
-                              <div className="text-[10.5px] font-medium text-amber-700">
-                                เกิน Max {baht(line.grade.max)}
-                              </div>
-                            )}
-                          </td>
-                          <td className="text-center">
-                            <CompaPill ratio={line.newRatio} />
-                          </td>
-                        </>
-                      ) : (
-                        <td colSpan={4} className="text-center text-[11.5px]">
-                          ไม่ได้ขึ้นรอบนี้ · {reason}
-                        </td>
-                      )}
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
           </div>
-        </section>
-      )}
+          <div className="flex gap-2">
+            <button type="button" className={segment(!everyStep)} onClick={() => setEveryStep(false)}>
+              5 แถว
+            </button>
+            <button type="button" className={segment(everyStep)} onClick={() => setEveryStep(true)}>
+              ทุก 0.1 คะแนน
+            </button>
+          </div>
+        </header>
+        <div className="max-h-[560px] overflow-auto border-t border-line">
+          <table className="sheet min-w-[760px]">
+            <thead className="sticky top-0 z-10">
+              <tr>
+                <th className="w-28 text-center">Competency</th>
+                <th className="w-24 text-center">ตัวคูณ</th>
+                {COMPA_GROUPS.map((group, i) => (
+                  <th key={group.label} className="text-center">
+                    <div>{group.label}</div>
+                    <div className="mt-1 flex justify-center">
+                      <MultiplierInput
+                        value={plan.columnMultipliers[i]}
+                        label={`ตัวคูณ Compa-ratio ${group.label}`}
+                        onChange={(value) => setColumnMultiplier(i, value)}
+                      />
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {matrixRows.map((step) => {
+                const whole = Number.isInteger(step);
+                const multiplier = rowMultiplier(step, plan.rowMultipliers);
+                return (
+                  <tr key={step} className={whole && everyStep ? "bg-teal-50/40" : ""}>
+                    <td
+                      className={`text-center tabular-nums ${whole ? "font-semibold text-teal-900" : "text-muted"}`}
+                    >
+                      {everyStep ? step.toFixed(1) : step}
+                    </td>
+                    <td className="text-center tabular-nums">
+                      {whole ? (
+                        <div className="flex justify-center">
+                          <MultiplierInput
+                            value={plan.rowMultipliers[step - 1]}
+                            label={`ตัวคูณ Competency ${step}`}
+                            onChange={(value) => setRowMultiplier(step - 1, value)}
+                          />
+                        </div>
+                      ) : (
+                        <span className="text-[11.5px] text-muted">
+                          {Math.round(multiplier * 1000) / 10}%
+                        </span>
+                      )}
+                    </td>
+                    {COMPA_GROUPS.map((group, i) => {
+                      const count = countAt(step, i);
+                      const center = step === 3 && i === 2;
+                      return (
+                        <td
+                          key={group.label}
+                          className={`text-center tabular-nums ${center ? "bg-lime-100 font-semibold" : ""} ${
+                            count ? "!bg-teal-100/70" : ""
+                          }`}
+                        >
+                          {noBudget ? "–" : pct(anchor * multiplier * plan.columnMultipliers[i])}
+                          {count > 0 && (
+                            <span className="ml-1.5 rounded-full bg-teal-600 px-1.5 text-[10.5px] font-semibold text-white">
+                              {count}
+                            </span>
+                          )}
+                        </td>
+                      );
+                    })}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <p className="border-t border-line px-5 py-2 text-xs text-muted">
+          ตัวเลขในวงกลมคือจำนวนคนในช่องนั้น
+          {!everyStep &&
+            " (แบบ 5 แถว นับคนที่คะแนนปัดเป็นจำนวนเต็มแล้วตรงแถว แต่ % ของแต่ละคนคิดตามคะแนนทศนิยม 1 ตำแหน่ง)"}
+        </p>
+      </section>
+
+      <section className="card overflow-hidden">
+        <header className="border-l-4 border-teal-500 px-5 py-4">
+          <h2 className="text-[17px] font-semibold tracking-tight">ยอดขึ้นเงินเดือนรายคน</h2>
+          <p className="text-xs text-muted">
+            มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · กรอกจำนวนเงินเองได้ (เช่น ปัดขึ้น)
+            แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ · ลบตัวเลขออกเพื่อกลับไปใช้ค่าที่ระบบแนะนำ
+            {overMax > 0 && ` · ${overMax} คนเงินเดือนใหม่เกิน Max ของกระบอก`}
+          </p>
+        </header>
+        <div className="overflow-x-auto border-t border-line">
+          <table className="sheet min-w-[1240px]">
+            <thead>
+              <tr>
+                <th>พนักงาน</th>
+                <th className="text-center">Job level</th>
+                <th className="text-right">Base Salary</th>
+                <th className="text-center">Grade</th>
+                <th className="text-center">Performance Score</th>
+                <th className="text-center">Competency Score</th>
+                <th className="text-center">Compa-ratio</th>
+                <th className="text-center">Compa-ratio Grouping</th>
+                <th className="text-right">% ขึ้น</th>
+                <th className="w-32 text-right">ขึ้น (บาท)</th>
+                <th className="text-right">เงินเดือนใหม่</th>
+                <th className="text-center">Compa ใหม่</th>
+              </tr>
+            </thead>
+            <tbody>
+              {roster.length === 0 && (
+                <tr>
+                  <td colSpan={12} className="py-6 text-center text-muted">
+                    ยังไม่มีพนักงาน
+                  </td>
+                </tr>
+              )}
+              {roster.map(({ row, grade, ratio, line, reason }) => {
+                const { employee } = row;
+                return (
+                  <tr key={employee.id} className={line ? "" : "bg-canvas/60 text-muted"}>
+                    <td>
+                      <div className={line ? "font-medium" : ""}>{displayName(employee)}</div>
+                      <div className="text-[11px] text-faint">
+                        {employee.code} · {DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}
+                      </div>
+                    </td>
+                    <td
+                      className="whitespace-nowrap text-center font-medium"
+                      title={row.levelName ?? undefined}
+                    >
+                      {grade?.jobLevel || row.levelName || "–"}
+                    </td>
+                    <td className="text-right tabular-nums">
+                      {row.salary ? baht(row.salary.baseSalary) : "–"}
+                    </td>
+                    <td className="text-center tabular-nums">
+                      {grade ? <span className="font-medium text-teal-800">{grade.grade}</span> : "–"}
+                    </td>
+                    <td className="text-center tabular-nums">
+                      {row.performance === null ? (
+                        <span className="text-[11px] text-faint">ยังไม่อนุมัติ</span>
+                      ) : (
+                        <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
+                      )}
+                    </td>
+                    <td className="text-center tabular-nums">
+                      {row.performance === null ? "–" : scoreStep(row.performance).toFixed(1)}
+                    </td>
+                    <td className="text-center tabular-nums">{ratio === null ? "–" : percent(ratio)}</td>
+                    <td className="text-center">
+                      {ratio === null ? (
+                        "–"
+                      ) : (
+                        <span className={`chip ${COMPA_GROUPS[compaGroup(ratio)].tone}`}>
+                          {COMPA_GROUPS[compaGroup(ratio)].label}
+                        </span>
+                      )}
+                    </td>
+                    {line && noBudget ? (
+                      <td colSpan={4} className="text-center text-[11.5px] text-faint">
+                        รอกำหนดงบ
+                      </td>
+                    ) : line ? (
+                      <>
+                        <td className="text-right font-semibold tabular-nums text-teal-800">
+                          {pct(line.percent)}
+                        </td>
+                        <td>
+                          <input
+                            type="number"
+                            min={0}
+                            step={100}
+                            aria-label={`จำนวนเงินขึ้นของ ${employee.name}`}
+                            className={`field text-right tabular-nums ${
+                              line.overridden ? "!border-amber-400 !bg-amber-50" : ""
+                            }`}
+                            placeholder={line.overridden ? "" : baht(line.amount)}
+                            value={line.overridden ? plan.overrides[employee.id] : ""}
+                            onChange={(e) => setOverride(employee.id, e.target.value)}
+                          />
+                        </td>
+                        <td className="text-right font-medium tabular-nums">
+                          {baht(line.newSalary)}
+                          {line.overMax && (
+                            <div className="text-[10.5px] font-medium text-amber-700">
+                              เกิน Max {baht(line.grade.max)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="text-center">
+                          <CompaPill ratio={line.newRatio} />
+                        </td>
+                      </>
+                    ) : (
+                      <td colSpan={4} className="text-center text-[11.5px]">
+                        ไม่ได้ขึ้นรอบนี้ · {reason}
+                      </td>
+                    )}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 }

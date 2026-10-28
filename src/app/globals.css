@@ -16,7 +16,7 @@ body {
   .sheet {
     @apply w-full border-collapse text-[13px];
   }
-  .sheet th {
+  .sheet :where(th) {
     @apply border-b border-line bg-canvas/70 px-3 py-2.5 text-left text-xs font-medium text-muted;
   }
   .sheet td {
