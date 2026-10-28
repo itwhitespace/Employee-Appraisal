@@ -1,10 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CompaPill, segment, Tile, today } from "@/components/CompensationParts";
+import { CompaPill, segment, today } from "@/components/CompensationParts";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { api, errorMessage } from "@/lib/api";
-import { baht, COMPA_GROUPS } from "@/lib/compensation";
+import { baht, COMPA_GROUPS, compaRatio } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
 import { departmentRank } from "@/lib/evaluation";
 import { displayName, formatScore } from "@/lib/format";
@@ -136,14 +136,37 @@ export default function MeritPage() {
       (line) => line.group === group && (everyStep ? line.step === step : Math.round(line.step) === step),
     ).length;
 
-  const lines = [...result.lines].sort(
-    (a, b) =>
-      departmentRank(a.row.employee.departmentId) - departmentRank(b.row.employee.departmentId) ||
-      (b.row.employee.level ?? 0) - (a.row.employee.level ?? 0) ||
-      a.row.employee.code.localeCompare(b.row.employee.code),
-  );
+  // Everyone, as in the Excel sheet; those not taking part show why.
+  const lineOf = new Map(result.lines.map((line) => [line.row.employee.id, line]));
+  const reasonOf = new Map(result.excluded.map(({ row, reason }) => [row.employee.id, reason]));
+  const roster = data.overview.rows
+    .map((row) => {
+      const grade = data.overview.structure.grades.find((g) => g.grade === row.grade);
+      return {
+        row,
+        grade,
+        ratio: compaRatio(row.salary, grade),
+        line: lineOf.get(row.employee.id),
+        reason: reasonOf.get(row.employee.id),
+      };
+    })
+    .sort(
+      (a, b) =>
+        departmentRank(a.row.employee.departmentId) - departmentRank(b.row.employee.departmentId) ||
+        (b.row.employee.level ?? 0) - (a.row.employee.level ?? 0) ||
+        a.row.employee.code.localeCompare(b.row.employee.code),
+    );
   const overMax = result.lines.filter((line) => line.overMax).length;
-  const customPreset = !TARGET_PRESETS.includes(plan.targetPercent);
+  // A typed-in percentage joins the preset rows, in order.
+  const targets = TARGET_PRESETS.includes(plan.targetPercent)
+    ? TARGET_PRESETS
+    : [...TARGET_PRESETS, plan.targetPercent].sort((x, y) => x - y);
+  const status =
+    Math.abs(result.gap) < 1
+      ? { label: "ตรงงบ", tone: "bg-emerald-50 text-emerald-700" }
+      : result.gap < 0
+        ? { label: "เกินงบ", tone: "bg-red-50 text-red-600" }
+        : { label: "ต่ำกว่างบ", tone: "bg-amber-50 text-amber-700" };
 
   return (
     <div className="max-w-[1180px] space-y-5">
@@ -172,86 +195,138 @@ export default function MeritPage() {
         </div>
       </div>
 
-      <section className="card space-y-4 px-5 py-4">
-        <div className="flex flex-wrap items-end gap-x-8 gap-y-4">
-          <div>
-            <div className="mb-2 text-xs font-medium text-muted">งบขึ้นเงินเดือน (% ของเงินเดือนฐานรวม)</div>
-            <div className="flex flex-wrap items-center gap-2">
-              {TARGET_PRESETS.map((preset) => (
-                <button
-                  key={preset}
-                  type="button"
-                  aria-pressed={plan.targetPercent === preset}
-                  className={segment(plan.targetPercent === preset)}
-                  onClick={() => edit({ targetPercent: preset })}
-                >
-                  {preset.toFixed(1)}%
-                </button>
-              ))}
-              <label className="flex items-center gap-1.5 text-sm text-muted">
-                อื่นๆ
-                <input
-                  type="number"
-                  min={0}
-                  max={100}
-                  step={0.1}
-                  aria-label="% งบประมาณที่กำหนดเอง"
-                  className={`field w-20 text-right tabular-nums ${customPreset ? "!border-teal-500" : ""}`}
-                  value={plan.targetPercent}
-                  onChange={(e) => edit({ targetPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })}
-                />
-                %
-              </label>
-            </div>
-          </div>
-          <label className="block">
-            <span className="mb-2 block text-xs font-medium text-muted">ปัดเศษขึ้น</span>
-            <select
-              className="field w-32"
-              value={plan.roundTo}
-              onChange={(e) => edit({ roundTo: Number(e.target.value) })}
-            >
-              {ROUNDING.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="block">
-            <span className="mb-2 block text-xs font-medium text-muted">อายุงานขั้นต่ำ (เดือน)</span>
-            <input
-              type="number"
-              min={0}
-              max={120}
-              className="field w-24 text-right tabular-nums"
-              value={plan.minTenureMonths}
-              onChange={(e) =>
-                edit({ minTenureMonths: Math.min(120, Math.max(0, Math.round(Number(e.target.value) || 0))) })
-              }
-            />
-          </label>
-        </div>
-      </section>
+      <div className="grid gap-5 lg:grid-cols-2">
+        <section className="card overflow-hidden">
+          <header className="border-l-4 border-teal-500 px-5 py-4">
+            <h2 className="text-[17px] font-semibold tracking-tight">งบประมาณ</h2>
+            <p className="text-xs text-muted">
+              คิดจากเงินเดือนฐานก่อนขึ้นของ {result.lines.length} คนที่มีสิทธิ์ · บาทต่อเดือน
+            </p>
+          </header>
+          <table className="sheet border-t border-line">
+            <tbody>
+              <tr>
+                <td className="text-muted">เงินเดือนฐานรวม (ก่อนขึ้น)</td>
+                <td className="text-right font-medium tabular-nums">{baht(result.payroll)}</td>
+              </tr>
+              <tr>
+                <td className="text-muted">% งบขึ้นเงินเดือน</td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    max={100}
+                    step={0.1}
+                    aria-label="% งบขึ้นเงินเดือน"
+                    className="field ml-auto w-24 text-right font-semibold tabular-nums"
+                    value={plan.targetPercent}
+                    onChange={(e) =>
+                      edit({ targetPercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
+                    }
+                  />
+                </td>
+              </tr>
+              <tr>
+                <td className="font-medium">Total Merit increase budget</td>
+                <td className="text-right font-semibold tabular-nums text-teal-900">{baht(result.budget)}</td>
+              </tr>
+              <tr>
+                <td className="font-medium text-orange-600">Total Merit increase spend</td>
+                <td className="text-right font-semibold tabular-nums text-orange-600">{baht(result.spend)}</td>
+              </tr>
+              <tr>
+                <td className="font-medium">Gap</td>
+                <td className="text-right">
+                  <span className={`chip tabular-nums ${status.tone}`}>
+                    {baht(result.gap)} · {status.label}
+                  </span>
+                </td>
+              </tr>
+              <tr>
+                <td className="text-muted">ค่ากลาง (90–110%, Competency 3)</td>
+                <td className="text-right">
+                  <span className="chip bg-lime-100 font-semibold tabular-nums text-lime-900">{pct(anchor)}</span>
+                </td>
+              </tr>
+              <tr>
+                <td className="text-muted">ปัดเศษขึ้น</td>
+                <td>
+                  <select
+                    className="field ml-auto w-32"
+                    aria-label="ปัดเศษขึ้น"
+                    value={plan.roundTo}
+                    onChange={(e) => edit({ roundTo: Number(e.target.value) })}
+                  >
+                    {ROUNDING.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </td>
+              </tr>
+              <tr>
+                <td className="text-muted">อายุงานขั้นต่ำ (เดือน)</td>
+                <td>
+                  <input
+                    type="number"
+                    min={0}
+                    max={120}
+                    aria-label="อายุงานขั้นต่ำ (เดือน)"
+                    className="field ml-auto w-24 text-right tabular-nums"
+                    value={plan.minTenureMonths}
+                    onChange={(e) =>
+                      edit({ minTenureMonths: Math.min(120, Math.max(0, Math.round(Number(e.target.value) || 0))) })
+                    }
+                  />
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </section>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <Tile
-          label="เงินเดือนฐานรวม (ก่อนขึ้น)"
-          value={baht(result.payroll)}
-          note={`${result.lines.length} คนที่มีสิทธิ์`}
-        />
-        <Tile
-          label={`งบต่อเดือน (${plan.targetPercent}%)`}
-          value={baht(result.budget)}
-          note={`ต่อปี ${baht(result.budget * 12)}`}
-        />
-        <Tile label="ยอดขึ้นจริงต่อเดือน" value={baht(result.spend)} note={`ต่อปี ${baht(result.spend * 12)}`} />
-        <Tile
-          label="ส่วนต่าง (Gap)"
-          value={baht(result.gap)}
-          note={result.gap < 0 ? "เกินงบ: ยอดที่กำหนดเองรวมเกินงบ" : "งบ − ยอดขึ้นจริง"}
-        />
-        <Tile label="ค่ากลาง (90–110%, Competency 3)" value={pct(anchor)} note="คำนวณจากงบอัตโนมัติ" />
+        <section className="card overflow-hidden">
+          <header className="border-l-4 border-teal-500 px-5 py-4">
+            <h2 className="text-[17px] font-semibold tracking-tight">Target Salary Increase</h2>
+            <p className="text-xs text-muted">คลิกแถวเพื่อใช้เป็นงบ · Amount = % × เงินเดือนฐานรวม</p>
+          </header>
+          <table className="sheet border-t border-line">
+            <thead>
+              <tr>
+                <th className="text-center">% increase</th>
+                <th className="text-right">Amount (Baht)</th>
+                <th className="text-right">Year</th>
+              </tr>
+            </thead>
+            <tbody>
+              {targets.map((target) => {
+                const selected = plan.targetPercent === target;
+                const amount = Math.round((result.payroll * target) / 100);
+                return (
+                  <tr
+                    key={target}
+                    aria-selected={selected}
+                    tabIndex={0}
+                    onClick={() => edit({ targetPercent: target })}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        edit({ targetPercent: target });
+                      }
+                    }}
+                    className={`cursor-pointer ${selected ? "!bg-teal-600 text-white" : ""}`}
+                  >
+                    <td className={`text-center font-semibold tabular-nums ${selected ? "" : "text-rose-600"}`}>
+                      {target.toFixed(1)}%
+                    </td>
+                    <td className="text-right tabular-nums">{baht(amount)}</td>
+                    <td className="text-right tabular-nums">{baht(amount * 12)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </section>
       </div>
 
       <section className="card overflow-hidden">
@@ -348,7 +423,8 @@ export default function MeritPage() {
         <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">ยอดขึ้นเงินเดือนรายคน</h2>
           <p className="text-xs text-muted">
-            กรอกจำนวนเงินเองได้ (เช่น ปัดขึ้น) แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ · ลบตัวเลขออกเพื่อกลับไปใช้ค่าที่ระบบแนะนำ
+            มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · กรอกจำนวนเงินเองได้ (เช่น ปัดขึ้น)
+            แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ · ลบตัวเลขออกเพื่อกลับไปใช้ค่าที่ระบบแนะนำ
             {overMax > 0 && ` · ${overMax} คนเงินเดือนใหม่เกิน Max ของกระบอก`}
           </p>
         </header>
@@ -368,58 +444,81 @@ export default function MeritPage() {
               </tr>
             </thead>
             <tbody>
-              {lines.length === 0 && (
+              {roster.length === 0 && (
                 <tr>
                   <td colSpan={9} className="py-6 text-center text-muted">
-                    ยังไม่มีพนักงานที่มีสิทธิ์ขึ้นเงินเดือน
+                    ยังไม่มีพนักงาน
                   </td>
                 </tr>
               )}
-              {lines.map((line) => {
-                const { employee } = line.row;
-                const suggested = line.overridden ? undefined : line.amount;
+              {roster.map(({ row, grade, ratio, line, reason }) => {
+                const { employee } = row;
                 return (
-                  <tr key={employee.id}>
+                  <tr key={employee.id} className={line ? "" : "bg-canvas/60 text-muted"}>
                     <td>
-                      <div className="font-medium">{displayName(employee)}</div>
+                      <div className={line ? "font-medium" : ""}>{displayName(employee)}</div>
                       <div className="text-[11px] text-faint">
                         {employee.code} · {DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}
                       </div>
                     </td>
                     <td className="whitespace-nowrap">
-                      <span className="font-medium text-teal-800">G{line.grade.grade}</span>
-                      <span className="text-faint"> · {line.row.levelName}</span>
-                    </td>
-                    <td className="text-right tabular-nums">{baht(line.baseSalary)}</td>
-                    <td className="text-center">
-                      <CompaPill ratio={line.ratio} />
-                    </td>
-                    <td className="text-center tabular-nums">
-                      <span className="font-semibold text-teal-800">{formatScore(line.row.performance)}</span>
-                      <span className="text-[11px] text-faint"> → {line.step.toFixed(1)}</span>
-                    </td>
-                    <td className="text-right font-semibold tabular-nums text-teal-800">{pct(line.percent)}</td>
-                    <td>
-                      <input
-                        type="number"
-                        min={0}
-                        step={100}
-                        aria-label={`จำนวนเงินขึ้นของ ${employee.name}`}
-                        className={`field text-right tabular-nums ${line.overridden ? "!border-amber-400 !bg-amber-50" : ""}`}
-                        placeholder={suggested === undefined ? "" : baht(suggested)}
-                        value={line.overridden ? plan.overrides[employee.id] : ""}
-                        onChange={(e) => setOverride(employee.id, e.target.value)}
-                      />
-                    </td>
-                    <td className="text-right font-medium tabular-nums">
-                      {baht(line.newSalary)}
-                      {line.overMax && (
-                        <div className="text-[10.5px] font-medium text-amber-700">เกิน Max {baht(line.grade.max)}</div>
+                      {grade ? (
+                        <>
+                          <span className="font-medium text-teal-800">G{grade.grade}</span>
+                          <span className="text-faint"> · {row.levelName}</span>
+                        </>
+                      ) : (
+                        <span className="text-faint">{row.levelName ?? "–"}</span>
                       )}
                     </td>
+                    <td className="text-right tabular-nums">{row.salary ? baht(row.salary.baseSalary) : "–"}</td>
                     <td className="text-center">
-                      <CompaPill ratio={line.newRatio} />
+                      <CompaPill ratio={ratio} />
                     </td>
+                    <td className="text-center tabular-nums">
+                      {row.performance === null ? (
+                        <span className="text-[11px] text-faint">ยังไม่อนุมัติ</span>
+                      ) : (
+                        <>
+                          <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
+                          {line && <span className="text-[11px] text-faint"> → {line.step.toFixed(1)}</span>}
+                        </>
+                      )}
+                    </td>
+                    {line ? (
+                      <>
+                        <td className="text-right font-semibold tabular-nums text-teal-800">{pct(line.percent)}</td>
+                        <td>
+                          <input
+                            type="number"
+                            min={0}
+                            step={100}
+                            aria-label={`จำนวนเงินขึ้นของ ${employee.name}`}
+                            className={`field text-right tabular-nums ${
+                              line.overridden ? "!border-amber-400 !bg-amber-50" : ""
+                            }`}
+                            placeholder={line.overridden ? "" : baht(line.amount)}
+                            value={line.overridden ? plan.overrides[employee.id] : ""}
+                            onChange={(e) => setOverride(employee.id, e.target.value)}
+                          />
+                        </td>
+                        <td className="text-right font-medium tabular-nums">
+                          {baht(line.newSalary)}
+                          {line.overMax && (
+                            <div className="text-[10.5px] font-medium text-amber-700">
+                              เกิน Max {baht(line.grade.max)}
+                            </div>
+                          )}
+                        </td>
+                        <td className="text-center">
+                          <CompaPill ratio={line.newRatio} />
+                        </td>
+                      </>
+                    ) : (
+                      <td colSpan={4} className="text-center text-[11.5px]">
+                        ไม่ได้ขึ้นรอบนี้ · {reason}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
@@ -427,24 +526,6 @@ export default function MeritPage() {
           </table>
         </div>
       </section>
-
-      {result.excluded.length > 0 && (
-        <details className="card overflow-hidden">
-          <summary className="cursor-pointer px-5 py-3 text-sm font-medium text-teal-900">
-            ไม่ได้อยู่ในรอบนี้ {result.excluded.length} คน
-          </summary>
-          <ul className="divide-y divide-line border-t border-line text-sm">
-            {result.excluded.map(({ row, reason }) => (
-              <li key={row.employee.id} className="flex flex-wrap justify-between gap-2 px-5 py-2">
-                <span>
-                  {displayName(row.employee)} <span className="text-faint">· {row.employee.code}</span>
-                </span>
-                <span className="text-muted">{reason}</span>
-              </li>
-            ))}
-          </ul>
-        </details>
-      )}
     </div>
   );
 }

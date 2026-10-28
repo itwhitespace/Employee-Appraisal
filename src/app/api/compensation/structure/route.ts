@@ -1,27 +1,17 @@
-import {
-  getSalaryStructure,
-  listCompensationAudit,
-  listLevels,
-  logCompensation,
-  saveSalaryStructure,
-} from "@/lib/server/db";
+import { getSalaryStructure, listLevels, logCompensation, saveSalaryStructure } from "@/lib/server/db";
 import { handle, readJson, requireCompensationUser } from "@/lib/server/http";
 import { parseSalaryStructure } from "@/lib/server/validate";
 
 // Reads the session cookie, so it can never be prerendered.
 export const dynamic = "force-dynamic";
 
-/** The salary structure, the levels it can pay, and the recent access record. */
+/** The salary structure and the levels it can pay. */
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationUser();
     await logCompensation(user.id, "เปิดดูโครงสร้างเงินเดือน");
-    const [structure, levels, audit] = await Promise.all([
-      getSalaryStructure(),
-      listLevels(),
-      listCompensationAudit(),
-    ]);
-    return { structure, levels, audit };
+    const [structure, levels] = await Promise.all([getSalaryStructure(), listLevels()]);
+    return { structure, levels };
   });
 }
 
@@ -31,6 +21,6 @@ export async function PUT(request: Request) {
     const user = await requireCompensationUser();
     const structure = await saveSalaryStructure(parseSalaryStructure(await readJson(request)));
     await logCompensation(user.id, "บันทึกโครงสร้างเงินเดือน");
-    return { structure, audit: await listCompensationAudit() };
+    return { structure };
   });
 }

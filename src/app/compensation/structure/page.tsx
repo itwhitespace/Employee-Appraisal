@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import IconButton from "@/components/IconButton";
 import { api, errorMessage } from "@/lib/api";
-import type { CompensationAuditEntry, JobLevel, SalaryGrade, SalaryStructure } from "@/lib/types";
+import type { JobLevel, SalaryGrade, SalaryStructure } from "@/lib/types";
 
 interface Notice {
   tone: "ok" | "error";
@@ -44,9 +44,6 @@ function levelNames(levels: JobLevel[]): string[] {
 const baht = (value: number) => value.toLocaleString("th-TH", { maximumFractionDigits: 0 });
 const orDash = (value: number | null) => (value === null ? "–" : baht(value));
 
-const dateTime = (iso: string) =>
-  new Date(iso).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
-
 /** Midpoint of the band; null until both ends are filled in. */
 function midpoint(grade: GradeDraft): number | null {
   if (grade.min.trim() === "" || grade.max.trim() === "") return null;
@@ -64,7 +61,6 @@ export default function SalaryStructurePage() {
   const confirm = useConfirm();
   const [grades, setGrades] = useState<GradeDraft[] | null>(null);
   const [levels, setLevels] = useState<JobLevel[]>([]);
-  const [audit, setAudit] = useState<CompensationAuditEntry[]>([]);
   const [dirty, setDirty] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -76,7 +72,6 @@ export default function SalaryStructurePage() {
       .then((data) => {
         setGrades(toGradeDrafts(data.structure.grades));
         setLevels(data.levels);
-        setAudit(data.audit);
       })
       .catch((e) => setLoadError(errorMessage(e)));
   }, []);
@@ -147,7 +142,6 @@ export default function SalaryStructurePage() {
     try {
       const saved = await api.saveSalaryStructure(structure);
       setGrades(toGradeDrafts(saved.structure.grades));
-      setAudit(saved.audit);
       setDirty(false);
       setNotice({ tone: "ok", text: "บันทึกแล้ว" });
     } catch (e) {
@@ -305,22 +299,6 @@ export default function SalaryStructurePage() {
         </div>
       </section>
 
-      <section className="card overflow-hidden">
-        <header className="border-l-4 border-teal-500 px-5 py-4">
-          <h2 className="text-[17px] font-semibold tracking-tight">ประวัติการเข้าถึง</h2>
-          <p className="text-xs text-muted">ทุกครั้งที่มีคนเปิดดูหรือแก้ข้อมูลค่าตอบแทน · 30 รายการล่าสุด</p>
-        </header>
-        <ul className="divide-y divide-line border-t border-line text-sm">
-          {audit.map((entry, index) => (
-            <li key={index} className="flex flex-wrap justify-between gap-2 px-5 py-2">
-              <span>
-                <span className="font-medium">{entry.actorName}</span> · {entry.action}
-              </span>
-              <span className="tabular-nums text-muted">{dateTime(entry.at)}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
     </div>
   );
 }

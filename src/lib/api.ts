@@ -101,15 +101,10 @@ export const api = {
 
   /** Compensation access only; every call is recorded. */
   salaryStructure: () =>
-    request<{ structure: SalaryStructure; levels: JobLevel[]; audit: CompensationAuditEntry[] }>(
-      "/api/compensation/structure",
-    ),
+    request<{ structure: SalaryStructure; levels: JobLevel[] }>("/api/compensation/structure"),
   saveSalaryStructure: (structure: SalaryStructure) =>
-    request<{ structure: SalaryStructure; audit: CompensationAuditEntry[] }>(
-      "/api/compensation/structure",
-      "PUT",
-      structure,
-    ),
+    request<{ structure: SalaryStructure }>("/api/compensation/structure", "PUT", structure),
+  compensationAudit: () => request<{ audit: CompensationAuditEntry[] }>("/api/compensation/audit"),
 
   salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
   saveSalary: (employeeId: string, record: SalaryRecord) =>
