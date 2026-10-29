@@ -339,7 +339,7 @@ export default function MeritPage() {
           : { label: "ต่ำกว่างบ", tone: "bg-amber-50 text-amber-700" };
 
   return (
-    <div className="max-w-[1400px] space-y-5">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="page-title">ปรับเงินเดือนประจำปี</h1>

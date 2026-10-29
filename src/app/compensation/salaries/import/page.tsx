@@ -198,7 +198,7 @@ export default function SalaryImportPage() {
   };
 
   return (
-    <div className="max-w-[1400px] space-y-5">
+    <div className="space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Link href="/compensation/salaries" className="text-sm text-teal-700 hover:underline">

@@ -285,8 +285,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       </aside>
 
       <main
-        className={`mx-auto max-w-[1400px] px-4 py-6 sm:px-8 lg:py-10 print:max-w-none print:p-0 ${
-          inCompensation ? "compensation" : ""
+        className={`mx-auto px-4 py-6 lg:py-10 print:max-w-none print:p-0 ${
+          // The compensation tables are wide: they get the whole screen.
+          inCompensation ? "compensation max-w-[1920px] sm:px-6" : "max-w-[1400px] sm:px-8"
         }`}
       >
         {children}
