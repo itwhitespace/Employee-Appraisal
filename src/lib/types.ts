@@ -338,6 +338,36 @@ export interface CompensationOverview {
   cycleId: string;
   structure: SalaryStructure;
   rows: CompensationRow[];
+  /** Every level of every department, for checking people added by the salary import. */
+  levels: JobLevel[];
+  /** Everyone in the system, appraised or not: codes in use and who can be a supervisor. */
+  directory: Pick<User, "id" | "code" | "name" | "role" | "position" | "team">[];
+}
+
+/** A person new to the system, from the salary import. Admin is never allowed. */
+export interface ImportedEmployee {
+  code: string;
+  name: string;
+  nickname: string;
+  role: "employee" | "supervisor";
+  departmentId: DepartmentId;
+  level: Level;
+  supervisorCode: string;
+  position: string;
+  team: string;
+  startDate: string | null;
+  levelSince: string | null;
+  appraisalType: AppraisalType;
+}
+
+/** What the salary import page sends once the user confirms. */
+export interface SalaryImport {
+  effectiveDate: string;
+  note: string;
+  newEmployees: ImportedEmployee[];
+  profileUpdates: { employeeId: string; position?: string; team?: string }[];
+  /** One per salary: an employee already in the system, or a new one by code. */
+  items: { employeeId?: string; newCode?: string; baseSalary: number; allowance: number }[];
 }
 
 /** One line of the record of who opened or changed compensation data. */

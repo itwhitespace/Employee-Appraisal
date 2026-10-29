@@ -1,4 +1,5 @@
 import type {
+  SalaryImport,
   BonusData,
   BonusPlan,
   CompensationAuditEntry,
@@ -113,16 +114,9 @@ export const api = {
   salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
   saveSalary: (employeeId: string, record: SalaryRecord) =>
     request<CompensationOverview>(`/api/compensation/salaries/${employeeId}`, "PUT", record),
-  importSalaries: (
-    effectiveDate: string,
-    note: string,
-    items: { employeeId: string; baseSalary: number; allowance: number }[],
-  ) =>
-    request<CompensationOverview>("/api/compensation/salaries/import", "POST", {
-      effectiveDate,
-      note,
-      items,
-    }),
+  /** Saves an import: new people, job titles and teams, then salaries. See the route for the body. */
+  importSalaries: (payload: SalaryImport) =>
+    request<CompensationOverview>("/api/compensation/salaries/import", "POST", payload),
 
   bonus: () => request<BonusData>("/api/compensation/bonus"),
   saveBonus: (plan: BonusPlan) => request<BonusData>("/api/compensation/bonus", "PUT", plan),

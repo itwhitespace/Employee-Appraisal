@@ -19,6 +19,17 @@ export interface ImportLine {
   jobLevel: string;
   baseSalary: number | null;
   allowance: number | null;
+  /** The rest of the employee export, used to add people not yet in the system. */
+  role: string;
+  department: string;
+  levelName: string;
+  /** Supervisor as written, e.g. "นาย … (10401)". */
+  supervisor: string;
+  position: string;
+  team: string;
+  startDate: string | null;
+  levelSince: string | null;
+  appraisalType: string;
   /**
    * The amount is worked out by a formula: the figure read is the one Excel saved last time,
    * which can differ from the screen if the formula has changed since (or draws at random).
@@ -40,6 +51,15 @@ const HEADINGS = {
   jobLevel: ["joblevel"],
   baseSalary: ["basesalary"],
   allowance: ["allowance", "existingallowance"],
+  role: ["role", "สิทธิ์"],
+  department: ["ฝ่าย", "department"],
+  levelName: ["level"],
+  supervisor: ["หัวหน้า", "supervisor"],
+  position: ["jobtitle", "ตำแหน่ง", "position"],
+  team: ["studio/team", "team", "ทีม", "studio"],
+  startDate: ["วันเริ่มงาน", "startdate"],
+  levelSince: ["อยู่levelนี้ตั้งแต่", "levelsince"],
+  appraisalType: ["ประเภทการประเมิน", "appraisaltype"],
 } as const;
 
 type Field = keyof typeof HEADINGS;
@@ -129,6 +149,15 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
           jobLevel: cellText(read("jobLevel")),
           baseSalary: amount(read("baseSalary")),
           allowance: amount(read("allowance")),
+          role: cellText(read("role")),
+          department: cellText(read("department")),
+          levelName: cellText(read("levelName")),
+          supervisor: cellText(read("supervisor")),
+          position: cellText(read("position")),
+          team: cellText(read("team")),
+          startDate: dayOf(read("startDate")),
+          levelSince: dayOf(read("levelSince")),
+          appraisalType: cellText(read("appraisalType")),
           formula: formulas.some(Boolean),
           random: formulas.some((formula) => VOLATILE.test(formula)),
         });
@@ -137,6 +166,17 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
     }
   }
   throw new ImportError('ไม่พบหัวคอลัมน์ "รหัส" หรือ "Employee Name" และ "base salary" ในไฟล์นี้');
+}
+
+/** yyyy-mm-dd from a date cell or text such as 15/01/2020; null when there is none. */
+function dayOf(value: unknown): string | null {
+  const v =
+    value && typeof value === "object" && "result" in value ? (value as { result: unknown }).result : value;
+  if (v instanceof Date && !Number.isNaN(v.getTime())) return v.toISOString().slice(0, 10);
+  const match = cellText(v).match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/) ?? null;
+  if (match) return `${match[3]}-${match[2].padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  const iso = cellText(v).match(/^\d{4}-\d{2}-\d{2}$/);
+  return iso ? iso[0] : null;
 }
 
 /** A 5-digit code; Excel drops the leading zeros of a code typed as a number. */

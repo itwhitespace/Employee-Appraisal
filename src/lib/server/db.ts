@@ -117,7 +117,8 @@ export async function getLoginRecord(
   return { user: toUser(employee), passwordHash: employee.password_hash ?? null };
 }
 
-export async function createUser(input: EmployeeInput, passwordHash: string): Promise<User> {
+/** `passwordHash` null = the person cannot sign in until admin sets a password. */
+export async function createUser(input: EmployeeInput, passwordHash: string | null): Promise<User> {
   await requireKnownLevel(input);
   const result = await db()
     .from("employees")
@@ -128,6 +129,14 @@ export async function createUser(input: EmployeeInput, passwordHash: string): Pr
     throw new HttpError(409, `รหัสพนักงาน ${input.code} มีอยู่ในระบบแล้ว`);
   }
   return toUser(check(result) as EmployeeRow);
+}
+
+/** Job title and team only, e.g. from the salary import; the rest of the record is left alone. */
+export async function updateEmployeeProfile(
+  id: string,
+  profile: { position?: string; team?: string },
+): Promise<void> {
+  check(await db().from("employees").update(profile).eq("id", id));
 }
 
 /** `passwordHash` null keeps the password the employee already has. */
