@@ -13,7 +13,7 @@ export const DEFAULT_MERIT_PLAN: MeritPlan = {
   budgetAmount: null,
   rowMultipliers: [0.6, 0.8, 1, 1.2, 1.5],
   columnMultipliers: [1.5, 1.2, 1, 0.8, 0.6],
-  roundTo: 0,
+  roundTo: 100,
   minTenureMonths: 3,
   overrides: {},
   allowanceIncreases: {},

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { segment, today } from "@/components/CompensationParts";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { api, errorMessage } from "@/lib/api";
+import { meritWorkbook, type MeritExportRow } from "@/lib/merit-export";
 import { baht, COMPA_GROUPS, compaGroup, compaRatio, percent } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
 import { departmentRank } from "@/lib/evaluation";
@@ -196,100 +197,52 @@ export default function MeritPage() {
       setExporting(false);
       return;
     }
-    const cell = (value: string | number | null | undefined) => {
-      if (value === null || value === undefined) return "";
-      const text = typeof value === "number" ? String(Math.round(value * 100) / 100) : value;
-      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-    };
-    const lines: (string | number | null | undefined)[][] = [
-      ["แผนขึ้นเงินเดือน", data.overview.cycleId],
-      ["Job level", jobLevel === "all" ? "ทั้งหมด" : jobLevel],
-      ["Total Merit increase budget (บาท/เดือน)", result.budget],
-      ["Total Merit increase spend (บาท/เดือน)", result.spend],
-      ["Gap", result.gap],
-      ["ค่ากลาง (%)", anchor * 100],
-      ["ส่งออกเมื่อ", new Date().toLocaleString("th-TH")],
-      [],
-      [
-        "รหัส",
-        "ชื่อ",
-        "ฝ่าย",
-        "Job level",
-        "Grade",
-        "Performance Score",
-        "Competency Score",
-        "Compa-ratio (%)",
-        "Compa-ratio Grouping",
-        "Merit Increase suggestion (%)",
-        "Merit Increase suggestion (บาท)",
-        "Base Salary",
-        "Allowance",
-        "RoundUp Merit Increase",
-        "Increase Allowance",
-        "เงินเดือนใหม่",
-        "New Allowance",
-        "Total",
-        "หมายเหตุ",
-      ],
-      ...shown.map((entry) => {
-        const { row, grade, ratio, pay, line, reason } = entry;
-        const raised = pay?.raised;
-        const notes = [
-          line ? (noBudget ? "รอกำหนดงบ" : "") : `ไม่ได้ขึ้นรอบนี้: ${reason}`,
-          row.performanceIsTest ? "คะแนนทดสอบ" : "",
-          raised?.overridden ? "RoundUp กรอกเอง" : "",
-          raised?.overMax ? "เกิน Max" : "",
-        ].filter(Boolean);
-        return [
-          row.employee.code,
-          row.employee.name,
-          DEPARTMENTS.find((d) => d.id === row.employee.departmentId)?.name,
-          jobLevelOf(entry),
-          grade?.grade,
-          row.performance,
-          row.performance === null ? null : scoreStep(row.performance),
-          ratio === null ? null : ratio * 100,
-          ratio === null ? null : COMPA_GROUPS[compaGroup(ratio)].label,
-          raised ? raised.suggestedPercent * 100 : null,
-          raised?.suggested,
-          row.salary?.baseSalary,
-          row.salary?.allowance,
-          raised?.amount,
-          pay?.increase,
-          pay?.salary,
-          pay?.allowance,
-          pay?.total,
-          notes.join(" · "),
-        ];
-      }),
-      [],
-      [
-        "รวม",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        "",
-        totals.suggested,
-        totals.base,
-        totals.allowance,
-        totals.roundUp,
-        totals.increase,
-        totals.newSalary,
-        totals.newAllowance,
-        totals.total,
-      ],
-    ];
-    const csv = "\uFEFF" + lines.map((line) => line.map(cell).join(",")).join("\r\n");
-    const link = document.createElement("a");
-    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
-    link.download = `merit-${data.overview.cycleId.replace(/[^\w-]/g, "-")}-${today()}.csv`;
-    link.click();
-    URL.revokeObjectURL(link.href);
+    try {
+      const blob = await meritWorkbook({
+        cycleId: data.overview.cycleId,
+        filter: jobLevel === "all" ? "ทั้งหมด" : jobLevel,
+        plan,
+        budget: result.budget,
+        spend: result.spend,
+        gap: result.gap,
+        anchor,
+        rows: shown.map((entry): MeritExportRow => {
+          const { row, grade, ratio, pay, line, reason } = entry;
+          const raised = pay?.raised;
+          const notes = [
+            line ? (noBudget ? "รอกำหนดงบ" : "") : `ไม่ได้ขึ้นรอบนี้: ${reason}`,
+            row.performanceIsTest ? "คะแนนทดสอบ" : "",
+            raised?.overridden ? "RoundUp กรอกเอง" : "",
+            raised?.overMax ? "เกิน Max" : "",
+          ].filter(Boolean);
+          return {
+            code: row.employee.code,
+            name: row.employee.name,
+            department: DEPARTMENTS.find((d) => d.id === row.employee.departmentId)?.name ?? "",
+            jobLevel: jobLevelOf(entry),
+            grade: grade?.grade ?? null,
+            performance: row.performance,
+            competency: row.performance === null ? null : scoreStep(row.performance),
+            ratio,
+            group: ratio === null ? null : COMPA_GROUPS[compaGroup(ratio)].label,
+            suggestedPercent: raised?.suggestedPercent ?? null,
+            suggested: raised?.suggested ?? null,
+            baseSalary: row.salary?.baseSalary ?? null,
+            allowance: row.salary?.allowance ?? null,
+            roundUp: raised?.amount ?? null,
+            increaseAllowance: pay?.increase ?? null,
+            note: notes.join(" · "),
+          };
+        }),
+      });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `merit-${data.overview.cycleId.replace(/[^\w-]/g, "-")}-${today()}.xlsx`;
+      link.click();
+      URL.revokeObjectURL(link.href);
+    } catch (e) {
+      setNotice({ tone: "error", text: errorMessage(e) });
+    }
     setExporting(false);
   };
 
@@ -740,10 +693,23 @@ export default function MeritPage() {
             ))}
             <button
               type="button"
-              className="btn-secondary ml-auto py-1.5 text-xs"
+              className="btn ml-auto rounded-lg bg-emerald-700 py-1.5 text-xs text-white shadow-sm hover:bg-emerald-800"
               disabled={exporting}
               onClick={() => void exportExcel()}
             >
+              <svg
+                viewBox="0 0 20 20"
+                className="h-4 w-4"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="1.6"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                aria-hidden="true"
+              >
+                <path d="M11.5 2.5H5.5a1.5 1.5 0 0 0-1.5 1.5v12a1.5 1.5 0 0 0 1.5 1.5h9a1.5 1.5 0 0 0 1.5-1.5V7l-4.5-4.5Z" />
+                <path d="M11.5 2.5V7H16M10 10v5M7.5 12.5 10 15l2.5-2.5" />
+              </svg>
               {exporting ? "กำลังส่งออก…" : "Export to Excel"}
             </button>
           </div>
@@ -766,7 +732,7 @@ export default function MeritPage() {
           </p>
         )}
         <div className="max-h-[75vh] overflow-auto border-t border-line">
-          <table className="sheet roster min-w-[1260px]">
+          <table className="sheet roster min-w-[1120px]">
             <thead className="sticky top-0 z-20">
               <tr>
                 <th colSpan={8} className="!border-0 !bg-white text-right !text-muted">
@@ -784,7 +750,7 @@ export default function MeritPage() {
                 <th className="sum !bg-orange-200 !text-orange-900">{baht(totals.total)}</th>
               </tr>
               <tr>
-                <th className="sticky left-0 z-10 w-44">พนักงาน</th>
+                <th className="sticky left-0 z-10 w-40">พนักงาน</th>
                 <th className="text-center">
                   Job
                   <br />
@@ -828,7 +794,7 @@ export default function MeritPage() {
                   <br />
                   Merit Increase
                 </th>
-                <th className="w-28 !bg-yellow-200 text-right !text-yellow-900">
+                <th className="w-20 !bg-yellow-200 text-right !text-yellow-900">
                   Increase
                   <br />
                   Allowance
@@ -922,7 +888,7 @@ export default function MeritPage() {
                           min={0}
                           step={100}
                           aria-label={`RoundUp Merit Increase ของ ${employee.name}`}
-                          className={`field min-w-[6.5rem] text-right font-semibold tabular-nums ${
+                          className={`field min-w-[5.5rem] text-right font-semibold tabular-nums ${
                             raised.overridden && overBudget
                               ? "!border-red-400 !bg-red-50 !text-red-600"
                               : raised.overridden
@@ -944,7 +910,7 @@ export default function MeritPage() {
                           min={0}
                           step={100}
                           aria-label={`Increase Allowance ของ ${employee.name}`}
-                          className={`field min-w-[5.5rem] text-right font-semibold tabular-nums ${
+                          className={`field min-w-[4.25rem] text-right font-semibold tabular-nums ${
                             pay.increase ? "!border-amber-400 !bg-yellow-100" : ""
                           }`}
                           placeholder="0"
