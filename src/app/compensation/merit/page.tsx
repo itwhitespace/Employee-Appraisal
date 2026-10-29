@@ -10,6 +10,7 @@ import { departmentRank } from "@/lib/evaluation";
 import { displayName, formatScore } from "@/lib/format";
 import {
   DEFAULT_MERIT_PLAN,
+  percentOf,
   rowMultiplier,
   SCORE_STEPS,
   scoreStep,
@@ -204,6 +205,11 @@ export default function MeritPage() {
         a.row.employee.code.localeCompare(b.row.employee.code),
     );
   const overMax = result.lines.filter((line) => line.overMax).length;
+  const totals = {
+    suggested: result.lines.reduce((sum, line) => sum + line.suggested, 0),
+    allowance: data.overview.rows.reduce((sum, row) => sum + (row.salary?.allowance ?? 0), 0),
+    newSalary: result.lines.reduce((sum, line) => sum + line.newSalary, 0),
+  };
   // A typed-in percentage joins the preset rows, in order.
   const typedPercent = plan.budgetAmount === null ? plan.targetPercent : null;
   const targets =
@@ -273,8 +279,24 @@ export default function MeritPage() {
           <table className="sheet border-t border-line">
             <tbody>
               <tr>
-                <td className="text-muted">เงินเดือนฐานรวม (ก่อนขึ้น)</td>
-                <td className="text-right font-medium tabular-nums">{baht(result.payroll)}</td>
+                <td className="text-muted">
+                  เงินเดือนฐานรวมทุกคน
+                  <div className="text-[11px] text-faint">
+                    เหมือน SUM(Base Salary) ใน Excel · {roster.length} คน
+                  </div>
+                </td>
+                <td className="text-right font-medium tabular-nums">{baht(result.allPayroll)}</td>
+              </tr>
+              <tr>
+                <td className="text-muted">
+                  เงินเดือนฐานรวมคนที่มีสิทธิ์ (ใช้คำนวณ)
+                  <div className="text-[11px] text-faint">
+                    {result.lines.length} คนที่ผลประเมินอนุมัติแล้ว · งบถูกเกลี่ยให้คนกลุ่มนี้
+                  </div>
+                </td>
+                <td className="text-right font-semibold tabular-nums text-teal-900">
+                  {baht(result.payroll)}
+                </td>
               </tr>
               <tr>
                 <td className="font-medium">
@@ -386,7 +408,10 @@ export default function MeritPage() {
         <section className="card overflow-hidden">
           <header className="border-l-4 border-teal-500 px-5 py-4">
             <h2 className="text-[17px] font-semibold tracking-tight">Target Salary Increase</h2>
-            <p className="text-xs text-muted">คลิกแถวเพื่อใช้เป็นงบ · Amount = % × เงินเดือนฐานรวม</p>
+            <p className="text-xs text-muted">
+              คลิกแถวเพื่อใช้เป็นงบ · Amount = ROUNDUP(% × เงินเดือนฐานรวมคนที่มีสิทธิ์) ·
+              คอลัมน์ขวาสุดคิดจากทุกคน แบบ Excel
+            </p>
           </header>
           <table className="sheet border-t border-line">
             <thead>
@@ -394,12 +419,13 @@ export default function MeritPage() {
                 <th className="text-center">% increase</th>
                 <th className="text-right">Amount (Baht)</th>
                 <th className="text-right">Year</th>
+                <th className="text-right">ทุกคน / เดือน</th>
               </tr>
             </thead>
             <tbody>
               {targets.map((target) => {
                 const selected = typedPercent === target;
-                const amount = Math.round((result.payroll * target) / 100);
+                const amount = percentOf(result.payroll, target);
                 return (
                   <tr
                     key={target}
@@ -421,6 +447,9 @@ export default function MeritPage() {
                     </td>
                     <td className="text-right tabular-nums">{baht(amount)}</td>
                     <td className="text-right tabular-nums">{baht(amount * 12)}</td>
+                    <td className={`text-right tabular-nums ${selected ? "" : "text-faint"}`}>
+                      {baht(percentOf(result.allPayroll, target))}
+                    </td>
                   </tr>
                 );
               })}
@@ -529,29 +558,84 @@ export default function MeritPage() {
         <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">ยอดขึ้นเงินเดือนรายคน</h2>
           <p className="text-xs text-muted">
-            มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · ช่องสีเหลือง RoundUp กรอกยอดเองได้
-            แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ · ลบตัวเลขออกเพื่อกลับไปใช้ยอด Suggestion
+            มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · แถวสีเทาไม่ได้ขึ้นรอบนี้
+            (ชี้เมาส์ดูเหตุผล) · ช่องสีเหลือง RoundUp กรอกยอดเองได้ แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ
             {overMax > 0 && ` · ${overMax} คนเงินเดือนใหม่เกิน Max ของกระบอก`}
           </p>
         </header>
-        <div className="overflow-x-auto border-t border-line">
-          <table className="sheet min-w-[1480px]">
-            <thead>
+        <div className="max-h-[75vh] overflow-auto border-t border-line">
+          <table className="sheet roster min-w-[1180px]">
+            <thead className="sticky top-0 z-20">
               <tr>
-                <th>พนักงาน</th>
-                <th className="text-center">Job level</th>
-                <th className="!bg-slate-100 text-right">Base Salary</th>
+                <th colSpan={8} className="!border-0 !bg-white text-right !text-muted">
+                  รวม
+                </th>
+                <th className="sum">{noBudget ? "–" : baht(totals.suggested)}</th>
+                <th className="sum">{baht(result.allPayroll)}</th>
+                <th className="sum !bg-yellow-200">{noBudget ? "–" : baht(result.spend)}</th>
+                <th className="sum">{baht(totals.allowance)}</th>
+                <th className="sum">{noBudget ? "–" : baht(totals.newSalary)}</th>
+                <th className="!border-0 !bg-white" />
+              </tr>
+              <tr>
+                <th className="sticky left-0 z-10 w-44">พนักงาน</th>
+                <th className="text-center">
+                  Job
+                  <br />
+                  level
+                </th>
                 <th className="text-center">Grade</th>
-                <th className="text-center">Performance Score</th>
-                <th className="text-center">Competency Score</th>
+                <th className="text-center">
+                  Performance
+                  <br />
+                  Score
+                </th>
+                <th className="text-center">
+                  Competency
+                  <br />
+                  Score
+                </th>
                 <th className="text-center">Compa-ratio</th>
-                <th className="text-center">Compa-ratio Grouping</th>
-                <th className="text-right">Merit Increase suggestion (%)</th>
-                <th className="text-right">Merit increase suggestion (บาท)</th>
-                <th className="w-32 !bg-yellow-200 text-right !text-yellow-900">RoundUp Merit Increase</th>
-                <th className="text-right">Existing Allowance</th>
-                <th className="text-right">เงินเดือนใหม่</th>
-                <th className="text-center">Compa ใหม่</th>
+                <th className="text-center">
+                  Compa-ratio
+                  <br />
+                  Grouping
+                </th>
+                <th className="text-right">
+                  Merit Increase
+                  <br />
+                  suggestion (%)
+                </th>
+                <th className="text-right">
+                  Merit Increase
+                  <br />
+                  suggestion (บาท)
+                </th>
+                <th className="!bg-slate-100 text-right">
+                  Base
+                  <br />
+                  Salary
+                </th>
+                <th className="w-28 !bg-yellow-200 text-right !text-yellow-900">
+                  RoundUp
+                  <br />
+                  Merit Increase
+                </th>
+                <th className="text-right">
+                  Existing
+                  <br />
+                  Allowance
+                </th>
+                <th className="text-right">
+                  เงินเดือน
+                  <br />
+                  ใหม่
+                </th>
+                <th className="text-center">
+                  Compa
+                  <br />
+                  ใหม่
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -564,93 +648,91 @@ export default function MeritPage() {
               )}
               {roster.map(({ row, grade, ratio, line, reason }) => {
                 const { employee } = row;
+                const raised = line && !noBudget ? line : null;
+                // Not raised: a dash, with the reason on hover.
+                const why = line ? "รอกำหนดงบ" : `ไม่ได้ขึ้นรอบนี้: ${reason}`;
+                const dash = (
+                  <span className="text-faint" title={why}>
+                    –
+                  </span>
+                );
                 return (
-                  <tr key={employee.id} className={line ? "" : "bg-canvas/60 text-muted"}>
-                    <td>
-                      <div className={line ? "font-medium" : ""}>{displayName(employee)}</div>
-                      <div className="text-[11px] text-faint">
+                  <tr key={employee.id} className={line ? "" : "text-muted"} title={line ? undefined : why}>
+                    <td className={`sticky left-0 z-[1] ${line ? "bg-white" : "bg-slate-50"}`}>
+                      <div className={`truncate ${line ? "font-medium" : ""}`}>{displayName(employee)}</div>
+                      <div className="truncate text-[11px] text-faint">
                         {employee.code} · {DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}
                       </div>
                     </td>
-                    <td
-                      className="whitespace-nowrap text-center font-medium"
-                      title={row.levelName ?? undefined}
-                    >
+                    <td className="text-center font-medium" title={row.levelName ?? undefined}>
                       {grade?.jobLevel || row.levelName || "–"}
-                    </td>
-                    <td className="bg-slate-50 text-right tabular-nums">
-                      {row.salary ? baht(row.salary.baseSalary) : "–"}
                     </td>
                     <td className="text-center tabular-nums">
                       {grade ? <span className="font-medium text-teal-800">{grade.grade}</span> : "–"}
                     </td>
                     <td className="text-center tabular-nums">
                       {row.performance === null ? (
-                        <span className="text-[11px] text-faint">ยังไม่อนุมัติ</span>
+                        dash
                       ) : (
                         <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
                       )}
                     </td>
                     <td className="text-center tabular-nums">
-                      {row.performance === null ? "–" : scoreStep(row.performance).toFixed(1)}
+                      {row.performance === null ? dash : scoreStep(row.performance).toFixed(1)}
                     </td>
                     <td className="text-center tabular-nums">{ratio === null ? "–" : percent(ratio)}</td>
                     <td className="text-center">
                       {ratio === null ? (
                         "–"
                       ) : (
-                        <span className={`chip ${COMPA_GROUPS[compaGroup(ratio)].tone}`}>
+                        <span className={`chip whitespace-nowrap ${COMPA_GROUPS[compaGroup(ratio)].tone}`}>
                           {COMPA_GROUPS[compaGroup(ratio)].label}
                         </span>
                       )}
                     </td>
-                    {line && !noBudget ? (
-                      <>
-                        <td className="text-right tabular-nums">{pct(line.suggestedPercent)}</td>
-                        <td className="text-right tabular-nums">{baht(line.suggested)}</td>
-                        <td className="bg-yellow-50">
-                          <input
-                            type="number"
-                            min={0}
-                            step={100}
-                            aria-label={`RoundUp Merit Increase ของ ${employee.name}`}
-                            className={`field text-right font-semibold tabular-nums ${
-                              line.overridden ? "!border-amber-400 !bg-yellow-100" : ""
-                            }`}
-                            placeholder={line.overridden ? "" : baht(line.amount)}
-                            value={line.overridden ? plan.overrides[employee.id] : ""}
-                            onChange={(e) => setOverride(employee.id, e.target.value)}
-                          />
-                        </td>
-                      </>
-                    ) : (
-                      <td colSpan={3} className="text-center text-[11.5px] text-faint">
-                        {line ? "รอกำหนดงบ" : `ไม่ได้ขึ้นรอบนี้ · ${reason}`}
-                      </td>
-                    )}
+                    <td className="text-right tabular-nums">
+                      {raised ? pct(raised.suggestedPercent) : dash}
+                    </td>
+                    <td className="text-right tabular-nums">{raised ? baht(raised.suggested) : dash}</td>
+                    <td className="bg-slate-50 text-right tabular-nums">
+                      {row.salary ? baht(row.salary.baseSalary) : "–"}
+                    </td>
+                    <td className={raised ? "bg-yellow-50" : "text-right"}>
+                      {raised ? (
+                        <input
+                          type="number"
+                          min={0}
+                          step={100}
+                          aria-label={`RoundUp Merit Increase ของ ${employee.name}`}
+                          className={`field text-right font-semibold tabular-nums ${
+                            raised.overridden ? "!border-amber-400 !bg-yellow-100" : ""
+                          }`}
+                          placeholder={raised.overridden ? "" : baht(raised.amount)}
+                          value={raised.overridden ? plan.overrides[employee.id] : ""}
+                          onChange={(e) => setOverride(employee.id, e.target.value)}
+                        />
+                      ) : (
+                        dash
+                      )}
+                    </td>
                     <td className="text-right tabular-nums text-muted">
                       {row.salary ? baht(row.salary.allowance) : "–"}
                     </td>
-                    {line && !noBudget ? (
-                      <>
-                        <td className="text-right font-medium tabular-nums">
-                          {baht(line.newSalary)}
-                          {line.overMax && (
+                    <td className="text-right font-medium tabular-nums">
+                      {raised ? (
+                        <>
+                          {baht(raised.newSalary)}
+                          {raised.overMax && (
                             <div className="text-[10.5px] font-medium text-amber-700">
-                              เกิน Max {baht(line.grade.max)}
+                              เกิน Max {baht(raised.grade.max)}
                             </div>
                           )}
-                        </td>
-                        <td className="text-center">
-                          <CompaPill ratio={line.newRatio} />
-                        </td>
-                      </>
-                    ) : (
-                      <>
-                        <td className="text-right text-faint">–</td>
-                        <td className="text-center text-faint">–</td>
-                      </>
-                    )}
+                        </>
+                      ) : (
+                        dash
+                      )}
+                    </td>
+                    <td className="text-center">{raised ? <CompaPill ratio={raised.newRatio} /> : dash}</td>
                   </tr>
                 );
               })}

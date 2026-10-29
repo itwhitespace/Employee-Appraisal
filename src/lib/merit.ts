@@ -65,6 +65,8 @@ export interface MeritResult {
   excluded: { row: CompensationRow; reason: string }[];
   /** Monthly base pay of the people taking part, before the raise. */
   payroll: number;
+  /** Monthly base pay of everyone with a salary, like SUM(Base Salary) in the Excel sheet. */
+  allPayroll: number;
   /** Monthly budget in baht; null when the plan has none. */
   budget: number | null;
   /** budget ÷ payroll. */
@@ -82,10 +84,13 @@ export function monthsBetween(start: string, today: string): number {
   return (y2 - y1) * 12 + (m2 - m1) - (d2 < d1 ? 1 : 0);
 }
 
+/** `percent`% of `payroll`, rounded up to whole baht as ROUNDUP(…, 0) does in Excel. */
+export const percentOf = (payroll: number, percent: number) => Math.ceil((payroll * percent) / 100 - 1e-9);
+
 /** Monthly budget in baht: the amount typed in, or the percentage of `payroll`. */
 export function budgetOf(plan: MeritPlan, payroll: number): number | null {
   if (plan.budgetAmount !== null) return plan.budgetAmount;
-  if (plan.targetPercent !== null) return Math.round((payroll * plan.targetPercent) / 100);
+  if (plan.targetPercent !== null) return percentOf(payroll, plan.targetPercent);
   return null;
 }
 
@@ -121,6 +126,7 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
   }
 
   const payroll = base.reduce((sum, line) => sum + line.baseSalary, 0);
+  const allPayroll = overview.rows.reduce((sum, row) => sum + (row.salary?.baseSalary ?? 0), 0);
   const budget = budgetOf(plan, payroll);
   const fixed = base.filter((line) => plan.overrides[line.row.employee.id] !== undefined);
   const shared = base.filter((line) => plan.overrides[line.row.employee.id] === undefined);
@@ -164,5 +170,5 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
   // To the satang, and never "-0".
   const gap = Math.round(((budget ?? 0) - spend) * 100) / 100 || 0;
   const budgetRatio = budget !== null && payroll > 0 ? budget / payroll : null;
-  return { lines, excluded, payroll, budget, budgetRatio, anchor, spend, gap };
+  return { lines, excluded, payroll, allPayroll, budget, budgetRatio, anchor, spend, gap };
 }

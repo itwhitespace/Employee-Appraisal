@@ -55,6 +55,16 @@ body {
   .compensation .sheet tbody tr {
     @apply transition-colors hover:bg-teal-50/40;
   }
+  /* Raise table: compact two-line headings, and the totals above them as in Excel. */
+  .compensation .roster th {
+    @apply px-2 leading-tight;
+  }
+  .compensation .roster td {
+    @apply px-2;
+  }
+  .compensation .roster th.sum {
+    @apply border border-teal-200 bg-teal-100 text-right text-[12px] tabular-nums text-teal-900;
+  }
   .compensation .field {
     @apply py-1 text-[12.5px];
   }
