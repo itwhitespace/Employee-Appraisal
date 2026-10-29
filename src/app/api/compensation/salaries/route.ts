@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationUser();
-    await logCompensation(user.id, "เปิดดูเงินเดือนพนักงาน");
+    await logCompensation(user.id, "เปิดดูเมนู ฐานเงินเดือนพนักงาน");
     return compensationOverview();
   });
 }

@@ -202,7 +202,7 @@ export default function SalaryImportPage() {
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <Link href="/compensation/salaries" className="text-sm text-teal-700 hover:underline">
-            ← เงินเดือนพนักงาน
+            ← ฐานเงินเดือนพนักงาน
           </Link>
           <h1 className="page-title mt-1">นำเข้าเงินเดือนจาก Excel</h1>
           <p className="mt-1 text-sm text-muted">
@@ -283,7 +283,7 @@ export default function SalaryImportPage() {
           <p role="status" className="text-sm font-medium text-emerald-700">
             {done} ·{" "}
             <Link href="/compensation/salaries" className="underline">
-              ดูหน้าเงินเดือนพนักงาน
+              ดูหน้าฐานเงินเดือนพนักงาน
             </Link>
           </p>
         )}

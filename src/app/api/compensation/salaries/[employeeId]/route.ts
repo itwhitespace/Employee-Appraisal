@@ -18,7 +18,7 @@ export async function PUT(request: Request, { params }: Context) {
     if (!employee || !isEmployee(employee)) throw new HttpError(404, "ไม่พบพนักงานคนนี้");
     const record = parseSalaryRecord(await readJson(request));
     await saveSalary(employee.id, record, user.id);
-    await logCompensation(user.id, `บันทึกเงินเดือน ${employee.code} มีผล ${record.effectiveDate}`);
+    await logCompensation(user.id, `บันทึกเงินเดือน เมนู ฐานเงินเดือนพนักงาน >>> ${employee.name} (มีผล ${record.effectiveDate})`);
     return compensationOverview();
   });
 }

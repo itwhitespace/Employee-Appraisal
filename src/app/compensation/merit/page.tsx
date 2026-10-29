@@ -179,7 +179,7 @@ export default function MeritPage() {
       return;
     }
     const agreed = await confirm({
-      title: "บันทึกแผนขึ้นเงินเดือน?",
+      title: "บันทึกแผนปรับเงินเดือนประจำปี?",
       message: `รอบ ${data.overview.cycleId} · งบ ${baht(result.budget)} บาทต่อเดือน`,
       confirmLabel: "บันทึก",
     });
@@ -339,7 +339,7 @@ export default function MeritPage() {
     <div className="max-w-[1400px] space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="page-title">ขึ้นเงินเดือนประจำปี</h1>
+          <h1 className="page-title">ปรับเงินเดือนประจำปี</h1>
           <p className="mt-1 text-sm text-muted">
             Merit Increase Matrix · Performance Score จากผลประเมินที่อนุมัติแล้ว รอบ {data.overview.cycleId}
             {data.updatedAt && ` · บันทึกล่าสุด ${dateTime(data.updatedAt)}`}

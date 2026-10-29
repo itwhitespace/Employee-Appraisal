@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationUser();
-    await logCompensation(user.id, "เปิดดูโครงสร้างเงินเดือน");
+    await logCompensation(user.id, "เปิดดูเมนู โครงสร้างเงินเดือน");
     const [structure, levels] = await Promise.all([getSalaryStructure(), listLevels()]);
     return { structure, levels };
   });
@@ -20,7 +20,7 @@ export async function PUT(request: Request) {
   return handle(async () => {
     const user = await requireCompensationUser();
     const structure = await saveSalaryStructure(parseSalaryStructure(await readJson(request)));
-    await logCompensation(user.id, "บันทึกโครงสร้างเงินเดือน");
+    await logCompensation(user.id, "บันทึก เมนู โครงสร้างเงินเดือน");
     return { structure };
   });
 }

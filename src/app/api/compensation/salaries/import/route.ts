@@ -39,7 +39,7 @@ export async function POST(request: Request) {
     await saveSalaries(entries, user.id);
     await logCompensation(
       user.id,
-      `นำเข้าเงินเดือนจาก Excel ${entries.length} คน มีผล ${entries[0].record.effectiveDate}`,
+      `นำเข้า Excel เมนู ฐานเงินเดือนพนักงาน ${entries.length} คน (มีผล ${entries[0].record.effectiveDate})`,
     );
     return compensationOverview();
   });

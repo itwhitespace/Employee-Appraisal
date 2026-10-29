@@ -108,6 +108,9 @@ export const api = {
   /** Records that the merit table is about to be downloaded. */
   logMeritExport: (rows: number) =>
     request<{ ok: true }>("/api/compensation/audit", "POST", { event: "merit-export", rows }),
+  /** Records that one person's salary was opened. */
+  logSalaryView: (employeeId: string) =>
+    request<{ ok: true }>("/api/compensation/audit", "POST", { event: "salary-view", employeeId }),
 
   salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
   saveSalary: (employeeId: string, record: SalaryRecord) =>

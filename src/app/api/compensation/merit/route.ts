@@ -16,7 +16,7 @@ async function meritData(): Promise<MeritData> {
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationUser();
-    await logCompensation(user.id, "เปิดดูการขึ้นเงินเดือน");
+    await logCompensation(user.id, "เปิดดูเมนู ปรับเงินเดือนประจำปี");
     return meritData();
   });
 }
@@ -30,7 +30,7 @@ export async function PUT(request: Request) {
     await saveMeritPlan(cycleId, plan, user.id);
     const budget =
       plan.budgetAmount !== null ? `${plan.budgetAmount.toLocaleString()} บาท` : `${plan.targetPercent}%`;
-    await logCompensation(user.id, `บันทึกแผนขึ้นเงินเดือน ${cycleId} (งบ ${budget})`);
+    await logCompensation(user.id, `บันทึกแผน เมนู ปรับเงินเดือนประจำปี ${cycleId} (งบ ${budget})`);
     return meritData();
   });
 }

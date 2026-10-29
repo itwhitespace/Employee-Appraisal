@@ -219,6 +219,12 @@ export default function SalariesPage() {
   const payroll = paid.reduce((sum, { row }) => sum + row.salary!.baseSalary + row.salary!.allowance, 0);
   const groupCounts = COMPA_GROUPS.map((_, i) => ratios.filter((r) => compaGroup(r) === i).length);
 
+  // Opening one person's pay is recorded by name in the access log.
+  const openPerson = (row: CompensationRow) => {
+    setEditing(row);
+    void api.logSalaryView(row.employee.id).catch(() => undefined);
+  };
+
   const save = async (record: SalaryRecord): Promise<string | null> => {
     if (!editing) return null;
     try {
@@ -234,7 +240,7 @@ export default function SalariesPage() {
     <div className="max-w-[1180px] space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="page-title">เงินเดือนพนักงาน</h1>
+          <h1 className="page-title">ฐานเงินเดือนพนักงาน</h1>
           <p className="mt-1 text-sm text-muted">
             Compa-ratio = เงินเดือนฐาน ÷ Mid ของกระบอก · Performance จากผลประเมินที่อนุมัติแล้ว รอบ{" "}
             {data.cycleId}
@@ -380,7 +386,7 @@ export default function SalariesPage() {
                     )}
                   </td>
                   <td className="!px-1 !py-0.5 text-right">
-                    <IconButton icon="edit" label="แก้ไขเงินเดือน" onClick={() => setEditing(row)} />
+                    <IconButton icon="edit" label="แก้ไขเงินเดือน" onClick={() => openPerson(row)} />
                   </td>
                 </tr>
               ))}

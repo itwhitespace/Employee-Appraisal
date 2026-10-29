@@ -16,19 +16,48 @@ interface NavItem {
   icon: string;
   /** Opens in a new browser tab. */
   newTab?: boolean;
+  tone?: Tone;
 }
 
 /** A menu that opens to show its sub-menu instead of leading to a page. */
 interface NavGroup {
   label: string;
   icon: string;
+  tone?: Tone;
   children: NavItem[];
+}
+
+/** Each menu's icon sits on a soft tile of its own colour. Full class names, for Tailwind. */
+const TONES = {
+  sky: "bg-sky-100 text-sky-600",
+  emerald: "bg-emerald-100 text-emerald-600",
+  violet: "bg-violet-100 text-violet-600",
+  amber: "bg-amber-100 text-amber-600",
+  rose: "bg-rose-100 text-rose-600",
+  indigo: "bg-indigo-100 text-indigo-600",
+  teal: "bg-teal-100 text-teal-600",
+  orange: "bg-orange-100 text-orange-600",
+  fuchsia: "bg-fuchsia-100 text-fuchsia-600",
+  slate: "bg-slate-100 text-slate-600",
+} as const;
+
+type Tone = keyof typeof TONES;
+
+function ToneIcon({ path, tone = "slate", active = false }: { path: string; tone?: Tone; active?: boolean }) {
+  return (
+    <span
+      className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+        active ? "bg-white/20 text-white" : TONES[tone]
+      }`}
+    >
+      <NavIcon path={path} className="!h-4 !w-4" />
+    </span>
+  );
 }
 
 const isGroup = (entry: NavItem | NavGroup): entry is NavGroup => "children" in entry;
 
-const isActive = (pathname: string, href: string) =>
-  pathname === href || pathname.startsWith(`${href}/`);
+const isActive = (pathname: string, href: string) => pathname === href || pathname.startsWith(`${href}/`);
 
 const CHEVRON = "M7.5 5l5 5-5 5";
 
@@ -64,7 +93,7 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       aria-current={active ? "page" : undefined}
       className={`${ROW} ${active ? `${activeColor} font-medium text-white` : "text-ink hover:bg-black/5"}`}
     >
-      <NavIcon path={item.icon} />
+      <ToneIcon path={item.icon} tone={item.tone} active={active} />
       <span className="flex-1">{item.label}</span>
       {item.newTab && (
         <>
@@ -93,7 +122,7 @@ function NavMenu({ group, pathname }: { group: NavGroup; pathname: string }) {
         onClick={() => setOpen((prev) => !prev)}
         className={`${ROW} w-full text-left text-ink hover:bg-black/5`}
       >
-        <NavIcon path={group.icon} />
+        <ToneIcon path={group.icon} tone={group.tone} />
         <span className="flex-1">{group.label}</span>
         <NavIcon path={CHEVRON} className={`text-faint transition-transform ${open ? "rotate-90" : ""}`} />
       </button>
@@ -127,45 +156,54 @@ const ICONS = {
 
 /** The compensation pages: a space of their own, opened in a separate tab. */
 const COMPENSATION_ITEMS: NavItem[] = [
-  { href: "/compensation/salaries", label: "เงินเดือนพนักงาน", icon: ICONS.people },
-  { href: "/compensation/merit", label: "ขึ้นเงินเดือน", icon: ICONS.raise },
-  { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels },
-  { href: "/compensation/audit", label: "ประวัติการเข้าถึง", icon: ICONS.history },
+  { href: "/compensation/salaries", label: "ฐานเงินเดือนพนักงาน", icon: ICONS.people, tone: "sky" },
+  { href: "/compensation/merit", label: "ปรับเงินเดือนประจำปี", icon: ICONS.raise, tone: "emerald" },
+  { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels, tone: "violet" },
+  { href: "/compensation/audit", label: "ประวัติการเข้าถึง", icon: ICONS.history, tone: "amber" },
 ];
 
 function navItems(user: User, inCompensation: boolean): (NavItem | NavGroup)[] {
   if (inCompensation) return COMPENSATION_ITEMS;
   const compensation: NavItem[] = user.compensationAccess
-    ? [{ href: COMPENSATION_ITEMS[0].href, label: "ค่าตอบแทน", icon: ICONS.money, newTab: true }]
+    ? [
+        {
+          href: COMPENSATION_ITEMS[0].href,
+          label: "ค่าตอบแทน",
+          icon: ICONS.money,
+          newTab: true,
+          tone: "emerald" as const,
+        },
+      ]
     : [];
   return [...roleItems(user), ...compensation];
 }
 
 function roleItems(user: User): (NavItem | NavGroup)[] {
   const ownForm: NavItem[] = isEmployee(user)
-    ? [{ href: `/evaluate/${user.id}`, label: "แบบประเมินของฉัน", icon: ICONS.form }]
+    ? [{ href: `/evaluate/${user.id}`, label: "แบบประเมินของฉัน", icon: ICONS.form, tone: "rose" as const }]
     : [];
   if (user.role === "admin") {
     return [
-      { href: "/admin/dashboard", label: "Dashboard", icon: ICONS.dashboard },
-      { href: "/admin/evaluations", label: "รายการประเมิน", icon: ICONS.list },
-      { href: "/admin/employees", label: "ข้อมูลพนักงาน", icon: ICONS.people },
-      { href: "/admin/forms", label: "กำหนดหัวข้อประเมิน", icon: ICONS.builder },
+      { href: "/admin/dashboard", label: "Dashboard", icon: ICONS.dashboard, tone: "indigo" },
+      { href: "/admin/evaluations", label: "รายการประเมิน", icon: ICONS.list, tone: "sky" },
+      { href: "/admin/employees", label: "ข้อมูลพนักงาน", icon: ICONS.people, tone: "teal" },
+      { href: "/admin/forms", label: "กำหนดหัวข้อประเมิน", icon: ICONS.builder, tone: "amber" },
       ...ownForm,
       {
         label: "ฐานข้อมูล",
         icon: ICONS.database,
+        tone: "violet",
         children: [
-          { href: "/admin/levels", label: "ฝ่ายและ Level", icon: ICONS.levels },
-          { href: "/admin/cycles", label: "รอบประเมิน", icon: ICONS.cycles },
-          { href: "/admin/scale-rating", label: "Scale & Rating", icon: ICONS.scale },
+          { href: "/admin/levels", label: "ฝ่ายและ Level", icon: ICONS.levels, tone: "teal" },
+          { href: "/admin/cycles", label: "รอบประเมิน", icon: ICONS.cycles, tone: "orange" },
+          { href: "/admin/scale-rating", label: "Scale & Rating", icon: ICONS.scale, tone: "fuchsia" },
         ],
       },
     ];
   }
   // Supervisors are not appraised themselves.
   if (user.role === "supervisor") {
-    return [{ href: "/team", label: "ทีมของฉัน", icon: ICONS.team }];
+    return [{ href: "/team", label: "ทีมของฉัน", icon: ICONS.team, tone: "sky" }];
   }
   return ownForm;
 }
