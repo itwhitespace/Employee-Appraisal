@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useLeaveGuard } from "@/components/useLeaveGuard";
 import IconButton from "@/components/IconButton";
 import { api, errorMessage } from "@/lib/api";
 import type { JobLevel, SalaryGrade, SalaryStructure } from "@/lib/types";
@@ -77,12 +78,7 @@ export default function SalaryStructurePage() {
   }, []);
 
   // Warn before closing the tab with unsaved edits.
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  useLeaveGuard(dirty);
 
   if (loadError) return <div className="card p-8 text-center text-red-500">{loadError}</div>;
   if (!grades) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;

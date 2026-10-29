@@ -606,18 +606,29 @@ export async function listSalaryHistory(): Promise<Record<string, SalaryRecord[]
 
 /** Adds a record, or corrects the one that starts on the same date. */
 export async function saveSalary(employeeId: string, record: SalaryRecord, actorId: string): Promise<void> {
+  await saveSalaries([{ employeeId, record }], actorId);
+}
+
+/** saveSalary for many people in one go, e.g. an import: all are saved or none. */
+export async function saveSalaries(
+  entries: { employeeId: string; record: SalaryRecord }[],
+  actorId: string,
+): Promise<void> {
+  if (entries.length === 0) return;
   check(
-    await db().from("salaries").upsert(
-      {
-        employee_id: employeeId,
-        effective_date: record.effectiveDate,
-        base_salary: record.baseSalary,
-        allowance: record.allowance,
-        note: record.note,
-        created_by: actorId,
-      },
-      { onConflict: "employee_id,effective_date" },
-    ),
+    await db()
+      .from("salaries")
+      .upsert(
+        entries.map(({ employeeId, record }) => ({
+          employee_id: employeeId,
+          effective_date: record.effectiveDate,
+          base_salary: record.baseSalary,
+          allowance: record.allowance,
+          note: record.note,
+          created_by: actorId,
+        })),
+        { onConflict: "employee_id,effective_date" },
+      ),
   );
 }
 

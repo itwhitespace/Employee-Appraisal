@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { segment, today } from "@/components/CompensationParts";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useLeaveGuard } from "@/components/useLeaveGuard";
 import { api, errorMessage } from "@/lib/api";
 import { meritWorkbook, type MeritExportRow } from "@/lib/merit-export";
 import { baht, COMPA_GROUPS, compaGroup, compaRatio, percent } from "@/lib/compensation";
@@ -128,12 +129,7 @@ export default function MeritPage() {
       .catch((e) => setLoadError(errorMessage(e)));
   }, []);
 
-  useEffect(() => {
-    if (!dirty) return;
-    const warn = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", warn);
-    return () => window.removeEventListener("beforeunload", warn);
-  }, [dirty]);
+  useLeaveGuard(dirty);
 
   if (loadError) return <div className="card p-8 text-center text-red-500">{loadError}</div>;
   if (!data) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;
@@ -162,6 +158,19 @@ export default function MeritPage() {
     if (value.trim() === "" || !(Number(value) > 0)) delete allowanceIncreases[employeeId];
     else allowanceIncreases[employeeId] = Number(value);
     edit({ allowanceIncreases });
+  };
+
+  const discard = async () => {
+    const agreed = await confirm({
+      title: "ยกเลิกการแก้ไข?",
+      message: data.plan ? "กลับไปใช้ค่าที่บันทึกไว้ล่าสุด" : "ล้างค่าที่กรอกไว้ทั้งหมด",
+      confirmLabel: "ยกเลิกการแก้ไข",
+      tone: "danger",
+    });
+    if (!agreed) return;
+    load(data);
+    setDirty(false);
+    setNotice(null);
   };
 
   const save = async () => {
@@ -346,6 +355,11 @@ export default function MeritPage() {
             >
               {notice.text}
             </span>
+          )}
+          {dirty && (
+            <button type="button" className="btn-secondary" disabled={saving} onClick={() => void discard()}>
+              ยกเลิกการแก้ไข
+            </button>
           )}
           <button
             type="button"

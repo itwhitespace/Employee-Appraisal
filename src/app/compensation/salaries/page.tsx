@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CompaPill, segment, Tile, today } from "@/components/CompensationParts";
 import IconButton from "@/components/IconButton";
@@ -231,12 +232,20 @@ export default function SalariesPage() {
 
   return (
     <div className="max-w-[1180px] space-y-5">
-      <div>
-        <h1 className="page-title">เงินเดือนพนักงาน</h1>
-        <p className="mt-1 text-sm text-muted">
-          Compa-ratio = เงินเดือนฐาน ÷ Mid ของกระบอก · Performance จากผลประเมินที่อนุมัติแล้ว รอบ{" "}
-          {data.cycleId}
-        </p>
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="page-title">เงินเดือนพนักงาน</h1>
+          <p className="mt-1 text-sm text-muted">
+            Compa-ratio = เงินเดือนฐาน ÷ Mid ของกระบอก · Performance จากผลประเมินที่อนุมัติแล้ว รอบ{" "}
+            {data.cycleId}
+          </p>
+        </div>
+        <Link
+          href="/compensation/salaries/import"
+          className="btn rounded-lg bg-emerald-700 py-1.5 text-sm text-white shadow-sm hover:bg-emerald-800"
+        >
+          Import Excel
+        </Link>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

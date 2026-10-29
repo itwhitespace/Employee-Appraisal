@@ -112,6 +112,12 @@ export const api = {
   salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
   saveSalary: (employeeId: string, record: SalaryRecord) =>
     request<CompensationOverview>(`/api/compensation/salaries/${employeeId}`, "PUT", record),
+  importSalaries: (
+    effectiveDate: string,
+    note: string,
+    items: { employeeId: string; baseSalary: number; allowance: number }[],
+  ) =>
+    request<CompensationOverview>("/api/compensation/salaries/import", "POST", { effectiveDate, note, items }),
 
   merit: () => request<MeritData>("/api/compensation/merit"),
   saveMerit: (plan: MeritPlan) => request<MeritData>("/api/compensation/merit", "PUT", plan),
