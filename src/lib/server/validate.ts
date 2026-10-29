@@ -16,6 +16,7 @@ import type {
   FormTemplate,
   JobLevel,
   Level,
+  BonusPlan,
   MeritPlan,
   Question,
   RatingBand,
@@ -43,9 +44,7 @@ function departmentOf(value: unknown): DepartmentId | null {
 }
 
 function levelOf(value: unknown): Level | null {
-  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 99
-    ? value
-    : null;
+  return typeof value === "number" && Number.isInteger(value) && value >= 1 && value <= 99 ? value : null;
 }
 
 export function parseJobLevel(body: Record<string, unknown>): JobLevel {
@@ -192,7 +191,10 @@ export function parseSalaryStructure(body: Record<string, unknown>): SalaryStruc
     const mid = money(raw.mid);
     const max = money(raw.max);
     if ([min, mid, max].some(Number.isNaN)) {
-      throw new HttpError(400, `เงินเดือนของ Grade ${grade} ต้องเป็นตัวเลข 0 ถึง ${MAX_SALARY.toLocaleString()}`);
+      throw new HttpError(
+        400,
+        `เงินเดือนของ Grade ${grade} ต้องเป็นตัวเลข 0 ถึง ${MAX_SALARY.toLocaleString()}`,
+      );
     }
     if (!(min <= mid && mid <= max) || mid === 0) {
       throw new HttpError(400, `Grade ${grade}: ต้องเรียง Min ≤ Mid ≤ Max และ Mid มากกว่า 0`);
@@ -209,6 +211,39 @@ export function parseSalaryStructure(body: Record<string, unknown>): SalaryStruc
     throw new HttpError(400, "Level หนึ่งใช้ได้กับกระบอกเดียว");
   }
   return { grades };
+}
+
+/** The bonus page. */
+export function parseBonusPlan(body: Record<string, unknown>): BonusPlan {
+  const number = (value: unknown, label: string, min: number, max: number) => {
+    if (typeof value !== "number" || !(value >= min && value <= max)) {
+      throw new HttpError(400, `${label}ต้องเป็นตัวเลข ${min} ถึง ${max}`);
+    }
+    return value;
+  };
+  const multipliers = (value: unknown, label: string) => {
+    if (!Array.isArray(value) || value.length !== 5) throw new HttpError(400, `${label}ต้องมี 5 ค่า`);
+    return value.map((item) => Math.round(number(item, label, 0, 5) * 1000) / 1000);
+  };
+  const adjustments: Record<string, number> = {};
+  const raw = body.adjustments && typeof body.adjustments === "object" ? body.adjustments : {};
+  for (const [id, amount] of Object.entries(raw as Record<string, unknown>).slice(0, 1000)) {
+    if (!UUID.test(id)) throw new HttpError(400, "รหัสพนักงานไม่ถูกต้อง");
+    adjustments[id] = Math.round(number(amount, "Adjusted ", 0, MAX_SALARY * 12) * 100) / 100;
+  }
+  const profit =
+    body.profit === null || body.profit === undefined
+      ? null
+      : Math.round(number(body.profit, "กำไร ", -MAX_SALARY * 1000, MAX_SALARY * 1000));
+  if (profit === null) throw new HttpError(400, "กรุณากรอกกำไร");
+  return {
+    profit,
+    sharePercent: Math.round(number(body.sharePercent, "% ของกำไร ", 0, 100) * 100) / 100,
+    rowMultipliers: multipliers(body.rowMultipliers, "ตัวคูณ Performance "),
+    columnMultipliers: multipliers(body.columnMultipliers, "ตัวคูณ Potential "),
+    roundTo: Math.round(number(body.roundTo, "การปัดเศษ", 0, 100_000)),
+    adjustments,
+  };
 }
 
 /** The merit increase page. */

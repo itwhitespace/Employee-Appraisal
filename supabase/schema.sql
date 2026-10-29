@@ -205,7 +205,16 @@ create table if not exists public.merit_plans (
   updated_at timestamptz not null default now()
 );
 
+-- The bonus of each cycle: profit, share, matrix multipliers and any amounts set by hand.
+create table if not exists public.bonus_plans (
+  cycle_id   text primary key references public.cycles (id) on delete cascade,
+  plan       jsonb not null,
+  updated_by uuid references public.employees (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
 alter table public.salaries            enable row level security;
+alter table public.bonus_plans         enable row level security;
 alter table public.salary_grades       enable row level security;
 alter table public.merit_plans         enable row level security;
 alter table public.compensation_audit  enable row level security;

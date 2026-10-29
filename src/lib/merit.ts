@@ -95,7 +95,7 @@ export function budgetOf(plan: MeritPlan, payroll: number): number | null {
   return null;
 }
 
-const roundUp = (value: number, to: number) => (to > 0 ? Math.ceil(value / to - 1e-9) * to : value);
+export const roundUp = (value: number, to: number) => (to > 0 ? Math.ceil(value / to - 1e-9) * to : value);
 
 /** Raises of everyone taking part: the matrix suggestions share the budget, then RoundUp amounts replace them. */
 export function solveMerit(overview: CompensationOverview, plan: MeritPlan, today: string): MeritResult {

@@ -327,7 +327,9 @@ export interface CompensationRow {
   history: SalaryRecord[];
   /** Supervisor's Performance Score, only once admin has approved the result. */
   performance: number | null;
-  /** `performance` is a made-up score for testing, not from an approved appraisal. */
+  /** Supervisor's Potential Score (section F), only once admin has approved the result. */
+  potential: number | null;
+  /** The scores are made up for testing, not from an approved appraisal. */
   performanceIsTest: boolean;
 }
 
@@ -367,6 +369,31 @@ export interface MeritPlan {
   overrides: Record<string, number>;
   /** Monthly allowance raise in baht, keyed by employee id; outside the merit budget. */
   allowanceIncreases: Record<string, number>;
+}
+
+/**
+ * How a cycle's bonus is worked out: the pool is a share of the profit, and the Bonus Matrix
+ * (Performance × Potential) spreads it as a percentage of each person's annual base salary.
+ */
+export interface BonusPlan {
+  /** Profit of the year in baht; null = not entered yet. */
+  profit: number | null;
+  /** Percent of the profit that goes to bonuses, e.g. 50. */
+  sharePercent: number;
+  /** Performance 1 … 5 (rows), e.g. 0.7 … 1.5; scores between are interpolated per 0.1. */
+  rowMultipliers: number[];
+  /** Potential 1 … 5 (columns), e.g. 0.7 … 1.2; interpolated per 0.1 as well. */
+  columnMultipliers: number[];
+  /** Each bonus is rounded up to this many baht; 0 = not rounded. */
+  roundTo: number;
+  /** Bonus in baht set by hand (Adjusted), keyed by employee id; replaces only that person's. */
+  adjustments: Record<string, number>;
+}
+
+export interface BonusData {
+  overview: CompensationOverview;
+  plan: BonusPlan | null;
+  updatedAt: string | null;
 }
 
 export interface MeritData {

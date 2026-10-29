@@ -1,4 +1,6 @@
 import type {
+  BonusData,
+  BonusPlan,
   CompensationAuditEntry,
   CompensationOverview,
   Cycle,
@@ -57,8 +59,7 @@ export const api = {
   logout: () => request<{ ok: true }>("/api/auth/logout", "POST"),
 
   /** `cycleId` null = the current cycle. */
-  overview: (cycleId: string | null = null) =>
-    request<OverviewData>(`/api/overview${cycleQuery(cycleId)}`),
+  overview: (cycleId: string | null = null) => request<OverviewData>(`/api/overview${cycleQuery(cycleId)}`),
 
   evaluation: (employeeId: string, cycleId: string | null = null) =>
     request<EvaluationBundle>(`/api/evaluations/${employeeId}${cycleQuery(cycleId)}`),
@@ -73,8 +74,7 @@ export const api = {
     }),
 
   /** Admin only: deletes the form of the current cycle so the employee starts again. */
-  clearEvaluation: (employeeId: string) =>
-    request<{ ok: true }>(`/api/evaluations/${employeeId}`, "DELETE"),
+  clearEvaluation: (employeeId: string) => request<{ ok: true }>(`/api/evaluations/${employeeId}`, "DELETE"),
 
   templates: () => request<{ levels: JobLevel[]; templates: FormTemplate[] }>("/api/templates"),
   saveTemplate: (template: FormTemplate) =>
@@ -88,10 +88,8 @@ export const api = {
   deleteEmployee: (id: string) => request<{ ok: true }>(`/api/employees/${id}`, "DELETE"),
 
   cycles: () => request<{ cycles: (Cycle & { evaluations: number })[] }>("/api/cycles"),
-  createCycle: (id: string, period: string) =>
-    request<{ ok: true }>("/api/cycles", "POST", { id, period }),
-  updateCycle: (id: string, period: string) =>
-    request<{ ok: true }>("/api/cycles", "PUT", { id, period }),
+  createCycle: (id: string, period: string) => request<{ ok: true }>("/api/cycles", "POST", { id, period }),
+  updateCycle: (id: string, period: string) => request<{ ok: true }>("/api/cycles", "PUT", { id, period }),
   /** Closes the open cycle and opens this one. */
   openCycle: (id: string) => request<{ ok: true }>("/api/cycles", "PUT", { id, makeCurrent: true }),
   deleteCycle: (id: string) => request<{ ok: true }>("/api/cycles", "DELETE", { id }),
@@ -120,7 +118,17 @@ export const api = {
     note: string,
     items: { employeeId: string; baseSalary: number; allowance: number }[],
   ) =>
-    request<CompensationOverview>("/api/compensation/salaries/import", "POST", { effectiveDate, note, items }),
+    request<CompensationOverview>("/api/compensation/salaries/import", "POST", {
+      effectiveDate,
+      note,
+      items,
+    }),
+
+  bonus: () => request<BonusData>("/api/compensation/bonus"),
+  saveBonus: (plan: BonusPlan) => request<BonusData>("/api/compensation/bonus", "PUT", plan),
+  /** Records that the bonus table is about to be downloaded. */
+  logBonusExport: (rows: number) =>
+    request<{ ok: true }>("/api/compensation/audit", "POST", { event: "bonus-export", rows }),
 
   merit: () => request<MeritData>("/api/compensation/merit"),
   saveMerit: (plan: MeritPlan) => request<MeritData>("/api/compensation/merit", "PUT", plan),

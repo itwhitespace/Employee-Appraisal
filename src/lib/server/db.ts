@@ -5,6 +5,7 @@ import { findLevel } from "../evaluation";
 import type {
   BandLevel,
   BandThresholds,
+  BonusPlan,
   CompensationAuditEntry,
   Cycle,
   DepartmentId,
@@ -182,14 +183,16 @@ export async function listLevels(): Promise<JobLevel[]> {
 /** Adds the level, or renames it when the department already has that level number. */
 export async function saveLevel(level: JobLevel): Promise<JobLevel> {
   check(
-    await db().from("job_levels").upsert({
-      department_id: level.departmentId,
-      level: level.level,
-      name: level.name,
-      title: level.title,
-      // Left out when not sent, so an upsert keeps the stored value.
-      ...(level.expectedYears !== undefined ? { expected_years: level.expectedYears } : {}),
-    }),
+    await db()
+      .from("job_levels")
+      .upsert({
+        department_id: level.departmentId,
+        level: level.level,
+        name: level.name,
+        title: level.title,
+        // Left out when not sent, so an upsert keeps the stored value.
+        ...(level.expectedYears !== undefined ? { expected_years: level.expectedYears } : {}),
+      }),
   );
   return level;
 }
@@ -225,9 +228,7 @@ export async function getTemplates(levels?: JobLevel[]): Promise<FormTemplate[]>
     levels ?? listLevels(),
   ]);
   return buildDefaultTemplates(knownLevels).map((fallback) => {
-    const saved = rows.find(
-      (r) => r.department_id === fallback.departmentId && r.level === fallback.level,
-    );
+    const saved = rows.find((r) => r.department_id === fallback.departmentId && r.level === fallback.level);
     return saved
       ? {
           departmentId: saved.department_id,
@@ -327,8 +328,7 @@ export async function getScales(): Promise<Scales> {
       BAND_NAMES.map(
         (performanceLevel, j) =>
           boxes.find(
-            (box) =>
-              box.potential_level === potentialLevel && box.performance_level === performanceLevel,
+            (box) => box.potential_level === potentialLevel && box.performance_level === performanceLevel,
           )?.box_label ?? DEFAULT_SCALES.nineBox[i][j],
       ),
     ),
@@ -337,31 +337,35 @@ export async function getScales(): Promise<Scales> {
 
 export async function saveScales(scales: Scales): Promise<Scales> {
   check(
-    await db().from("rating_bands").upsert(
-      scales.ratingBands.map((band, index) => ({
-        position: index + 1,
-        min_score: band.min,
-        grade: band.grade,
-        meaning: band.meaning,
-        share: band.share,
-        merit: band.merit,
-      })),
-    ),
+    await db()
+      .from("rating_bands")
+      .upsert(
+        scales.ratingBands.map((band, index) => ({
+          position: index + 1,
+          min_score: band.min,
+          grade: band.grade,
+          meaning: band.meaning,
+          share: band.share,
+          merit: band.merit,
+        })),
+      ),
   );
   check(await db().from("rating_bands").delete().gt("position", scales.ratingBands.length));
   check(await db().from("potential_bands").upsert(toLevelRows(scales.potential)));
   check(await db().from("performance_bands").upsert(toLevelRows(scales.performance)));
   check(
-    await db().from("nine_box").upsert(
-      BAND_NAMES.flatMap((potentialLevel, i) =>
-        BAND_NAMES.map((performanceLevel, j) => ({
-          id: i * 3 + j + 1,
-          potential_level: potentialLevel,
-          performance_level: performanceLevel,
-          box_label: scales.nineBox[i][j],
-        })),
+    await db()
+      .from("nine_box")
+      .upsert(
+        BAND_NAMES.flatMap((potentialLevel, i) =>
+          BAND_NAMES.map((performanceLevel, j) => ({
+            id: i * 3 + j + 1,
+            potential_level: potentialLevel,
+            performance_level: performanceLevel,
+            box_label: scales.nineBox[i][j],
+          })),
+        ),
       ),
-    ),
   );
   return scales;
 }
@@ -458,10 +462,7 @@ export async function listEvaluationCycles(employeeId?: string): Promise<string[
   return (check(await query) as { cycle: string }[]).map((row) => row.cycle);
 }
 
-export async function getEvaluation(
-  employeeId: string,
-  cycleId: string,
-): Promise<Evaluation | null> {
+export async function getEvaluation(employeeId: string, cycleId: string): Promise<Evaluation | null> {
   const row = check(
     await db()
       .from("evaluations")
@@ -555,21 +556,18 @@ export async function saveSalaryStructure(structure: SalaryStructure): Promise<S
   return getSalaryStructure();
 }
 
-interface MeritPlanRow {
-  plan: MeritPlan;
-  updated_at: string;
-}
-
-export async function getMeritPlan(cycleId: string): Promise<{ plan: MeritPlan; updatedAt: string } | null> {
-  const row = check(
-    await db().from("merit_plans").select("plan, updated_at").eq("cycle_id", cycleId).maybeSingle(),
-  ) as MeritPlanRow | null;
+/** A cycle's saved plan in `merit_plans` or `bonus_plans`. */
+async function getPlan<T>(table: string, cycleId: string): Promise<{ plan: T; updatedAt: string } | null> {
+  const result = await db().from(table).select("plan, updated_at").eq("cycle_id", cycleId).maybeSingle();
+  // A table not created yet (its SQL not run) simply has no plan.
+  if (result.error && MISSING_TABLE.includes(result.error.code ?? "")) return null;
+  const row = check(result) as { plan: T; updated_at: string } | null;
   return row ? { plan: row.plan, updatedAt: row.updated_at } : null;
 }
 
-export async function saveMeritPlan(cycleId: string, plan: MeritPlan, actorId: string): Promise<void> {
+async function savePlan(table: string, cycleId: string, plan: unknown, actorId: string): Promise<void> {
   check(
-    await db().from("merit_plans").upsert({
+    await db().from(table).upsert({
       cycle_id: cycleId,
       plan,
       updated_by: actorId,
@@ -577,6 +575,13 @@ export async function saveMeritPlan(cycleId: string, plan: MeritPlan, actorId: s
     }),
   );
 }
+
+export const getMeritPlan = (cycleId: string) => getPlan<MeritPlan>("merit_plans", cycleId);
+export const saveMeritPlan = (cycleId: string, plan: MeritPlan, actorId: string) =>
+  savePlan("merit_plans", cycleId, plan, actorId);
+export const getBonusPlan = (cycleId: string) => getPlan<BonusPlan>("bonus_plans", cycleId);
+export const saveBonusPlan = (cycleId: string, plan: BonusPlan, actorId: string) =>
+  savePlan("bonus_plans", cycleId, plan, actorId);
 
 interface SalaryRow {
   employee_id: string;
@@ -636,13 +641,20 @@ export async function saveSalaries(
  * Made-up Performance Scores for trying out the merit page before appraisals are approved,
  * keyed by employee id. The table is optional: when it is missing there are none.
  */
-export async function listTestScores(): Promise<Record<string, number>> {
-  const result = await db().from("test_performance_scores").select("employee_id, performance");
+export async function listTestScores(): Promise<
+  Record<string, { performance: number; potential: number | null }>
+> {
+  // `potential` came later (bonus): read without it when the column is not there yet.
+  let result = await db().from("test_performance_scores").select("employee_id, performance, potential");
+  if (result.error) result = await db().from("test_performance_scores").select("employee_id, performance");
   if (result.error) return {};
   return Object.fromEntries(
-    (result.data as { employee_id: string; performance: number }[]).map((row) => [
+    (result.data as { employee_id: string; performance: number; potential?: number | null }[]).map((row) => [
       row.employee_id,
-      Number(row.performance),
+      {
+        performance: Number(row.performance),
+        potential: row.potential === null || row.potential === undefined ? null : Number(row.potential),
+      },
     ]),
   );
 }

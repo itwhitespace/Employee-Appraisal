@@ -32,17 +32,13 @@ export async function compensationOverview(): Promise<CompensationOverview> {
     listSalaryHistory(),
     listTestScores(),
   ]);
-  const [templates, evaluations] = await Promise.all([
-    getTemplates(levels),
-    listEvaluations(cycle.id),
-  ]);
+  const [templates, evaluations] = await Promise.all([getTemplates(levels), listEvaluations(cycle.id)]);
   const today = todayInThailand();
 
   const rows = users.filter(isEmployee).map((user): CompensationRow => {
     const evaluation = evaluations[user.id];
     const approved = evaluation?.status === "approved" ? evaluation : null;
-    const template =
-      approved?.snapshot?.template ?? findTemplate(templates, user.departmentId, user.level);
+    const template = approved?.snapshot?.template ?? findTemplate(templates, user.departmentId, user.level);
     const history = salaries[user.id] ?? [];
     const levelName = findLevel(levels, user.departmentId, user.level)?.name ?? null;
     return {
@@ -62,11 +58,21 @@ export async function compensationOverview(): Promise<CompensationOverview> {
       grade: (levelName && structure.grades.find((g) => g.levelName === levelName)?.grade) || null,
       salary: salaryInEffect(history, today),
       history,
-      // An approved appraisal always wins over a made-up test score.
-      performance: approved
-        ? summarize(template, approved).performance.supervisor
-        : (testScores[user.id] ?? null),
-      performanceIsTest: !approved && testScores[user.id] !== undefined,
+      // An approved appraisal always wins over made-up test scores.
+      ...(approved
+        ? (() => {
+            const summary = summarize(template, approved);
+            return {
+              performance: summary.performance.supervisor,
+              potential: summary.potential.supervisor,
+              performanceIsTest: false,
+            };
+          })()
+        : {
+            performance: testScores[user.id]?.performance ?? null,
+            potential: testScores[user.id]?.potential ?? null,
+            performanceIsTest: testScores[user.id] !== undefined,
+          }),
     };
   });
   return { cycleId: cycle.id, structure, rows };

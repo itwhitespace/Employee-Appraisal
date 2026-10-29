@@ -149,6 +149,7 @@ const ICONS = {
   scale: "M10 3.5l1.9 4 4.4.6-3.2 3 .8 4.4-3.9-2.1-3.9 2.1.8-4.4-3.2-3 4.4-.6z",
   cycles: "M4 5.5h12v11H4zM4 8.5h12M7 3.5v3M13 3.5v3",
   builder: "M4 6h7m4 0h1M4 10h2m4 0h6M4 14h8m4 0h0M13 4.5v3M8 8.5v3M14 12.5v3",
+  gift: "M3.5 8.5h13v3h-13zM4.5 11.5v5h11v-5M10 8.5v8M10 8.5S8.5 4 6.5 4.5 7 8.5 10 8.5Zm0 0s1.5-4.5 3.5-4 .5 4-3.5 4Z",
   history: "M10 3.5a6.5 6.5 0 1 1-6.1 4.3M3.5 4v4h4M10 6.5V10l2.5 1.5",
   raise: "M3.5 14.5l4.5-4.5 3 3 5.5-5.5M12 7.5h4.5V12",
   money: "M3 5.5h14v9H3zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.5 8v4M14.5 8v4",
@@ -158,6 +159,7 @@ const ICONS = {
 const COMPENSATION_ITEMS: NavItem[] = [
   { href: "/compensation/salaries", label: "ฐานเงินเดือนพนักงาน", icon: ICONS.people, tone: "sky" },
   { href: "/compensation/merit", label: "ปรับเงินเดือนประจำปี", icon: ICONS.raise, tone: "emerald" },
+  { href: "/compensation/bonus", label: "โบนัสประจำปี", icon: ICONS.gift, tone: "rose" },
   { href: "/compensation/structure", label: "โครงสร้างเงินเดือน", icon: ICONS.levels, tone: "violet" },
   { href: "/compensation/audit", label: "ประวัติการเข้าถึง", icon: ICONS.history, tone: "amber" },
 ];
