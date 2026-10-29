@@ -220,6 +220,10 @@ export default function MeritPage() {
     typedPercent ?? (result.budgetRatio === null ? null : Math.round(result.budgetRatio * 10000) / 100);
   const firstTime = data.plan === null;
   const noBudget = result.budget === null;
+  const overBudget = !noBudget && result.gap <= -1;
+  const handSet = result.lines.filter((line) => line.overridden).length;
+  // Every eligible amount typed in: whatever budget is left has nobody to go to.
+  const nobodyLeft = !noBudget && handSet > 0 && handSet === result.lines.length && result.gap >= 1;
   const status =
     result.budget === null
       ? { label: "ยังไม่กำหนดงบ", tone: "bg-black/5 text-muted" }
@@ -230,7 +234,7 @@ export default function MeritPage() {
           : { label: "ต่ำกว่างบ", tone: "bg-amber-50 text-amber-700" };
 
   return (
-    <div className="max-w-[1180px] space-y-5">
+    <div className="max-w-[1400px] space-y-5">
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="page-title">ขึ้นเงินเดือนประจำปี</h1>
@@ -346,7 +350,9 @@ export default function MeritPage() {
               </tr>
               <tr>
                 <td className="font-medium text-orange-600">Total Merit increase spend</td>
-                <td className="text-right font-semibold tabular-nums text-orange-600">
+                <td
+                  className={`text-right font-semibold tabular-nums ${overBudget ? "text-red-600" : "text-orange-600"}`}
+                >
                   {baht(result.spend)}
                 </td>
               </tr>
@@ -562,9 +568,35 @@ export default function MeritPage() {
             (ชี้เมาส์ดูเหตุผล) · ช่องสีเหลือง RoundUp กรอกยอดเองได้ แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ
             {overMax > 0 && ` · ${overMax} คนเงินเดือนใหม่เกิน Max ของกระบอก`}
           </p>
+          {handSet > 0 && (
+            <button
+              type="button"
+              className="btn-secondary mt-2 py-1 text-xs"
+              onClick={() => edit({ overrides: {} })}
+            >
+              ล้าง RoundUp ที่กรอกเองทั้งหมด ({handSet} คน)
+            </button>
+          )}
         </header>
+        {overBudget && (
+          <p
+            role="alert"
+            className="border-t border-red-200 bg-red-50 px-5 py-2.5 text-sm font-medium text-red-700"
+          >
+            RoundUp ที่กรอกเองรวมกันเกินงบ {baht(-result.gap)} บาท · ลดยอดในช่องตัวแดง หรือเพิ่มงบ
+          </p>
+        )}
+        {nobodyLeft && (
+          <p
+            role="status"
+            className="border-t border-amber-200 bg-amber-50 px-5 py-2.5 text-sm text-amber-800"
+          >
+            ทุกคนถูกกรอก RoundUp เองแล้ว งบที่เหลือ {baht(result.gap)} บาทจึงไม่มีคนให้เกลี่ย ·
+            ลบตัวเลขในช่องสีเหลืองเพื่อให้ระบบคำนวณให้
+          </p>
+        )}
         <div className="max-h-[75vh] overflow-auto border-t border-line">
-          <table className="sheet roster min-w-[1180px]">
+          <table className="sheet roster min-w-[1100px]">
             <thead className="sticky top-0 z-20">
               <tr>
                 <th colSpan={8} className="!border-0 !bg-white text-right !text-muted">
@@ -572,7 +604,9 @@ export default function MeritPage() {
                 </th>
                 <th className="sum">{noBudget ? "–" : baht(totals.suggested)}</th>
                 <th className="sum">{baht(result.allPayroll)}</th>
-                <th className="sum !bg-yellow-200">{noBudget ? "–" : baht(result.spend)}</th>
+                <th className={`sum ${overBudget ? "!bg-red-100 !text-red-700" : "!bg-yellow-200"}`}>
+                  {noBudget ? "–" : baht(result.spend)}
+                </th>
                 <th className="sum">{baht(totals.allowance)}</th>
                 <th className="sum">{noBudget ? "–" : baht(totals.newSalary)}</th>
                 <th className="!border-0 !bg-white" />
@@ -616,7 +650,7 @@ export default function MeritPage() {
                   <br />
                   Salary
                 </th>
-                <th className="w-28 !bg-yellow-200 text-right !text-yellow-900">
+                <th className="w-32 !bg-yellow-200 text-right !text-yellow-900">
                   RoundUp
                   <br />
                   Merit Increase
@@ -661,7 +695,7 @@ export default function MeritPage() {
                     <td className={`sticky left-0 z-[1] ${line ? "bg-white" : "bg-slate-50"}`}>
                       <div className={`truncate ${line ? "font-medium" : ""}`}>{displayName(employee)}</div>
                       <div className="truncate text-[11px] text-faint">
-                        {employee.code} · {DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}
+                        {DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}
                       </div>
                     </td>
                     <td className="text-center font-medium" title={row.levelName ?? undefined}>
@@ -704,8 +738,12 @@ export default function MeritPage() {
                           min={0}
                           step={100}
                           aria-label={`RoundUp Merit Increase ของ ${employee.name}`}
-                          className={`field text-right font-semibold tabular-nums ${
-                            raised.overridden ? "!border-amber-400 !bg-yellow-100" : ""
+                          className={`field min-w-[6.5rem] text-right font-semibold tabular-nums ${
+                            raised.overridden && overBudget
+                              ? "!border-red-400 !bg-red-50 !text-red-600"
+                              : raised.overridden
+                                ? "!border-amber-400 !bg-yellow-100"
+                                : ""
                           }`}
                           placeholder={raised.overridden ? "" : baht(raised.amount)}
                           value={raised.overridden ? plan.overrides[employee.id] : ""}
