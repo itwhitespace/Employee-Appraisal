@@ -10,6 +10,7 @@ import {
   listEvaluations,
   listLevels,
   listSalaryHistory,
+  listTestScores,
   listUsers,
 } from "./db";
 
@@ -23,12 +24,13 @@ export const todayInThailand = (): string =>
  * current cycle.
  */
 export async function compensationOverview(): Promise<CompensationOverview> {
-  const [{ cycle }, users, levels, structure, salaries] = await Promise.all([
+  const [{ cycle }, users, levels, structure, salaries, testScores] = await Promise.all([
     resolveCycle(),
     listUsers(),
     listLevels(),
     getSalaryStructure(),
     listSalaryHistory(),
+    listTestScores(),
   ]);
   const [templates, evaluations] = await Promise.all([
     getTemplates(levels),
@@ -58,7 +60,11 @@ export async function compensationOverview(): Promise<CompensationOverview> {
       grade: (levelName && structure.grades.find((g) => g.levelName === levelName)?.grade) || null,
       salary: salaryInEffect(history, today),
       history,
-      performance: approved ? summarize(template, approved).performance.supervisor : null,
+      // An approved appraisal always wins over a made-up test score.
+      performance: approved
+        ? summarize(template, approved).performance.supervisor
+        : (testScores[user.id] ?? null),
+      performanceIsTest: !approved && testScores[user.id] !== undefined,
     };
   });
   return { cycleId: cycle.id, structure, rows };

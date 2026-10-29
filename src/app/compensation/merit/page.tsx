@@ -205,6 +205,7 @@ export default function MeritPage() {
         a.row.employee.code.localeCompare(b.row.employee.code),
     );
   const overMax = result.lines.filter((line) => line.overMax).length;
+  const testScores = data.overview.rows.filter((row) => row.performanceIsTest).length;
   const totals = {
     suggested: result.lines.reduce((sum, line) => sum + line.suggested, 0),
     allowance: data.overview.rows.reduce((sum, row) => sum + (row.salary?.allowance ?? 0), 0),
@@ -264,6 +265,13 @@ export default function MeritPage() {
           </button>
         </div>
       </div>
+
+      {testScores > 0 && (
+        <p className="rounded-xl border border-fuchsia-200 bg-fuchsia-50 px-5 py-2.5 text-sm text-fuchsia-800">
+          ใช้ Performance Score ทดสอบ {testScores} คน (ป้าย &quot;ทดสอบ&quot;) แทนผลประเมินที่ยังไม่อนุมัติ ·
+          ตัวเลขในหน้านี้ใช้ทดลองเท่านั้น
+        </p>
+      )}
 
       <div className="grid gap-5 lg:grid-cols-2">
         <section className="card overflow-hidden">
@@ -708,7 +716,14 @@ export default function MeritPage() {
                       {row.performance === null ? (
                         dash
                       ) : (
-                        <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
+                        <>
+                          <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
+                          {row.performanceIsTest && (
+                            <span className="ml-1 rounded bg-fuchsia-100 px-1 text-[10px] font-medium text-fuchsia-700">
+                              ทดสอบ
+                            </span>
+                          )}
+                        </>
                       )}
                     </td>
                     <td className="text-center tabular-nums">

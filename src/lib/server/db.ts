@@ -621,6 +621,21 @@ export async function saveSalary(employeeId: string, record: SalaryRecord, actor
   );
 }
 
+/**
+ * Made-up Performance Scores for trying out the merit page before appraisals are approved,
+ * keyed by employee id. The table is optional: when it is missing there are none.
+ */
+export async function listTestScores(): Promise<Record<string, number>> {
+  const result = await db().from("test_performance_scores").select("employee_id, performance");
+  if (result.error) return {};
+  return Object.fromEntries(
+    (result.data as { employee_id: string; performance: number }[]).map((row) => [
+      row.employee_id,
+      Number(row.performance),
+    ]),
+  );
+}
+
 /** Records who opened or changed compensation data. */
 export async function logCompensation(actorId: string, action: string): Promise<void> {
   check(await db().from("compensation_audit").insert({ actor_id: actorId, action }));

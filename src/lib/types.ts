@@ -330,6 +330,8 @@ export interface CompensationRow {
   history: SalaryRecord[];
   /** Supervisor's Performance Score, only once admin has approved the result. */
   performance: number | null;
+  /** `performance` is a made-up score for testing, not from an approved appraisal. */
+  performanceIsTest: boolean;
 }
 
 export interface CompensationOverview {

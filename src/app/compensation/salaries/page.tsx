@@ -234,7 +234,8 @@ export default function SalariesPage() {
       <div>
         <h1 className="page-title">เงินเดือนพนักงาน</h1>
         <p className="mt-1 text-sm text-muted">
-          Compa-ratio = เงินเดือนฐาน ÷ Mid ของกระบอก · Performance จากผลประเมินที่อนุมัติแล้ว รอบ {data.cycleId}
+          Compa-ratio = เงินเดือนฐาน ÷ Mid ของกระบอก · Performance จากผลประเมินที่อนุมัติแล้ว รอบ{" "}
+          {data.cycleId}
         </p>
       </div>
 
@@ -343,7 +344,9 @@ export default function SalariesPage() {
                       <span className="text-[11px] text-amber-700">ยังไม่กำหนดกระบอก</span>
                     )}
                   </td>
-                  <td className="whitespace-nowrap text-muted">{tenureSince(row.employee.startDate) ?? "–"}</td>
+                  <td className="whitespace-nowrap text-muted">
+                    {tenureSince(row.employee.startDate) ?? "–"}
+                  </td>
                   <td className="text-right font-medium tabular-nums">
                     {row.salary ? baht(row.salary.baseSalary) : <span className="text-faint">–</span>}
                   </td>
@@ -357,7 +360,14 @@ export default function SalariesPage() {
                     {row.performance === null ? (
                       <span className="text-[11px] text-faint">ยังไม่อนุมัติ</span>
                     ) : (
-                      <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
+                      <>
+                        <span className="font-semibold text-teal-800">{formatScore(row.performance)}</span>
+                        {row.performanceIsTest && (
+                          <span className="ml-1 rounded bg-fuchsia-100 px-1 text-[10px] font-medium text-fuchsia-700">
+                            ทดสอบ
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
                   <td className="!px-1 !py-0.5 text-right">
