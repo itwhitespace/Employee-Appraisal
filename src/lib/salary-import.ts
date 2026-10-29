@@ -2,13 +2,17 @@ import type { CompensationRow } from "./types";
 
 /**
  * Reads the "raw data" sheet of the company's salary workbook (saved as .xlsx) in the browser
- * and pairs each line with an employee by name. Only the columns below are read: nothing else
- * in the file, such as national ID numbers, is kept or sent anywhere.
+ * and pairs each line with an employee: by employee code when the file has a code column,
+ * otherwise by name. Only the columns below are read: nothing else in the file, such as national
+ * ID numbers, is kept or sent anywhere. A column headed "ID" is never taken for the employee
+ * code: in the company's workbook it holds national ID numbers.
  */
 
 export interface ImportLine {
   /** Row number in the sheet, for pointing back at the file. */
   sheetRow: number;
+  /** 5-digit employee code, or "" when the file has none for this line. */
+  code: string;
   thaiName: string;
   englishName: string;
   nickname: string;
@@ -29,6 +33,7 @@ const VOLATILE = /\b(RAND|RANDBETWEEN|RANDARRAY|NOW|TODAY|OFFSET|INDIRECT)\s*\(/
 
 /** Headings looked for, compared without case, spaces or line breaks. */
 const HEADINGS = {
+  code: ["รหัส", "รหัสพนักงาน", "code", "employeecode", "empcode"],
   thaiName: ["employeename"],
   englishName: ["name"],
   nickname: ["nickname"],
@@ -97,7 +102,12 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
           }
         }
       });
-      if (columns.thaiName === undefined || columns.baseSalary === undefined) continue;
+      if (
+        (columns.thaiName === undefined && columns.code === undefined) ||
+        columns.baseSalary === undefined
+      ) {
+        continue;
+      }
 
       const lines: ImportLine[] = [];
       for (let i = r + 1; i <= sheet.rowCount; i++) {
@@ -108,9 +118,11 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
         const formulas = [cellOf("baseSalary"), cellOf("allowance")].map((cell) => cell?.formula ?? "");
         const thaiName = cellText(read("thaiName"));
         const englishName = cellText(read("englishName"));
-        if (!thaiName && !englishName) continue;
+        const code = employeeCode(read("code"));
+        if (!thaiName && !englishName && !code) continue;
         lines.push({
           sheetRow: i,
+          code,
           thaiName,
           englishName,
           nickname: cellText(read("nickname")),
@@ -124,7 +136,13 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
       return { sheet: sheet.name, lines };
     }
   }
-  throw new ImportError('ไม่พบหัวคอลัมน์ "Employee Name" และ "base salary" ในไฟล์นี้');
+  throw new ImportError('ไม่พบหัวคอลัมน์ "รหัส" หรือ "Employee Name" และ "base salary" ในไฟล์นี้');
+}
+
+/** A 5-digit code; Excel drops the leading zeros of a code typed as a number. */
+function employeeCode(value: unknown): string {
+  const text = cellText(value).replace(/\s+/g, "");
+  return /^\d{1,5}$/.test(text) ? text.padStart(5, "0") : text;
 }
 
 const PREFIXES = /^(นางสาว|นาง|นาย|น\.ส\.?|ด\.ช\.|ด\.ญ\.|mrs\.?|mr\.?|ms\.?|miss)\s*/i;
@@ -134,7 +152,7 @@ export function nameKey(name: string): string {
   return name.trim().replace(PREFIXES, "").toLowerCase().replace(/\s+/g, "");
 }
 
-export type MatchKind = "name" | "english" | "nickname" | "none" | "ambiguous";
+export type MatchKind = "code" | "unknownCode" | "name" | "english" | "nickname" | "none" | "ambiguous";
 
 export interface ImportMatch {
   line: ImportLine;
@@ -144,10 +162,20 @@ export interface ImportMatch {
   kind: MatchKind;
 }
 
-/** Thai name first, then the English name, then the nickname; anything unsure is flagged. */
+/**
+ * The employee code when there is one: it is certain, and a code not in the system is not
+ * guessed by name. Without a code: Thai name, then English name, then nickname; anything
+ * unsure is flagged.
+ */
 export function matchLines(lines: ImportLine[], rows: CompensationRow[]): ImportMatch[] {
   const byName = (key: string) => rows.filter((row) => key && nameKey(row.employee.name) === key);
   return lines.map((line): ImportMatch => {
+    if (line.code) {
+      const row = rows.find((r) => r.employee.code === line.code) ?? null;
+      return row
+        ? { line, candidates: [row], row, kind: "code" }
+        : { line, candidates: [], row: null, kind: "unknownCode" };
+    }
     const thai = byName(nameKey(line.thaiName));
     if (thai.length === 1) return { line, candidates: thai, row: thai[0], kind: "name" };
     const english = byName(nameKey(line.englishName));

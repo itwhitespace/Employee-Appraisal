@@ -9,7 +9,7 @@ import { api, errorMessage } from "@/lib/api";
 import { baht } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
 import { displayName } from "@/lib/format";
-import { ImportError, type ImportMatch, matchLines, readSalaryWorkbook } from "@/lib/salary-import";
+import { ImportError, type ImportMatch, matchLines, nameKey, readSalaryWorkbook } from "@/lib/salary-import";
 import type { CompensationOverview, CompensationRow } from "@/lib/types";
 
 type Status = "missing" | "check" | "update" | "same";
@@ -98,7 +98,11 @@ export default function SalaryImportPage() {
       const notes: string[] = [];
       if (!row) {
         notes.push(
-          match.kind === "ambiguous" ? "ชื่อตรงกับหลายคน เลือกเอง" : "ไม่พบชื่อนี้ในระบบ เลือกเองหรือข้าม",
+          match.kind === "unknownCode"
+            ? `ไม่พบรหัส ${line.code} ในระบบ (หรือไม่มีแบบประเมิน) เลือกเองหรือข้าม`
+            : match.kind === "ambiguous"
+              ? "ชื่อตรงกับหลายคน เลือกเอง"
+              : "ไม่พบชื่อนี้ในระบบ เลือกเองหรือข้าม",
         );
         return { index, match, row, status: "missing", notes, base, allowance };
       }
@@ -108,6 +112,13 @@ export default function SalaryImportPage() {
       }
       if (choices[index] !== undefined) notes.push("เลือกพนักงานเอง");
       else if (match.kind === "english") notes.push("จับคู่ด้วยชื่ออังกฤษ");
+      // Matched by code: the name in the file should still be the same person.
+      const otherName =
+        match.kind === "code" &&
+        choices[index] === undefined &&
+        nameKey(line.thaiName) !== "" &&
+        nameKey(line.thaiName) !== nameKey(row.employee.name);
+      if (otherName) notes.push(`ชื่อในไฟล์ไม่ตรงกับรหัส ${line.code}`);
       else if (match.kind === "nickname") notes.push("จับคู่ด้วยชื่อเล่น");
       if ((uses.get(row.employee.id) ?? 0) > 1) notes.push("ซ้ำกับแถวอื่นในไฟล์");
       const systemLevel = gradeOf(row)?.jobLevel ?? "";
@@ -119,6 +130,7 @@ export default function SalaryImportPage() {
       const unsure =
         line.random ||
         match.kind === "nickname" ||
+        otherName ||
         (uses.get(row.employee.id) ?? 0) > 1 ||
         notes.some((n) => n.startsWith("Job"));
       const status: Status = same ? "same" : unsure ? "check" : "update";
@@ -206,8 +218,8 @@ export default function SalaryImportPage() {
           </Link>
           <h1 className="page-title mt-1">นำเข้าเงินเดือนจาก Excel</h1>
           <p className="mt-1 text-sm text-muted">
-            อ่านชีท raw data · จับคู่ด้วยชื่อภาษาไทย แล้วใช้ชื่ออังกฤษหรือชื่อเล่นช่วย · นำเข้าเฉพาะ base
-            salary และ allowance
+            อ่านชีท raw data · จับคู่ด้วยรหัสพนักงาน (ถ้าไฟล์มีคอลัมน์ รหัส) ไม่มีรหัสจึงใช้ชื่อภาษาไทย
+            ชื่ออังกฤษ หรือชื่อเล่น · นำเข้าเฉพาะ base salary และ allowance
           </p>
         </div>
       </div>
@@ -248,7 +260,7 @@ export default function SalaryImportPage() {
           )}
         </label>
         <p className="text-xs text-muted">
-          ไฟล์ถูกอ่านในเครื่องนี้เท่านั้น ไม่ได้อัปโหลดทั้งไฟล์ · อ่านเฉพาะคอลัมน์ Employee Name, Name,
+          ไฟล์ถูกอ่านในเครื่องนี้เท่านั้น ไม่ได้อัปโหลดทั้งไฟล์ · อ่านเฉพาะคอลัมน์ รหัส, Employee Name, Name,
           Nickname, Job level, base salary, allowance · คอลัมน์อื่น เช่น เลขบัตรประชาชน
           จะไม่ถูกอ่านหรือส่งไปที่ใด · ไฟล์ .xls ให้เปิดใน Excel แล้ว Save As เป็น .xlsx ก่อน
         </p>
@@ -389,7 +401,12 @@ export default function SalaryImportPage() {
                         </td>
                         <td className="text-center tabular-nums text-faint">{line.sheetRow}</td>
                         <td>
-                          <div className="font-medium">{line.thaiName || "–"}</div>
+                          <div className="font-medium">
+                            {line.code && (
+                              <span className="mr-1.5 tabular-nums text-teal-700">{line.code}</span>
+                            )}
+                            {line.thaiName || "–"}
+                          </div>
                           <div className="text-[11px] text-faint">
                             {[line.englishName, line.nickname, line.jobLevel && `Job level ${line.jobLevel}`]
                               .filter(Boolean)
