@@ -105,6 +105,9 @@ export const api = {
   saveSalaryStructure: (structure: SalaryStructure) =>
     request<{ structure: SalaryStructure }>("/api/compensation/structure", "PUT", structure),
   compensationAudit: () => request<{ audit: CompensationAuditEntry[] }>("/api/compensation/audit"),
+  /** Records that the merit table is about to be downloaded. */
+  logMeritExport: (rows: number) =>
+    request<{ ok: true }>("/api/compensation/audit", "POST", { event: "merit-export", rows }),
 
   salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
   saveSalary: (employeeId: string, record: SalaryRecord) =>

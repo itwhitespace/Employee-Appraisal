@@ -74,7 +74,7 @@ export interface MeritResult {
   budgetRatio: number | null;
   anchor: number;
   spend: number;
-  /** budget − spend; a little above 0 when raises are rounded up. */
+  /** budget − spend: a little above 0 when raises are rounded up; anything once RoundUp is typed in. */
   gap: number;
 }
 
@@ -97,7 +97,7 @@ export function budgetOf(plan: MeritPlan, payroll: number): number | null {
 
 const roundUp = (value: number, to: number) => (to > 0 ? Math.ceil(value / to - 1e-9) * to : value);
 
-/** Raises of everyone taking part, sharing the budget left after the amounts set by hand. */
+/** Raises of everyone taking part: the matrix suggestions share the budget, then RoundUp amounts replace them. */
 export function solveMerit(overview: CompensationOverview, plan: MeritPlan, today: string): MeritResult {
   const excluded: MeritResult["excluded"] = [];
   const base: Pick<MeritLine, "row" | "grade" | "baseSalary" | "ratio" | "group" | "step" | "weight">[] = [];
@@ -129,13 +129,14 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
   const payroll = base.reduce((sum, line) => sum + line.baseSalary, 0);
   const allPayroll = overview.rows.reduce((sum, row) => sum + (row.salary?.baseSalary ?? 0), 0);
   const budget = budgetOf(plan, payroll);
-  const fixed = base.filter((line) => plan.overrides[line.row.employee.id] !== undefined);
-  const shared = base.filter((line) => plan.overrides[line.row.employee.id] === undefined);
-  const left = (budget ?? 0) - fixed.reduce((sum, line) => sum + plan.overrides[line.row.employee.id], 0);
-  const totalWeight = shared.reduce((sum, line) => sum + line.baseSalary * line.weight, 0);
+  // The suggestions share the whole budget. An amount typed in (RoundUp) replaces only that
+  // person's raise, as in the Excel sheet: the rest are not shared out again, so the total may
+  // end up above or below the budget.
+  const left = budget ?? 0;
+  const totalWeight = base.reduce((sum, line) => sum + line.baseSalary * line.weight, 0);
 
   const spendAt = (anchor: number) =>
-    shared.reduce((sum, line) => sum + roundUp(line.baseSalary * anchor * line.weight, plan.roundTo), 0);
+    base.reduce((sum, line) => sum + roundUp(line.baseSalary * anchor * line.weight, plan.roundTo), 0);
   // Without rounding this is exact. Rounding up only adds, so the answer lies below it:
   // narrow down to the largest anchor that still fits the budget.
   let anchor = left > 0 && totalWeight > 0 ? left / totalWeight : 0;

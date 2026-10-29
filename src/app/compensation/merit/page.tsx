@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { CompaPill, segment, today } from "@/components/CompensationParts";
+import { segment, today } from "@/components/CompensationParts";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { api, errorMessage } from "@/lib/api";
 import { baht, COMPA_GROUPS, compaGroup, compaRatio, percent } from "@/lib/compensation";
@@ -112,6 +112,8 @@ export default function MeritPage() {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [everyStep, setEveryStep] = useState(false);
+  const [jobLevel, setJobLevel] = useState("all");
+  const [exporting, setExporting] = useState(false);
 
   const load = (next: MeritData) => {
     setData(next);
@@ -184,6 +186,113 @@ export default function MeritPage() {
     }
   };
 
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      // Salaries leave the system here: record it, and stop if that fails.
+      await api.logMeritExport(shown.length);
+    } catch (e) {
+      setNotice({ tone: "error", text: errorMessage(e) });
+      setExporting(false);
+      return;
+    }
+    const cell = (value: string | number | null | undefined) => {
+      if (value === null || value === undefined) return "";
+      const text = typeof value === "number" ? String(Math.round(value * 100) / 100) : value;
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const lines: (string | number | null | undefined)[][] = [
+      ["แผนขึ้นเงินเดือน", data.overview.cycleId],
+      ["Job level", jobLevel === "all" ? "ทั้งหมด" : jobLevel],
+      ["Total Merit increase budget (บาท/เดือน)", result.budget],
+      ["Total Merit increase spend (บาท/เดือน)", result.spend],
+      ["Gap", result.gap],
+      ["ค่ากลาง (%)", anchor * 100],
+      ["ส่งออกเมื่อ", new Date().toLocaleString("th-TH")],
+      [],
+      [
+        "รหัส",
+        "ชื่อ",
+        "ฝ่าย",
+        "Job level",
+        "Grade",
+        "Performance Score",
+        "Competency Score",
+        "Compa-ratio (%)",
+        "Compa-ratio Grouping",
+        "Merit Increase suggestion (%)",
+        "Merit Increase suggestion (บาท)",
+        "Base Salary",
+        "Allowance",
+        "RoundUp Merit Increase",
+        "Increase Allowance",
+        "เงินเดือนใหม่",
+        "New Allowance",
+        "Total",
+        "หมายเหตุ",
+      ],
+      ...shown.map((entry) => {
+        const { row, grade, ratio, pay, line, reason } = entry;
+        const raised = pay?.raised;
+        const notes = [
+          line ? (noBudget ? "รอกำหนดงบ" : "") : `ไม่ได้ขึ้นรอบนี้: ${reason}`,
+          row.performanceIsTest ? "คะแนนทดสอบ" : "",
+          raised?.overridden ? "RoundUp กรอกเอง" : "",
+          raised?.overMax ? "เกิน Max" : "",
+        ].filter(Boolean);
+        return [
+          row.employee.code,
+          row.employee.name,
+          DEPARTMENTS.find((d) => d.id === row.employee.departmentId)?.name,
+          jobLevelOf(entry),
+          grade?.grade,
+          row.performance,
+          row.performance === null ? null : scoreStep(row.performance),
+          ratio === null ? null : ratio * 100,
+          ratio === null ? null : COMPA_GROUPS[compaGroup(ratio)].label,
+          raised ? raised.suggestedPercent * 100 : null,
+          raised?.suggested,
+          row.salary?.baseSalary,
+          row.salary?.allowance,
+          raised?.amount,
+          pay?.increase,
+          pay?.salary,
+          pay?.allowance,
+          pay?.total,
+          notes.join(" · "),
+        ];
+      }),
+      [],
+      [
+        "รวม",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        totals.suggested,
+        totals.base,
+        totals.allowance,
+        totals.roundUp,
+        totals.increase,
+        totals.newSalary,
+        totals.newAllowance,
+        totals.total,
+      ],
+    ];
+    const csv = "\uFEFF" + lines.map((line) => line.map(cell).join(",")).join("\r\n");
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    link.download = `merit-${data.overview.cycleId.replace(/[^\w-]/g, "-")}-${today()}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+    setExporting(false);
+  };
+
   // Five whole-score rows as in Excel, or every 0.1.
   const matrixRows = everyStep ? SCORE_STEPS : [5, 4, 3, 2, 1];
   const countAt = (step: number, group: number) =>
@@ -222,14 +331,26 @@ export default function MeritPage() {
     const allowance = row.row.salary.allowance + increase;
     return { raised, increase, salary, allowance, total: salary + allowance };
   };
-  const after = roster.flatMap((row) => payAfter(row) ?? []);
+  const jobLevelOf = (entry: (typeof roster)[number]) => entry.grade?.jobLevel || entry.row.levelName || "–";
+  // Job levels in grade order, highest first, as on the salary structure page.
+  const jobLevels = [...new Map(roster.map((entry) => [jobLevelOf(entry), entry.grade?.grade ?? 99]))]
+    .sort((a, b) => a[1] - b[1])
+    .map(([label]) => label);
+  const shown = roster
+    .filter((entry) => jobLevel === "all" || jobLevelOf(entry) === jobLevel)
+    .map((entry) => ({ ...entry, pay: payAfter(entry) }));
+  // Totals of the rows shown, so a filter gives that job level's figures.
+  const sum = (pick: (entry: (typeof shown)[number]) => number | undefined) =>
+    shown.reduce((total, entry) => total + (pick(entry) ?? 0), 0);
   const totals = {
-    suggested: result.lines.reduce((sum, line) => sum + line.suggested, 0),
-    allowance: data.overview.rows.reduce((sum, row) => sum + (row.salary?.allowance ?? 0), 0),
-    increase: after.reduce((sum, pay) => sum + pay.increase, 0),
-    newSalary: after.reduce((sum, pay) => sum + pay.salary, 0),
-    newAllowance: after.reduce((sum, pay) => sum + pay.allowance, 0),
-    total: after.reduce((sum, pay) => sum + pay.total, 0),
+    suggested: sum((e) => e.pay?.raised?.suggested),
+    base: sum((e) => e.row.salary?.baseSalary),
+    allowance: sum((e) => e.row.salary?.allowance),
+    roundUp: sum((e) => e.pay?.raised?.amount),
+    increase: sum((e) => e.pay?.increase),
+    newSalary: sum((e) => e.pay?.salary),
+    newAllowance: sum((e) => e.pay?.allowance),
+    total: sum((e) => e.pay?.total),
   };
   // A typed-in percentage joins the preset rows, in order.
   const typedPercent = plan.budgetAmount === null ? plan.targetPercent : null;
@@ -242,8 +363,7 @@ export default function MeritPage() {
   const firstTime = data.plan === null;
   const overBudget = !noBudget && result.gap <= -1;
   const handSet = result.lines.filter((line) => line.overridden).length;
-  // Every eligible amount typed in: whatever budget is left has nobody to go to.
-  const nobodyLeft = !noBudget && handSet > 0 && handSet === result.lines.length && result.gap >= 1;
+  const underBudget = !noBudget && handSet > 0 && result.gap >= 1;
   const status =
     result.budget === null
       ? { label: "ยังไม่กำหนดงบ", tone: "bg-black/5 text-muted" }
@@ -592,7 +712,8 @@ export default function MeritPage() {
           <h2 className="text-[17px] font-semibold tracking-tight">ยอดขึ้นเงินเดือนรายคน</h2>
           <p className="text-xs text-muted">
             มีสิทธิ์ {result.lines.length} จาก {roster.length} คน · แถวสีเทาไม่ได้ขึ้นรอบนี้
-            (ชี้เมาส์ดูเหตุผล) · ช่องสีเหลือง RoundUp กรอกยอดเองได้ แล้วคนที่เหลือจะแบ่งงบที่เหลือให้อัตโนมัติ
+            (ชี้เมาส์ดูเหตุผล) · ช่องสีเหลือง RoundUp กรอกยอดเองได้ โดยไม่กระทบคนอื่น
+            ยอดรวมจึงเกินหรือต่ำกว่างบได้
             {overMax > 0 && ` · ${overMax} คนเงินเดือนใหม่เกิน Max ของกระบอก`}
           </p>
           {handSet > 0 && (
@@ -604,42 +725,63 @@ export default function MeritPage() {
               ล้าง RoundUp ที่กรอกเองทั้งหมด ({handSet} คน)
             </button>
           )}
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <span className="mr-1 text-xs font-medium text-muted">Job level</span>
+            {["all", ...jobLevels].map((label) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={jobLevel === label}
+                className={`${segment(jobLevel === label)} !px-3 !py-1 !text-xs`}
+                onClick={() => setJobLevel(label)}
+              >
+                {label === "all" ? "ทั้งหมด" : label}
+              </button>
+            ))}
+            <button
+              type="button"
+              className="btn-secondary ml-auto py-1.5 text-xs"
+              disabled={exporting}
+              onClick={() => void exportExcel()}
+            >
+              {exporting ? "กำลังส่งออก…" : "Export to Excel"}
+            </button>
+          </div>
         </header>
         {overBudget && (
           <p
             role="alert"
             className="border-t border-red-200 bg-red-50 px-5 py-2.5 text-sm font-medium text-red-700"
           >
-            RoundUp ที่กรอกเองรวมกันเกินงบ {baht(-result.gap)} บาท · ลดยอดในช่องตัวแดง หรือเพิ่มงบ
+            ยอด RoundUp รวม {baht(result.spend)} บาท เกินงบ {baht(-result.gap)} บาท · ลดยอดในช่องตัวแดง
+            หรือเพิ่มงบ
           </p>
         )}
-        {nobodyLeft && (
+        {underBudget && (
           <p
             role="status"
             className="border-t border-amber-200 bg-amber-50 px-5 py-2.5 text-sm text-amber-800"
           >
-            ทุกคนถูกกรอก RoundUp เองแล้ว งบที่เหลือ {baht(result.gap)} บาทจึงไม่มีคนให้เกลี่ย ·
-            ลบตัวเลขในช่องสีเหลืองเพื่อให้ระบบคำนวณให้
+            ยอด RoundUp รวม {baht(result.spend)} บาท ต่ำกว่างบ {baht(result.gap)} บาท
           </p>
         )}
         <div className="max-h-[75vh] overflow-auto border-t border-line">
-          <table className="sheet roster min-w-[1320px]">
+          <table className="sheet roster min-w-[1260px]">
             <thead className="sticky top-0 z-20">
               <tr>
                 <th colSpan={8} className="!border-0 !bg-white text-right !text-muted">
-                  รวม
+                  {jobLevel === "all" ? "รวม" : `รวม Job level ${jobLevel}`}
                 </th>
                 <th className="sum">{noBudget ? "–" : baht(totals.suggested)}</th>
-                <th className="sum">{baht(result.allPayroll)}</th>
+                <th className="sum">{baht(totals.base)}</th>
                 <th className="sum">{baht(totals.allowance)}</th>
                 <th className={`sum ${overBudget ? "!bg-red-100 !text-red-700" : "!bg-yellow-200"}`}>
-                  {noBudget ? "–" : baht(result.spend)}
+                  {noBudget ? "–" : baht(totals.roundUp)}
                 </th>
                 <th className="sum !bg-yellow-200">{baht(totals.increase)}</th>
                 <th className="sum !bg-blue-100 !text-blue-900">{baht(totals.newSalary)}</th>
                 <th className="sum !bg-blue-100 !text-blue-900">{baht(totals.newAllowance)}</th>
                 <th className="sum !bg-orange-200 !text-orange-900">{baht(totals.total)}</th>
-                <th className="!border-0 !bg-white" />
               </tr>
               <tr>
                 <th className="sticky left-0 z-10 w-44">พนักงาน</th>
@@ -702,24 +844,18 @@ export default function MeritPage() {
                   Allowance
                 </th>
                 <th className="!bg-orange-200 text-right !text-orange-900">Total</th>
-                <th className="text-center">
-                  Compa
-                  <br />
-                  ใหม่
-                </th>
               </tr>
             </thead>
             <tbody>
-              {roster.length === 0 && (
+              {shown.length === 0 && (
                 <tr>
-                  <td colSpan={17} className="py-6 text-center text-muted">
+                  <td colSpan={16} className="py-6 text-center text-muted">
                     ยังไม่มีพนักงาน
                   </td>
                 </tr>
               )}
-              {roster.map(({ row, grade, ratio, line, reason }) => {
+              {shown.map(({ row, grade, ratio, line, reason, pay }) => {
                 const { employee } = row;
-                const pay = payAfter({ row, grade, ratio, line, reason });
                 const raised = pay?.raised ?? null;
                 // Not raised: a dash, with the reason on hover.
                 const why = line ? "รอกำหนดงบ" : `ไม่ได้ขึ้นรอบนี้: ${reason}`;
@@ -837,7 +973,6 @@ export default function MeritPage() {
                     <td className="text-right font-semibold tabular-nums text-orange-800">
                       {pay ? baht(pay.total) : "–"}
                     </td>
-                    <td className="text-center">{raised ? <CompaPill ratio={raised.newRatio} /> : dash}</td>
                   </tr>
                 );
               })}

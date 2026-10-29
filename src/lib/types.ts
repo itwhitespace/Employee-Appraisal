@@ -366,7 +366,7 @@ export interface MeritPlan {
   roundTo: number;
   /** People who have worked fewer months than this on the plan's date take no part. */
   minTenureMonths: number;
-  /** Monthly raise in baht set by hand, keyed by employee id; the rest share what is left. */
+  /** Monthly raise in baht set by hand (RoundUp), keyed by employee id; replaces only that person's. */
   overrides: Record<string, number>;
   /** Monthly allowance raise in baht, keyed by employee id; outside the merit budget. */
   allowanceIncreases: Record<string, number>;
