@@ -11,6 +11,11 @@ import type { MeritPlan } from "./types";
 export interface MeritExportRow {
   code: string;
   name: string;
+  nickname: string;
+  /** Job title. */
+  position: string;
+  /** yyyy-mm-dd, or null when not known. */
+  startDate: string | null;
   department: string;
   jobLevel: string;
   grade: number | null;
@@ -54,11 +59,87 @@ const RED = "FFFF0000";
 const MONEY = "#,##0";
 const PERCENT = "0.0%";
 
+type Workbook = InstanceType<(typeof import("exceljs"))["Workbook"]>;
+
+/**
+ * Sheet 1: the people and their current pay. The headings match the company's raw data sheet,
+ * so the salary import page reads this sheet too.
+ */
+function addEmployeeSheet(book: Workbook, rows: MeritExportRow[]) {
+  const sheet = book.addWorksheet("พนักงาน", {
+    views: [{ state: "frozen", xSplit: 3, ySplit: 1, showGridLines: false }],
+  });
+  const columns: { header: string; width: number; money?: boolean; center?: boolean }[] = [
+    { header: "No.", width: 5, center: true },
+    { header: "รหัส", width: 8, center: true },
+    { header: "Employee Name", width: 28 },
+    { header: "Nickname", width: 11 },
+    { header: "ฝ่าย", width: 20 },
+    { header: "Job Title", width: 30 },
+    { header: "Job level", width: 9, center: true },
+    { header: "Grade", width: 7, center: true },
+    { header: "วันเริ่มงาน", width: 12, center: true },
+    { header: "อายุงาน (ปี)", width: 11, center: true },
+    { header: "base salary", width: 13, money: true },
+    { header: "allowance", width: 12, money: true },
+    { header: "Total", width: 13, money: true },
+  ];
+  const thin = { style: "thin" as const, color: { argb: "FFA6A6A6" } };
+  const border = { top: thin, left: thin, bottom: thin, right: thin };
+  columns.forEach((column, i) => {
+    sheet.getColumn(i + 1).width = column.width;
+    const cell = sheet.getCell(1, i + 1);
+    cell.value = column.header;
+    cell.font = { bold: true };
+    cell.alignment = { horizontal: "center", vertical: "middle" };
+    cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GREY } };
+    cell.border = border;
+  });
+  sheet.getRow(1).height = 22;
+
+  const now = Date.now();
+  rows.forEach((item, index) => {
+    const r = index + 2;
+    // Midnight UTC: Excel stores dates without a time zone.
+    const started = item.startDate ? new Date(`${item.startDate}T00:00:00Z`) : null;
+    const values: (string | number | Date | null)[] = [
+      index + 1,
+      item.code,
+      item.name,
+      item.nickname || null,
+      item.department,
+      item.position || null,
+      item.jobLevel,
+      item.grade,
+      started,
+      started ? Math.floor(((now - started.getTime()) / (365.25 * 86_400_000)) * 10) / 10 : null,
+      item.baseSalary,
+      item.allowance,
+    ];
+    values.forEach((value, i) => {
+      sheet.getCell(r, i + 1).value = value;
+    });
+    if (item.baseSalary !== null) {
+      sheet.getCell(r, 13).value = { formula: `K${r}+L${r}` };
+    }
+    columns.forEach((column, i) => {
+      const cell = sheet.getCell(r, i + 1);
+      cell.border = border;
+      if (column.money) cell.numFmt = MONEY;
+      if (column.center) cell.alignment = { horizontal: "center" };
+    });
+    sheet.getCell(r, 9).numFmt = "dd/mm/yyyy";
+    sheet.getCell(r, 10).numFmt = "0.0";
+  });
+  sheet.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columns.length } };
+}
+
 export async function meritWorkbook(data: MeritExport): Promise<Blob> {
   const ExcelJS = (await import("exceljs")).default;
   const book = new ExcelJS.Workbook();
   // The formulas carry no saved results: have Excel work them out on opening.
   book.calcProperties.fullCalcOnLoad = true;
+  addEmployeeSheet(book, data.rows);
   const sheet = book.addWorksheet("Merit Increase", {
     views: [{ state: "frozen", xSplit: 3, ySplit: 14, showGridLines: false }],
   });

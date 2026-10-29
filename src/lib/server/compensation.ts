@@ -51,6 +51,7 @@ export async function compensationOverview(): Promise<CompensationOverview> {
         code: user.code,
         name: user.name,
         nickname: user.nickname,
+        position: user.position,
         departmentId: user.departmentId,
         level: user.level,
         startDate: user.startDate,

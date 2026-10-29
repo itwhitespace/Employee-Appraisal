@@ -227,6 +227,9 @@ export default function MeritPage() {
           return {
             code: row.employee.code,
             name: row.employee.name,
+            nickname: row.employee.nickname,
+            position: row.employee.position,
+            startDate: row.employee.startDate,
             department: DEPARTMENTS.find((d) => d.id === row.employee.departmentId)?.name ?? "",
             jobLevel: jobLevelOf(entry),
             grade: grade?.grade ?? null,

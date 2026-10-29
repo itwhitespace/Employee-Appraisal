@@ -320,7 +320,10 @@ export interface SalaryRecord {
 
 /** One appraised employee on the salary page. */
 export interface CompensationRow {
-  employee: Pick<User, "id" | "code" | "name" | "nickname" | "departmentId" | "level" | "startDate">;
+  employee: Pick<
+    User,
+    "id" | "code" | "name" | "nickname" | "position" | "departmentId" | "level" | "startDate"
+  >;
   levelName: string | null;
   /** The grade whose level is the employee's level; null when there is none. */
   grade: number | null;
