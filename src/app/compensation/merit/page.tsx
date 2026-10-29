@@ -115,6 +115,7 @@ export default function MeritPage() {
   const [saving, setSaving] = useState(false);
   const [everyStep, setEveryStep] = useState(false);
   const [jobLevel, setJobLevel] = useState("all");
+  const [team, setTeam] = useState("all");
   const [exporting, setExporting] = useState(false);
 
   const load = (next: MeritData) => {
@@ -209,7 +210,7 @@ export default function MeritPage() {
     try {
       const blob = await meritWorkbook({
         cycleId: data.overview.cycleId,
-        filter: jobLevel === "all" ? "ทั้งหมด" : jobLevel,
+        filter: filterLabel || "พนักงานทั้งหมด",
         plan,
         budget: result.budget,
         spend: result.spend,
@@ -301,8 +302,19 @@ export default function MeritPage() {
   const jobLevels = [...new Map(roster.map((entry) => [jobLevelOf(entry), entry.grade?.grade ?? 99]))]
     .sort((a, b) => a[1] - b[1])
     .map(([label]) => label);
+  const teamOf = (entry: (typeof roster)[number]) => entry.row.employee.team || "ไม่ระบุทีม";
+  // Studios in number order first, then the other teams by name.
+  const teams = [...new Set(roster.map(teamOf))].sort(
+    (a, b) =>
+      Number(!/^studio/i.test(a)) - Number(!/^studio/i.test(b)) ||
+      a.localeCompare(b, "th", { numeric: true }),
+  );
+  const filterLabel = [jobLevel === "all" ? "" : `Job level ${jobLevel}`, team === "all" ? "" : `ทีม ${team}`]
+    .filter(Boolean)
+    .join(" · ");
   const shown = roster
     .filter((entry) => jobLevel === "all" || jobLevelOf(entry) === jobLevel)
+    .filter((entry) => team === "all" || teamOf(entry) === team)
     .map((entry) => ({ ...entry, pay: payAfter(entry) }));
   // Totals of the rows shown, so a filter gives that job level's figures.
   const sum = (pick: (entry: (typeof shown)[number]) => number | undefined) =>
@@ -696,7 +708,21 @@ export default function MeritPage() {
             </button>
           )}
           <div className="mt-3 flex flex-wrap items-center gap-2">
-            <span className="mr-1 text-xs font-medium text-muted">Job level</span>
+            <span className="w-24 text-xs font-medium text-muted">Studio / Team</span>
+            {["all", ...teams].map((label) => (
+              <button
+                key={label}
+                type="button"
+                aria-pressed={team === label}
+                className={`${segment(team === label)} !px-3 !py-1 !text-xs`}
+                onClick={() => setTeam(label)}
+              >
+                {label === "all" ? "ทั้งหมด" : label}
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <span className="w-24 text-xs font-medium text-muted">Job level</span>
             {["all", ...jobLevels].map((label) => (
               <button
                 key={label}
@@ -753,7 +779,7 @@ export default function MeritPage() {
             <thead className="sticky top-0 z-20">
               <tr>
                 <th colSpan={8} className="!border-0 !bg-white text-right !text-muted">
-                  {jobLevel === "all" ? "รวม" : `รวม Job level ${jobLevel}`}
+                  {filterLabel ? `รวม ${filterLabel}` : "รวม"}
                 </th>
                 <th className="sum">{noBudget ? "–" : baht(totals.suggested)}</th>
                 <th className="sum">{baht(totals.base)}</th>

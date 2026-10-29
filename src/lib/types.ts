@@ -276,13 +276,7 @@ export interface EvaluationBundle {
  * unapprove   - admin takes the approval back
  */
 export type EvaluationAction =
-  | "save"
-  | "submit_self"
-  | "send_back"
-  | "confirm"
-  | "reopen"
-  | "approve"
-  | "unapprove";
+  "save" | "submit_self" | "send_back" | "confirm" | "reopen" | "approve" | "unapprove";
 
 /** Fields admin can set when adding or editing an employee. */
 export type EmployeeInput = Omit<User, "id" | "compensationAccess">;
@@ -322,7 +316,7 @@ export interface SalaryRecord {
 export interface CompensationRow {
   employee: Pick<
     User,
-    "id" | "code" | "name" | "nickname" | "position" | "departmentId" | "level" | "startDate"
+    "id" | "code" | "name" | "nickname" | "position" | "team" | "departmentId" | "level" | "startDate"
   >;
   levelName: string | null;
   /** The grade whose level is the employee's level; null when there is none. */

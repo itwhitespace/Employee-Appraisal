@@ -156,7 +156,7 @@ export async function meritWorkbook(data: MeritExport): Promise<Blob> {
   // ---- title and budget (top left) ------------------------------------
   sheet.getCell("B1").value = "Merit Salary Increase Matrix";
   sheet.getCell("B1").font = { bold: true, size: 13 };
-  sheet.getCell("B2").value = `รอบ ${data.cycleId} · Job level: ${data.filter}`;
+  sheet.getCell("B2").value = `รอบ ${data.cycleId} · ${data.filter}`;
   sheet.getCell("B2").font = { color: { argb: "FF0070C0" }, bold: true };
 
   const budgetRows: [string, number | null, string?][] = [
