@@ -368,6 +368,8 @@ export interface MeritPlan {
   minTenureMonths: number;
   /** Monthly raise in baht set by hand, keyed by employee id; the rest share what is left. */
   overrides: Record<string, number>;
+  /** Monthly allowance raise in baht, keyed by employee id; outside the merit budget. */
+  allowanceIncreases: Record<string, number>;
 }
 
 export interface MeritData {

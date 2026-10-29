@@ -16,6 +16,7 @@ export const DEFAULT_MERIT_PLAN: MeritPlan = {
   roundTo: 0,
   minTenureMonths: 3,
   overrides: {},
+  allowanceIncreases: {},
 };
 
 export const TARGET_PRESETS = [1.5, 2, 2.5, 3, 3.5, 4, 4.5, 5];

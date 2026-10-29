@@ -136,6 +136,7 @@ export default function MeritPage() {
   if (!data) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;
 
   const result = solveMerit(data.overview, plan, today());
+  const noBudget = result.budget === null;
   const { anchor } = result;
 
   const edit = (patch: Partial<MeritPlan>) => {
@@ -152,6 +153,12 @@ export default function MeritPage() {
     if (value.trim() === "") delete overrides[employeeId];
     else overrides[employeeId] = Math.max(0, Number(value) || 0);
     edit({ overrides });
+  };
+  const setAllowanceIncrease = (employeeId: string, value: string) => {
+    const allowanceIncreases = { ...plan.allowanceIncreases };
+    if (value.trim() === "" || !(Number(value) > 0)) delete allowanceIncreases[employeeId];
+    else allowanceIncreases[employeeId] = Number(value);
+    edit({ allowanceIncreases });
   };
 
   const save = async () => {
@@ -206,10 +213,23 @@ export default function MeritPage() {
     );
   const overMax = result.lines.filter((line) => line.overMax).length;
   const testScores = data.overview.rows.filter((row) => row.performanceIsTest).length;
+  // Pay after the round, for everyone with a salary: those not raised keep their base salary.
+  const payAfter = (row: (typeof roster)[number]) => {
+    if (!row.row.salary) return null;
+    const raised = row.line && !noBudget ? row.line : null;
+    const increase = plan.allowanceIncreases[row.row.employee.id] ?? 0;
+    const salary = raised ? raised.newSalary : row.row.salary.baseSalary;
+    const allowance = row.row.salary.allowance + increase;
+    return { raised, increase, salary, allowance, total: salary + allowance };
+  };
+  const after = roster.flatMap((row) => payAfter(row) ?? []);
   const totals = {
     suggested: result.lines.reduce((sum, line) => sum + line.suggested, 0),
     allowance: data.overview.rows.reduce((sum, row) => sum + (row.salary?.allowance ?? 0), 0),
-    newSalary: result.lines.reduce((sum, line) => sum + line.newSalary, 0),
+    increase: after.reduce((sum, pay) => sum + pay.increase, 0),
+    newSalary: after.reduce((sum, pay) => sum + pay.salary, 0),
+    newAllowance: after.reduce((sum, pay) => sum + pay.allowance, 0),
+    total: after.reduce((sum, pay) => sum + pay.total, 0),
   };
   // A typed-in percentage joins the preset rows, in order.
   const typedPercent = plan.budgetAmount === null ? plan.targetPercent : null;
@@ -220,7 +240,6 @@ export default function MeritPage() {
   const shownPercent =
     typedPercent ?? (result.budgetRatio === null ? null : Math.round(result.budgetRatio * 10000) / 100);
   const firstTime = data.plan === null;
-  const noBudget = result.budget === null;
   const overBudget = !noBudget && result.gap <= -1;
   const handSet = result.lines.filter((line) => line.overridden).length;
   // Every eligible amount typed in: whatever budget is left has nobody to go to.
@@ -604,7 +623,7 @@ export default function MeritPage() {
           </p>
         )}
         <div className="max-h-[75vh] overflow-auto border-t border-line">
-          <table className="sheet roster min-w-[1100px]">
+          <table className="sheet roster min-w-[1320px]">
             <thead className="sticky top-0 z-20">
               <tr>
                 <th colSpan={8} className="!border-0 !bg-white text-right !text-muted">
@@ -612,11 +631,14 @@ export default function MeritPage() {
                 </th>
                 <th className="sum">{noBudget ? "–" : baht(totals.suggested)}</th>
                 <th className="sum">{baht(result.allPayroll)}</th>
+                <th className="sum">{baht(totals.allowance)}</th>
                 <th className={`sum ${overBudget ? "!bg-red-100 !text-red-700" : "!bg-yellow-200"}`}>
                   {noBudget ? "–" : baht(result.spend)}
                 </th>
-                <th className="sum">{baht(totals.allowance)}</th>
-                <th className="sum">{noBudget ? "–" : baht(totals.newSalary)}</th>
+                <th className="sum !bg-yellow-200">{baht(totals.increase)}</th>
+                <th className="sum !bg-blue-100 !text-blue-900">{baht(totals.newSalary)}</th>
+                <th className="sum !bg-blue-100 !text-blue-900">{baht(totals.newAllowance)}</th>
+                <th className="sum !bg-orange-200 !text-orange-900">{baht(totals.total)}</th>
                 <th className="!border-0 !bg-white" />
               </tr>
               <tr>
@@ -658,21 +680,28 @@ export default function MeritPage() {
                   <br />
                   Salary
                 </th>
+                <th className="!bg-slate-100 text-right">Allowance</th>
                 <th className="w-32 !bg-yellow-200 text-right !text-yellow-900">
                   RoundUp
                   <br />
                   Merit Increase
                 </th>
-                <th className="text-right">
-                  Existing
+                <th className="w-28 !bg-yellow-200 text-right !text-yellow-900">
+                  Increase
                   <br />
                   Allowance
                 </th>
-                <th className="text-right">
+                <th className="!bg-blue-100 text-right !text-blue-900">
                   เงินเดือน
                   <br />
                   ใหม่
                 </th>
+                <th className="!bg-blue-100 text-right !text-blue-900">
+                  New
+                  <br />
+                  Allowance
+                </th>
+                <th className="!bg-orange-200 text-right !text-orange-900">Total</th>
                 <th className="text-center">
                   Compa
                   <br />
@@ -683,14 +712,15 @@ export default function MeritPage() {
             <tbody>
               {roster.length === 0 && (
                 <tr>
-                  <td colSpan={14} className="py-6 text-center text-muted">
+                  <td colSpan={17} className="py-6 text-center text-muted">
                     ยังไม่มีพนักงาน
                   </td>
                 </tr>
               )}
               {roster.map(({ row, grade, ratio, line, reason }) => {
                 const { employee } = row;
-                const raised = line && !noBudget ? line : null;
+                const pay = payAfter({ row, grade, ratio, line, reason });
+                const raised = pay?.raised ?? null;
                 // Not raised: a dash, with the reason on hover.
                 const why = line ? "รอกำหนดงบ" : `ไม่ได้ขึ้นรอบนี้: ${reason}`;
                 const dash = (
@@ -746,6 +776,9 @@ export default function MeritPage() {
                     <td className="bg-slate-50 text-right tabular-nums">
                       {row.salary ? baht(row.salary.baseSalary) : "–"}
                     </td>
+                    <td className="bg-slate-50 text-right tabular-nums">
+                      {row.salary ? baht(row.salary.allowance) : "–"}
+                    </td>
                     <td className={raised ? "bg-yellow-50" : "text-right"}>
                       {raised ? (
                         <input
@@ -768,22 +801,41 @@ export default function MeritPage() {
                         dash
                       )}
                     </td>
-                    <td className="text-right tabular-nums text-muted">
-                      {row.salary ? baht(row.salary.allowance) : "–"}
+                    <td className={pay ? "bg-yellow-50" : "text-right"}>
+                      {pay ? (
+                        <input
+                          type="number"
+                          min={0}
+                          step={100}
+                          aria-label={`Increase Allowance ของ ${employee.name}`}
+                          className={`field min-w-[5.5rem] text-right font-semibold tabular-nums ${
+                            pay.increase ? "!border-amber-400 !bg-yellow-100" : ""
+                          }`}
+                          placeholder="0"
+                          value={plan.allowanceIncreases[employee.id] ?? ""}
+                          onChange={(e) => setAllowanceIncrease(employee.id, e.target.value)}
+                        />
+                      ) : (
+                        "–"
+                      )}
                     </td>
-                    <td className="text-right font-medium tabular-nums">
-                      {raised ? (
+                    <td className={`text-right font-medium tabular-nums ${raised ? "" : "text-faint"}`}>
+                      {pay ? (
                         <>
-                          {baht(raised.newSalary)}
-                          {raised.overMax && (
+                          {baht(pay.salary)}
+                          {raised?.overMax && (
                             <div className="text-[10.5px] font-medium text-amber-700">
                               เกิน Max {baht(raised.grade.max)}
                             </div>
                           )}
                         </>
                       ) : (
-                        dash
+                        "–"
                       )}
+                    </td>
+                    <td className="text-right tabular-nums">{pay ? baht(pay.allowance) : "–"}</td>
+                    <td className="text-right font-semibold tabular-nums text-orange-800">
+                      {pay ? baht(pay.total) : "–"}
                     </td>
                     <td className="text-center">{raised ? <CompaPill ratio={raised.newRatio} /> : dash}</td>
                   </tr>

@@ -223,12 +223,18 @@ export function parseMeritPlan(body: Record<string, unknown>): MeritPlan {
     if (!Array.isArray(value) || value.length !== 5) throw new HttpError(400, `${label}ต้องมี 5 ค่า`);
     return value.map((item) => Math.round(number(item, label, 0, 5) * 1000) / 1000);
   };
-  const overrides: Record<string, number> = {};
-  const rawOverrides = body.overrides && typeof body.overrides === "object" ? body.overrides : {};
-  for (const [id, amount] of Object.entries(rawOverrides as Record<string, unknown>).slice(0, 1000)) {
-    if (!UUID.test(id)) throw new HttpError(400, "รหัสพนักงานไม่ถูกต้อง");
-    overrides[id] = Math.round(number(amount, "จำนวนเงินที่กำหนดเอง", 0, MAX_SALARY) * 100) / 100;
-  }
+  // Baht per employee id.
+  const amounts = (value: unknown, label: string) => {
+    const result: Record<string, number> = {};
+    const raw = value && typeof value === "object" ? value : {};
+    for (const [id, amount] of Object.entries(raw as Record<string, unknown>).slice(0, 1000)) {
+      if (!UUID.test(id)) throw new HttpError(400, "รหัสพนักงานไม่ถูกต้อง");
+      result[id] = Math.round(number(amount, label, 0, MAX_SALARY) * 100) / 100;
+    }
+    return result;
+  };
+  const overrides = amounts(body.overrides, "จำนวนเงินที่กำหนดเอง");
+  const allowanceIncreases = amounts(body.allowanceIncreases, "Increase Allowance ");
   const budgetAmount =
     body.budgetAmount === null || body.budgetAmount === undefined
       ? null
@@ -246,6 +252,7 @@ export function parseMeritPlan(body: Record<string, unknown>): MeritPlan {
     roundTo: Math.round(number(body.roundTo, "การปัดเศษ", 0, 10_000)),
     minTenureMonths: Math.round(number(body.minTenureMonths, "อายุงานขั้นต่ำ", 0, 120)),
     overrides,
+    allowanceIncreases,
   };
 }
 
