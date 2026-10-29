@@ -15,7 +15,17 @@ export interface ImportLine {
   jobLevel: string;
   baseSalary: number | null;
   allowance: number | null;
+  /**
+   * The amount is worked out by a formula: the figure read is the one Excel saved last time,
+   * which can differ from the screen if the formula has changed since (or draws at random).
+   */
+  formula: boolean;
+  /** The formula draws at random (RAND, RANDBETWEEN …): a new figure every time Excel recalculates. */
+  random: boolean;
 }
+
+/** Functions whose result changes every time Excel recalculates. */
+const VOLATILE = /\b(RAND|RANDBETWEEN|RANDARRAY|NOW|TODAY|OFFSET|INDIRECT)\s*\(/i;
 
 /** Headings looked for, compared without case, spaces or line breaks. */
 const HEADINGS = {
@@ -92,7 +102,10 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
       const lines: ImportLine[] = [];
       for (let i = r + 1; i <= sheet.rowCount; i++) {
         const row = sheet.getRow(i);
-        const read = (field: Field) => (columns[field] ? row.getCell(columns[field]!).value : null);
+        const cellOf = (field: Field) => (columns[field] ? row.getCell(columns[field]!) : null);
+        const read = (field: Field) => cellOf(field)?.value ?? null;
+        // `formula` also resolves a formula shared from another cell.
+        const formulas = [cellOf("baseSalary"), cellOf("allowance")].map((cell) => cell?.formula ?? "");
         const thaiName = cellText(read("thaiName"));
         const englishName = cellText(read("englishName"));
         if (!thaiName && !englishName) continue;
@@ -104,6 +117,8 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
           jobLevel: cellText(read("jobLevel")),
           baseSalary: amount(read("baseSalary")),
           allowance: amount(read("allowance")),
+          formula: formulas.some(Boolean),
+          random: formulas.some((formula) => VOLATILE.test(formula)),
         });
       }
       return { sheet: sheet.name, lines };

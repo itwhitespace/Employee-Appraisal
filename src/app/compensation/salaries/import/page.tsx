@@ -114,8 +114,10 @@ export default function SalaryImportPage() {
       if (line.jobLevel && systemLevel && line.jobLevel.toLowerCase() !== systemLevel.toLowerCase()) {
         notes.push(`Job level ในไฟล์ ${line.jobLevel} · ในระบบ ${systemLevel}`);
       }
+      if (line.random) notes.push("ตัวเลขในไฟล์มาจากสูตรสุ่ม อาจไม่ตรงกับที่เห็นใน Excel");
       const same = row.salary?.baseSalary === base && row.salary?.allowance === allowance;
       const unsure =
+        line.random ||
         match.kind === "nickname" ||
         (uses.get(row.employee.id) ?? 0) > 1 ||
         notes.some((n) => n.startsWith("Job"));
@@ -148,6 +150,8 @@ export default function SalaryImportPage() {
   };
 
   const reviewed = parsed ? review(parsed.matches, picked) : [];
+  const randomLines = parsed ? parsed.matches.filter((m) => m.line.random).length : 0;
+  const formulaLines = parsed ? parsed.matches.filter((m) => m.line.formula).length : 0;
   const counts = (Object.keys(STATUS) as Status[]).map((status) => ({
     status,
     count: reviewed.filter((r) => r.status === status).length,
@@ -208,6 +212,20 @@ export default function SalaryImportPage() {
         </div>
       </div>
 
+      {reading && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-[2px]"
+        >
+          <div className="flex flex-col items-center gap-4 rounded-2xl bg-white px-12 py-9 shadow-float">
+            <span className="h-12 w-12 animate-spin rounded-full border-4 border-teal-100 border-t-teal-600" />
+            <span className="text-2xl font-semibold text-teal-900">กำลังอ่านไฟล์…</span>
+            <span className="text-sm text-muted">ไฟล์ใหญ่อาจใช้เวลาสักครู่</span>
+          </div>
+        </div>
+      )}
+
       <section className="card space-y-3 px-5 py-4">
         <label className="flex flex-wrap items-center gap-3">
           <span className="btn cursor-pointer rounded-lg bg-emerald-700 py-1.5 text-sm text-white hover:bg-emerald-800">
@@ -234,6 +252,28 @@ export default function SalaryImportPage() {
           Nickname, Job level, base salary, allowance · คอลัมน์อื่น เช่น เลขบัตรประชาชน
           จะไม่ถูกอ่านหรือส่งไปที่ใด · ไฟล์ .xls ให้เปิดใน Excel แล้ว Save As เป็น .xlsx ก่อน
         </p>
+        {parsed && randomLines > 0 && (
+          <div
+            role="alert"
+            className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800"
+          >
+            <p className="font-semibold">
+              base salary / allowance ในไฟล์เป็นสูตรสุ่ม (เช่น RANDBETWEEN) {randomLines} แถว
+            </p>
+            <p className="mt-1">
+              Excel สุ่มตัวเลขใหม่ทุกครั้งที่เปิดไฟล์ ตัวเลขที่ระบบอ่านได้คือค่าตอน Save ครั้งล่าสุด
+              จึงไม่ตรงกับที่เห็นบนจอ · แก้: ใน Excel เลือกคอลัมน์ base salary และ allowance → คัดลอก → วางแบบ{" "}
+              <b>ค่า (Paste Values)</b> → Save แล้ว Import ใหม่
+            </p>
+          </div>
+        )}
+        {parsed && randomLines === 0 && formulaLines > 0 && (
+          <p className="rounded-lg border border-amber-200 bg-amber-50 px-4 py-2.5 text-sm text-amber-800">
+            base salary / allowance ในไฟล์เป็นสูตร {formulaLines} แถว ระบบใช้ผลที่ Excel บันทึกไว้ตอน Save
+            ครั้งล่าสุด · ถ้าตัวเลขในหน้านี้ไม่ตรงกับที่เห็นใน Excel ให้เปิดไฟล์แล้ว Save ใหม่ หรือวางแบบค่า
+            (Paste Values) ก่อน
+          </p>
+        )}
         {fileError && (
           <p role="alert" className="text-sm text-red-600">
             {fileError}
