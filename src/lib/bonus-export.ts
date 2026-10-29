@@ -5,7 +5,7 @@ import type { BonusPlan } from "./types";
 /**
  * The bonus as an Excel workbook laid out like the Bonus sheet of Model.xls: budget and Bonus
  * Matrix on top, then one row per person, and the totals per Studio / Team.
- * Annual Salary, RoundUp Bonus and Salary X are Excel formulas, so edits to Adjusted add up.
+ * Annual Salary, Total and Salary X are Excel formulas, so edits to Adjusted add up.
  */
 
 export interface BonusExportRow {
@@ -154,7 +154,7 @@ export async function bonusWorkbook(data: BonusExport): Promise<Blob> {
     { header: "Annual Salary", width: 13, cells: LIGHT_GREY, format: MONEY },
     { header: "Bonus Spending", width: 13, format: MONEY },
     { header: "Adjusted", width: 12, tone: YELLOW, cells: YELLOW, format: MONEY },
-    { header: "RoundUp Bonus", width: 13, tone: ROSE, cells: ROSE, format: MONEY },
+    { header: "Total", width: 13, tone: ROSE, cells: ROSE, format: MONEY },
     { header: "Salary X", width: 9, format: "0.00" },
     { header: "อายุงาน", width: 16 },
     { header: "หมายเหตุ", width: 30 },
@@ -177,7 +177,6 @@ export async function bonusWorkbook(data: BonusExport): Promise<Blob> {
   });
   sheet.getRow(headerRow).height = 30;
 
-  const roundTo = data.plan.roundTo;
   data.rows.forEach((item, index) => {
     const r = first + index;
     const values: (string | number | null)[] = [
@@ -203,8 +202,7 @@ export async function bonusWorkbook(data: BonusExport): Promise<Blob> {
     const L = (c: number) => `${letter(c)}${r}`;
     if (item.baseSalary !== null) sheet.getCell(r, 13).value = { formula: `${L(12)}*12` };
     if (item.suggested !== null) {
-      const amount = `IF(${L(15)}<>"",${L(15)},${L(14)})`;
-      sheet.getCell(r, 16).value = { formula: roundTo > 0 ? `CEILING(${amount},${roundTo})` : amount };
+      sheet.getCell(r, 16).value = { formula: `MAX(0,SUM(${L(14)},${L(15)}))` };
       sheet.getCell(r, 17).value = { formula: `IF(${L(12)}>0,${L(16)}/${L(12)},"")` };
     }
     sheet.getCell(r, 18).value = item.tenure || null;
@@ -225,7 +223,7 @@ export async function bonusWorkbook(data: BonusExport): Promise<Blob> {
   label.value = "รวม";
   label.font = { bold: true };
   label.alignment = { horizontal: "right" };
-  for (const c of [12, 13, 14, 16]) {
+  for (const c of [12, 13, 14, 15, 16]) {
     const cell = sheet.getCell(sumRow, c);
     cell.value = { formula: `SUBTOTAL(9,${letter(c)}${first}:${letter(c)}${last})` };
     cell.numFmt = MONEY;

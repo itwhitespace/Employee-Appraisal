@@ -5,7 +5,8 @@ import type { BonusPlan, CompensationOverview, CompensationRow } from "./types";
  * Bonus Matrix, as in the Bonus sheet of Model.xls: bonus % of annual base salary =
  * anchor × Performance multiplier × Potential multiplier. The pool is the budget the MD sets,
  * and the anchor (Performance 3 × Potential 3) is solved so the suggestions add up to it,
- * which Excel did with Goal Seek. Adjusted amounts replace only their own person's bonus.
+ * which Excel did with Goal Seek. Adjusted is added on top of one person's bonus (or taken
+ * off, when negative), as ROUNDUP(Bonus Spending + Adjusted) in the sheet; it does not move the rest.
  */
 
 export const DEFAULT_BONUS_PLAN: BonusPlan = {
@@ -36,13 +37,15 @@ export interface BonusLine {
   weight: number;
   /** Bonus % of annual salary from the matrix. */
   suggestedPercent: number;
-  /** Bonus Spending: suggestedPercent × annual salary, before rounding. */
+  /** suggestedPercent × annual salary, before rounding. */
   suggested: number;
-  /** Set by hand; replaces `suggested`. */
+  /** Bonus Spending: `suggested` rounded up, the share of the budget. */
+  spending: number;
+  /** Added by hand on top of the spending, or taken off when negative. */
   adjusted: number | null;
-  /** RoundUp Bonus: (adjusted ?? suggested) rounded up. */
-  amount: number;
-  /** amount ÷ monthly base salary: how many months of pay. */
+  /** Total = spending + adjusted. */
+  total: number;
+  /** total ÷ monthly base salary: how many months of pay. */
   months: number;
 }
 
@@ -59,7 +62,10 @@ export interface BonusResult {
 
 export function solveBonus(overview: CompensationOverview, plan: BonusPlan): BonusResult {
   const excluded: BonusResult["excluded"] = [];
-  const base: Omit<BonusLine, "suggestedPercent" | "suggested" | "adjusted" | "amount" | "months">[] = [];
+  const base: Pick<
+    BonusLine,
+    "row" | "baseSalary" | "annualSalary" | "performanceStep" | "potentialStep" | "weight"
+  >[] = [];
   for (const row of overview.rows) {
     const skip = (reason: string) => excluded.push({ row, reason });
     if (row.performance === null) skip("ผลประเมินยังไม่อนุมัติ");
@@ -103,11 +109,20 @@ export function solveBonus(overview: CompensationOverview, plan: BonusPlan): Bon
   const lines = base.map((line): BonusLine => {
     const suggestedPercent = anchor * line.weight;
     const suggested = line.annualSalary * suggestedPercent;
+    const spending = roundUp(suggested, plan.roundTo);
     const adjusted = plan.adjustments[line.row.employee.id] ?? null;
-    const amount = roundUp(adjusted ?? suggested, plan.roundTo);
-    return { ...line, suggestedPercent, suggested, adjusted, amount, months: amount / line.baseSalary };
+    const total = Math.max(0, spending + (adjusted ?? 0));
+    return {
+      ...line,
+      suggestedPercent,
+      suggested,
+      spending,
+      adjusted,
+      total,
+      months: total / line.baseSalary,
+    };
   });
-  const spend = lines.reduce((sum, line) => sum + line.amount, 0);
+  const spend = lines.reduce((sum, line) => sum + line.total, 0);
   const gap = Math.round((pool - spend) * 100) / 100 || 0;
   return { lines, excluded, payroll, budget, anchor, spend, gap };
 }

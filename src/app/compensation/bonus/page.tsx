@@ -17,7 +17,7 @@ import { baht } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
 import { departmentRank } from "@/lib/evaluation";
 import { displayName, formatScore, tenureSince } from "@/lib/format";
-import { rowMultiplier } from "@/lib/merit";
+import { rowMultiplier, SCORE_STEPS } from "@/lib/merit";
 import type { BonusData, BonusPlan } from "@/lib/types";
 
 interface Notice {
@@ -51,6 +51,7 @@ export default function BonusPage() {
   const [exporting, setExporting] = useState(false);
   const [team, setTeam] = useState("all");
   const [jobLevel, setJobLevel] = useState("all");
+  const [everyStep, setEveryStep] = useState(false);
 
   const load = (next: BonusData) => {
     setData(next);
@@ -84,7 +85,8 @@ export default function BonusPage() {
   const setAdjusted = (employeeId: string, value: string) => {
     const adjustments = { ...plan.adjustments };
     if (value.trim() === "") delete adjustments[employeeId];
-    else adjustments[employeeId] = Math.max(0, Number(value) || 0);
+    else if (Number(value)) adjustments[employeeId] = Number(value);
+    else delete adjustments[employeeId];
     edit({ adjustments });
   };
 
@@ -163,24 +165,29 @@ export default function BonusPage() {
   const totals = {
     base: sum((e) => e.row.salary?.baseSalary),
     annual: sum((e) => (e.row.salary ? e.row.salary.baseSalary * 12 : 0)),
-    suggested: sum((e) => raisedOf(e)?.suggested),
-    amount: sum((e) => raisedOf(e)?.amount),
+    spending: sum((e) => raisedOf(e)?.spending),
+    adjusted: sum((e) => raisedOf(e)?.adjusted),
+    total: sum((e) => raisedOf(e)?.total),
   };
 
   // Totals per Studio / Team, as on the right of the Bonus sheet.
   const groups = teams.map((name) => {
     const members = roster.filter((entry) => teamOf(entry) === name);
-    const bonus = members.reduce((s, e) => s + (raisedOf(e)?.amount ?? 0), 0);
+    const bonus = members.reduce((s, e) => s + (raisedOf(e)?.total ?? 0), 0);
     const salary = members.reduce((s, e) => s + (e.row.salary?.baseSalary ?? 0), 0);
     return { name, people: members.length, bonus, salary };
   });
   const groupBonus = groups.reduce((s, g) => s + g.bonus, 0);
   const groupSalary = groups.reduce((s, g) => s + g.salary, 0);
 
+  // Performance rows: five whole scores as in Excel, or every 0.1.
+  const matrixRows = everyStep ? SCORE_STEPS : SCORES;
   const countAt = (performance: number, potential: number) =>
     result.lines.filter(
       (line) =>
-        Math.round(line.performanceStep) === performance && Math.round(line.potentialStep) === potential,
+        (everyStep
+          ? line.performanceStep === performance
+          : Math.round(line.performanceStep) === performance) && Math.round(line.potentialStep) === potential,
     ).length;
   const adjustedCount = result.lines.filter((line) => line.adjusted !== null).length;
   const overBudget = !noBudget && result.gap <= -1;
@@ -224,7 +231,7 @@ export default function BonusPage() {
             group: row.potential === null ? null : potentialGroup(row.potential),
             suggestedPercent: line?.suggestedPercent ?? null,
             baseSalary: row.salary?.baseSalary ?? null,
-            suggested: line?.suggested ?? null,
+            suggested: line?.spending ?? null,
             adjusted: line?.adjusted ?? null,
             tenure: tenureSince(row.employee.startDate) ?? "",
             note: [
@@ -385,12 +392,22 @@ export default function BonusPage() {
         </section>
 
         <section className="card overflow-hidden">
-          <header className="border-l-4 border-rose-400 px-5 py-4">
-            <h2 className="text-[17px] font-semibold tracking-tight">Bonus Matrix</h2>
-            <p className="text-xs text-muted">
-              % ของเงินเดือนทั้งปี = ค่ากลาง × ตัวคูณ Performance × ตัวคูณ Potential · ตัวเลขสีแดงแก้ได้ ·
-              คะแนนทศนิยม 1 ตำแหน่งไล่ระดับระหว่างช่อง · ตัวเลขเล็กคือจำนวนเท่าของเงินเดือน
-            </p>
+          <header className="flex flex-wrap items-center justify-between gap-3 border-l-4 border-rose-400 px-5 py-4">
+            <div>
+              <h2 className="text-[17px] font-semibold tracking-tight">Bonus Matrix</h2>
+              <p className="text-xs text-muted">
+                % ของเงินเดือนทั้งปี = ค่ากลาง × ตัวคูณ Performance × ตัวคูณ Potential · ตัวเลขสีแดงแก้ได้ ·
+                ตัวเลขเล็กคือจำนวนเท่าของเงินเดือน
+              </p>
+            </div>
+            <div className="flex gap-2">
+              <button type="button" className={segment(!everyStep)} onClick={() => setEveryStep(false)}>
+                5 แถว
+              </button>
+              <button type="button" className={segment(everyStep)} onClick={() => setEveryStep(true)}>
+                ทุก 0.1 คะแนน
+              </button>
+            </div>
           </header>
           <div className="overflow-x-auto border-t border-line">
             <table className="sheet min-w-[720px]">
@@ -415,52 +432,72 @@ export default function BonusPage() {
                 </tr>
               </thead>
               <tbody>
-                {SCORES.map((performance, r) => (
-                  <tr key={performance}>
-                    <td className="text-center">
-                      <div className="font-semibold text-teal-900">{performance}</div>
-                      <div className="text-[10.5px] text-faint">{PERFORMANCE_CAPTIONS[r]}</div>
-                    </td>
-                    <td className="text-center">
-                      <MultiplierInput
-                        value={plan.rowMultipliers[performance - 1]}
-                        label={`ตัวคูณ Performance ${performance}`}
-                        onChange={(value) => setMultiplier("rowMultipliers", performance, value)}
-                      />
-                    </td>
-                    {SCORES.map((potential) => {
-                      const ratio =
-                        anchor *
-                        rowMultiplier(performance, plan.rowMultipliers) *
-                        rowMultiplier(potential, plan.columnMultipliers);
-                      const count = countAt(performance, potential);
-                      const center = performance === 3 && potential === 3;
-                      return (
-                        <td
-                          key={potential}
-                          className={`text-center tabular-nums ${center ? "bg-lime-100" : ""} ${
-                            count ? "!bg-rose-50" : ""
-                          }`}
+                {matrixRows.map((performance) => {
+                  const whole = Number.isInteger(performance);
+                  return (
+                    <tr key={performance} className={whole && everyStep ? "bg-rose-50/40" : ""}>
+                      <td className="text-center">
+                        <div
+                          className={`tabular-nums ${whole ? "font-semibold text-teal-900" : "text-muted"}`}
                         >
-                          <div className={center ? "font-semibold" : ""}>
-                            {noBudget ? "–" : pct(ratio)}
-                            {count > 0 && (
-                              <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 text-[10.5px] font-semibold text-white">
-                                {count}
-                              </span>
-                            )}
+                          {everyStep ? performance.toFixed(1) : performance}
+                        </div>
+                        {whole && (
+                          <div className="text-[10.5px] text-faint">
+                            {PERFORMANCE_CAPTIONS[5 - performance]}
                           </div>
-                          {!noBudget && <div className="text-[10.5px] text-faint">{months(ratio * 12)}</div>}
-                        </td>
-                      );
-                    })}
-                  </tr>
-                ))}
+                        )}
+                      </td>
+                      <td className="text-center">
+                        {whole ? (
+                          <MultiplierInput
+                            value={plan.rowMultipliers[performance - 1]}
+                            label={`ตัวคูณ Performance ${performance}`}
+                            onChange={(value) => setMultiplier("rowMultipliers", performance, value)}
+                          />
+                        ) : (
+                          <span className="text-[11.5px] text-muted">
+                            {Math.round(rowMultiplier(performance, plan.rowMultipliers) * 1000) / 10}%
+                          </span>
+                        )}
+                      </td>
+                      {SCORES.map((potential) => {
+                        const ratio =
+                          anchor *
+                          rowMultiplier(performance, plan.rowMultipliers) *
+                          rowMultiplier(potential, plan.columnMultipliers);
+                        const count = countAt(performance, potential);
+                        const center = performance === 3 && potential === 3;
+                        return (
+                          <td
+                            key={potential}
+                            className={`text-center tabular-nums ${center ? "bg-lime-100" : ""} ${
+                              count ? "!bg-rose-50" : ""
+                            }`}
+                          >
+                            <div className={center ? "font-semibold" : ""}>
+                              {noBudget ? "–" : pct(ratio)}
+                              {count > 0 && (
+                                <span className="ml-1.5 rounded-full bg-rose-500 px-1.5 text-[10.5px] font-semibold text-white">
+                                  {count}
+                                </span>
+                              )}
+                            </div>
+                            {!noBudget && (
+                              <div className="text-[10.5px] text-faint">{months(ratio * 12)}</div>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
           <p className="border-t border-line px-5 py-2 text-xs text-muted">
-            ตัวเลขในวงกลมคือจำนวนคน (นับตามคะแนนที่ปัดเป็นจำนวนเต็ม แต่ % ของแต่ละคนคิดตามทศนิยม 1 ตำแหน่ง)
+            ตัวเลขในวงกลมคือจำนวนคน · คอลัมน์ Potential แสดง 5 ช่อง แต่ % ของแต่ละคนคิดตามคะแนนทศนิยม 1
+            ตำแหน่งของทั้งสองแกน
           </p>
         </section>
       </div>
@@ -516,8 +553,8 @@ export default function BonusPage() {
           <h2 className="text-[17px] font-semibold tracking-tight">โบนัสรายคน</h2>
           <p className="text-xs text-muted">
             ได้รับโบนัส {result.lines.length} จาก {roster.length} คน · แถวสีเทาไม่ได้รับรอบนี้
-            (ชี้เมาส์ดูเหตุผล) · ช่องสีเหลือง Adjusted กรอกยอดเองได้ (เช่น ทำงานไม่ครบปี หรือผู้บริหาร)
-            ไม่กระทบคนอื่น
+            (ชี้เมาส์ดูเหตุผล) · ช่องสีเหลือง Adjusted ใส่ยอดบวกเพิ่ม (หรือติดลบเพื่อหัก เช่น ทำงานไม่ครบปี)
+            ไม่กระทบคนอื่น · Total = Bonus Spending + Adjusted
           </p>
           {adjustedCount > 0 && (
             <button
@@ -591,12 +628,12 @@ export default function BonusPage() {
                 </th>
                 <th className="sum">{baht(totals.base)}</th>
                 <th className="sum">{baht(totals.annual)}</th>
-                <th className="sum">{noBudget ? "–" : baht(totals.suggested)}</th>
-                <th className="!border-0 !bg-white" />
+                <th className="sum">{noBudget ? "–" : baht(totals.spending)}</th>
+                <th className="sum !bg-yellow-200">{noBudget ? "–" : baht(totals.adjusted)}</th>
                 <th
                   className={`sum ${overBudget ? "!bg-red-100 !text-red-700" : "!bg-rose-200 !text-rose-900"}`}
                 >
-                  {noBudget ? "–" : baht(totals.amount)}
+                  {noBudget ? "–" : baht(totals.total)}
                 </th>
                 <th colSpan={2} className="!border-0 !bg-white" />
               </tr>
@@ -643,11 +680,7 @@ export default function BonusPage() {
                   Spending
                 </th>
                 <th className="w-28 !bg-yellow-200 text-right !text-yellow-900">Adjusted</th>
-                <th className="!bg-rose-200 text-right !text-rose-900">
-                  RoundUp
-                  <br />
-                  Bonus
-                </th>
+                <th className="!bg-rose-200 text-right !text-rose-900">Total</th>
                 <th className="text-right">
                   Salary
                   <br />X
@@ -726,12 +759,11 @@ export default function BonusPage() {
                     <td className="bg-slate-50 text-right tabular-nums">
                       {row.salary ? baht(row.salary.baseSalary * 12) : "–"}
                     </td>
-                    <td className="text-right tabular-nums">{raised ? baht(raised.suggested) : dash}</td>
+                    <td className="text-right tabular-nums">{raised ? baht(raised.spending) : dash}</td>
                     <td className={raised ? "bg-yellow-50" : "text-right"}>
                       {raised ? (
                         <input
                           type="number"
-                          min={0}
                           step={1000}
                           aria-label={`Adjusted ของ ${employee.name}`}
                           className={`field min-w-[6rem] text-right font-semibold tabular-nums ${
@@ -741,7 +773,7 @@ export default function BonusPage() {
                                 ? "!border-amber-400 !bg-yellow-100"
                                 : ""
                           }`}
-                          placeholder={baht(raised.suggested)}
+                          placeholder="+ / −"
                           value={plan.adjustments[employee.id] ?? ""}
                           onChange={(e) => setAdjusted(employee.id, e.target.value)}
                         />
@@ -750,7 +782,7 @@ export default function BonusPage() {
                       )}
                     </td>
                     <td className="text-right font-semibold tabular-nums text-rose-800">
-                      {raised ? baht(raised.amount) : dash}
+                      {raised ? baht(raised.total) : dash}
                     </td>
                     <td className="text-right tabular-nums">{raised ? raised.months.toFixed(2) : dash}</td>
                     <td className="whitespace-nowrap text-muted">{tenureSince(employee.startDate) ?? "–"}</td>

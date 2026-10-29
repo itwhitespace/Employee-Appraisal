@@ -229,7 +229,7 @@ export function parseBonusPlan(body: Record<string, unknown>): BonusPlan {
   const raw = body.adjustments && typeof body.adjustments === "object" ? body.adjustments : {};
   for (const [id, amount] of Object.entries(raw as Record<string, unknown>).slice(0, 1000)) {
     if (!UUID.test(id)) throw new HttpError(400, "รหัสพนักงานไม่ถูกต้อง");
-    adjustments[id] = Math.round(number(amount, "Adjusted ", 0, MAX_SALARY * 12) * 100) / 100;
+    adjustments[id] = Math.round(number(amount, "Adjusted ", -MAX_SALARY * 12, MAX_SALARY * 12) * 100) / 100;
   }
   if (body.budget === null || body.budget === undefined) throw new HttpError(400, "กรุณากรอกงบโบนัส");
   return {
