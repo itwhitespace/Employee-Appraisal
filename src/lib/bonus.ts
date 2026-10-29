@@ -3,14 +3,13 @@ import type { BonusPlan, CompensationOverview, CompensationRow } from "./types";
 
 /**
  * Bonus Matrix, as in the Bonus sheet of Model.xls: bonus % of annual base salary =
- * anchor × Performance multiplier × Potential multiplier. The pool is a share of the profit,
+ * anchor × Performance multiplier × Potential multiplier. The pool is the budget the MD sets,
  * and the anchor (Performance 3 × Potential 3) is solved so the suggestions add up to it,
  * which Excel did with Goal Seek. Adjusted amounts replace only their own person's bonus.
  */
 
 export const DEFAULT_BONUS_PLAN: BonusPlan = {
-  profit: null,
-  sharePercent: 50,
+  budget: null,
   // Score 1 … 5, as in the Bonus sheet.
   rowMultipliers: [0.7, 0.8, 1, 1.2, 1.5],
   columnMultipliers: [0.7, 0.8, 1, 1.1, 1.2],
@@ -58,10 +57,6 @@ export interface BonusResult {
   gap: number;
 }
 
-export function budgetOfBonus(plan: BonusPlan): number | null {
-  return plan.profit === null ? null : Math.max(0, Math.round((plan.profit * plan.sharePercent) / 100));
-}
-
 export function solveBonus(overview: CompensationOverview, plan: BonusPlan): BonusResult {
   const excluded: BonusResult["excluded"] = [];
   const base: Omit<BonusLine, "suggestedPercent" | "suggested" | "adjusted" | "amount" | "months">[] = [];
@@ -87,7 +82,7 @@ export function solveBonus(overview: CompensationOverview, plan: BonusPlan): Bon
   }
 
   const payroll = base.reduce((sum, line) => sum + line.annualSalary, 0);
-  const budget = budgetOfBonus(plan);
+  const budget = plan.budget;
   const pool = budget ?? 0;
   const totalWeight = base.reduce((sum, line) => sum + line.annualSalary * line.weight, 0);
   const spendAt = (anchor: number) =>

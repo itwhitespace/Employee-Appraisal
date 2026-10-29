@@ -372,14 +372,12 @@ export interface MeritPlan {
 }
 
 /**
- * How a cycle's bonus is worked out: the pool is a share of the profit, and the Bonus Matrix
+ * How a cycle's bonus is worked out: the MD sets the bonus budget, and the Bonus Matrix
  * (Performance × Potential) spreads it as a percentage of each person's annual base salary.
  */
 export interface BonusPlan {
-  /** Profit of the year in baht; null = not entered yet. */
-  profit: number | null;
-  /** Percent of the profit that goes to bonuses, e.g. 50. */
-  sharePercent: number;
+  /** The whole bonus pool in baht; null = not entered yet. */
+  budget: number | null;
   /** Performance 1 … 5 (rows), e.g. 0.7 … 1.5; scores between are interpolated per 0.1. */
   rowMultipliers: number[];
   /** Potential 1 … 5 (columns), e.g. 0.7 … 1.2; interpolated per 0.1 as well. */

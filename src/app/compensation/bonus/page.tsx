@@ -54,7 +54,8 @@ export default function BonusPage() {
 
   const load = (next: BonusData) => {
     setData(next);
-    setPlan({ ...DEFAULT_BONUS_PLAN, ...next.plan });
+    // A plan saved before the budget was typed in directly has none.
+    setPlan({ ...DEFAULT_BONUS_PLAN, ...next.plan, budget: next.plan?.budget ?? null });
   };
 
   useEffect(() => {
@@ -88,8 +89,8 @@ export default function BonusPage() {
   };
 
   const save = async () => {
-    if (plan.profit === null) {
-      setNotice({ tone: "error", text: "กรุณากรอกกำไร" });
+    if (plan.budget === null) {
+      setNotice({ tone: "error", text: "กรุณากรอกงบโบนัส" });
       return;
     }
     const agreed = await confirm({
@@ -186,7 +187,7 @@ export default function BonusPage() {
   const underBudget = !noBudget && adjustedCount > 0 && result.gap >= 1;
   const testScores = data.overview.rows.filter((row) => row.performanceIsTest).length;
   const status = noBudget
-    ? { label: "ยังไม่กรอกกำไร", tone: "bg-black/5 text-muted" }
+    ? { label: "ยังไม่กรอกงบโบนัส", tone: "bg-black/5 text-muted" }
     : Math.abs(result.gap) < 1
       ? { label: "ตรงงบ", tone: "bg-emerald-50 text-emerald-700" }
       : result.gap < 0
@@ -227,7 +228,7 @@ export default function BonusPage() {
             adjusted: line?.adjusted ?? null,
             tenure: tenureSince(row.employee.startDate) ?? "",
             note: [
-              entry.line ? (noBudget ? "ยังไม่กรอกกำไร" : "") : `ไม่ได้รับโบนัสรอบนี้: ${entry.reason}`,
+              entry.line ? (noBudget ? "ยังไม่กรอกงบโบนัส" : "") : `ไม่ได้รับโบนัสรอบนี้: ${entry.reason}`,
               row.performanceIsTest ? "คะแนนทดสอบ" : "",
               line?.adjusted !== null && line?.adjusted !== undefined ? "Adjusted กรอกเอง" : "",
             ]
@@ -295,53 +296,35 @@ export default function BonusPage() {
           <header className="border-l-4 border-rose-400 px-5 py-4">
             <h2 className="text-[17px] font-semibold tracking-tight">งบโบนัส</h2>
             <p className="text-xs text-muted">
-              งบ = กำไร × % ที่แบ่งเป็นโบนัส · โบนัสคิดจากเงินเดือนฐาน × 12
+              กรอกงบโบนัสทั้งก้อน ระบบเกลี่ยให้ตาม Bonus Matrix · โบนัสคิดจากเงินเดือนฐาน × 12
             </p>
           </header>
           {data.plan === null && (
             <p className="border-t border-amber-200 bg-amber-50 px-5 py-2.5 text-sm text-amber-800">
-              รอบนี้ยังไม่ได้บันทึกแผน: กรอกกำไรแล้วกดบันทึก
+              รอบนี้ยังไม่ได้บันทึกแผน: กรอกงบโบนัสแล้วกดบันทึก
             </p>
           )}
           <table className="sheet border-t border-line">
             <tbody>
               <tr>
-                <td className="font-medium">กำไร (Profit)</td>
+                <td className="font-medium">
+                  Total Bonus Budget
+                  {!noBudget && result.payroll > 0 && (
+                    <div className="text-[11px] font-normal text-faint">
+                      = {pct(result.budget! / result.payroll)} ของเงินเดือนทั้งปี ·{" "}
+                      {months((result.budget! / result.payroll) * 12)} โดยเฉลี่ย
+                    </div>
+                  )}
+                </td>
                 <td>
                   <div className="flex items-center justify-end gap-2">
                     <MoneyInput
-                      value={plan.profit}
-                      label="กำไร (บาท)"
-                      onChange={(value) => edit({ profit: value })}
+                      value={plan.budget}
+                      label="งบโบนัสทั้งก้อน (บาท)"
+                      onChange={(value) => edit({ budget: value })}
                     />
                     <span className="w-6 text-muted">บาท</span>
                   </div>
-                </td>
-              </tr>
-              <tr>
-                <td className="text-muted">% ที่แบ่งเป็นโบนัส</td>
-                <td>
-                  <div className="flex items-center justify-end gap-2">
-                    <input
-                      type="number"
-                      min={0}
-                      max={100}
-                      step={1}
-                      aria-label="% ของกำไรที่เป็นโบนัส"
-                      className="field w-24 text-right font-semibold tabular-nums"
-                      value={plan.sharePercent}
-                      onChange={(e) =>
-                        edit({ sharePercent: Math.min(100, Math.max(0, Number(e.target.value) || 0)) })
-                      }
-                    />
-                    <span className="w-6 text-muted">%</span>
-                  </div>
-                </td>
-              </tr>
-              <tr>
-                <td className="font-medium">Budget</td>
-                <td className="text-right font-semibold tabular-nums text-teal-900">
-                  {noBudget ? "–" : baht(result.budget!)}
                 </td>
               </tr>
               <tr>
@@ -684,7 +667,7 @@ export default function BonusPage() {
                 const { row, line, reason } = entry;
                 const { employee } = row;
                 const raised = raisedOf(entry);
-                const why = line ? "ยังไม่กรอกกำไร" : `ไม่ได้รับโบนัสรอบนี้: ${reason}`;
+                const why = line ? "ยังไม่กรอกงบโบนัส" : `ไม่ได้รับโบนัสรอบนี้: ${reason}`;
                 const dash = (
                   <span className="text-faint" title={why}>
                     –

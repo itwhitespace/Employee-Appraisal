@@ -28,7 +28,10 @@ export async function PUT(request: Request) {
     const plan = parseBonusPlan(await readJson(request));
     const { cycleId } = (await bonusData()).overview;
     await saveBonusPlan(cycleId, plan, user.id);
-    await logCompensation(user.id, `บันทึกแผน เมนู โบนัสประจำปี ${cycleId} (${plan.sharePercent}% ของกำไร)`);
+    await logCompensation(
+      user.id,
+      `บันทึกแผน เมนู โบนัสประจำปี ${cycleId} (งบ ${(plan.budget ?? 0).toLocaleString()} บาท)`,
+    );
     return bonusData();
   });
 }

@@ -231,14 +231,9 @@ export function parseBonusPlan(body: Record<string, unknown>): BonusPlan {
     if (!UUID.test(id)) throw new HttpError(400, "รหัสพนักงานไม่ถูกต้อง");
     adjustments[id] = Math.round(number(amount, "Adjusted ", 0, MAX_SALARY * 12) * 100) / 100;
   }
-  const profit =
-    body.profit === null || body.profit === undefined
-      ? null
-      : Math.round(number(body.profit, "กำไร ", -MAX_SALARY * 1000, MAX_SALARY * 1000));
-  if (profit === null) throw new HttpError(400, "กรุณากรอกกำไร");
+  if (body.budget === null || body.budget === undefined) throw new HttpError(400, "กรุณากรอกงบโบนัส");
   return {
-    profit,
-    sharePercent: Math.round(number(body.sharePercent, "% ของกำไร ", 0, 100) * 100) / 100,
+    budget: Math.round(number(body.budget, "งบโบนัส ", 0, MAX_SALARY * 1000)),
     rowMultipliers: multipliers(body.rowMultipliers, "ตัวคูณ Performance "),
     columnMultipliers: multipliers(body.columnMultipliers, "ตัวคูณ Potential "),
     roundTo: Math.round(number(body.roundTo, "การปัดเศษ", 0, 100_000)),

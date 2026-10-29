@@ -71,8 +71,6 @@ export async function bonusWorkbook(data: BonusExport): Promise<Blob> {
   sheet.getCell("B2").value = `รอบ ${data.cycleId} · ${data.filter}`;
   sheet.getCell("B2").font = { bold: true, color: { argb: "FF0070C0" } };
   const budget: [string, number | null, string][] = [
-    ["Profit", data.plan.profit, MONEY],
-    ["% ที่แบ่งเป็นโบนัส", data.plan.sharePercent / 100, "0%"],
     ["Budget", data.budget, MONEY],
     ["Total Bonus Spend", data.spend, MONEY],
     ["Gap", data.gap, MONEY],
