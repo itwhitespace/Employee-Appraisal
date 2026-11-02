@@ -31,6 +31,9 @@ export class ApiError extends Error {
   }
 }
 
+/** Fired on window when a compensation request finds the pages locked. */
+export const COMPENSATION_LOCKED = "compensation-locked";
+
 async function request<T>(path: string, method = "GET", body?: unknown): Promise<T> {
   let response: Response;
   try {
@@ -44,6 +47,10 @@ async function request<T>(path: string, method = "GET", body?: unknown): Promise
     throw new ApiError(0, "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาตรวจสอบอินเทอร์เน็ตแล้วลองใหม่");
   }
   const data = await response.json().catch(() => null);
+  // The compensation pages lapsed into their lock: let the lock screen ask for the password.
+  if (response.status === 423 && typeof window !== "undefined") {
+    window.dispatchEvent(new Event(COMPENSATION_LOCKED));
+  }
   if (!response.ok) {
     throw new ApiError(response.status, data?.error ?? "เกิดข้อผิดพลาด กรุณาลองใหม่อีกครั้ง");
   }
@@ -123,6 +130,19 @@ export const api = {
   /** Records that the bonus table is about to be downloaded. */
   logBonusExport: (rows: number) =>
     request<{ ok: true }>("/api/compensation/audit", "POST", { event: "bonus-export", rows }),
+
+  compensationLock: () => request<{ hasPassword: boolean; unlocked: boolean }>("/api/compensation/lock"),
+  unlockCompensation: (password: string) =>
+    request<{ ok: true }>("/api/compensation/lock", "POST", { action: "unlock", password }),
+  setupCompensationPassword: (loginPassword: string, newPassword: string) =>
+    request<{ ok: true }>("/api/compensation/lock", "POST", { action: "setup", loginPassword, newPassword }),
+  changeCompensationPassword: (currentPassword: string, newPassword: string) =>
+    request<{ ok: true }>("/api/compensation/lock", "POST", {
+      action: "change",
+      currentPassword,
+      newPassword,
+    }),
+  lockCompensation: () => request<{ ok: true }>("/api/compensation/lock", "POST", { action: "lock" }),
 
   merit: () => request<MeritData>("/api/compensation/merit"),
   saveMerit: (plan: MeritPlan) => request<MeritData>("/api/compensation/merit", "PUT", plan),

@@ -2,7 +2,7 @@ import "server-only";
 import { NextResponse } from "next/server";
 import type { Role, User } from "../types";
 import { HttpError } from "./errors";
-import { getSessionUser } from "./session";
+import { getSessionUser, isCompensationUnlocked, unlockCompensation } from "./session";
 
 export { HttpError };
 
@@ -32,10 +32,26 @@ export async function requireUser(roles?: Role[]): Promise<User> {
   return user;
 }
 
-/** The signed-in user, or a 401 / 403 unless they may see compensation data. */
-export async function requireCompensationUser(): Promise<User> {
+/** The signed-in user, or a 401 / 403 unless they may see compensation data at all. */
+export async function requireCompensationAccess(): Promise<User> {
   const user = await requireUser();
   if (!user.compensationAccess) throw new HttpError(403, "คุณไม่มีสิทธิ์ใช้งานส่วนนี้");
+  return user;
+}
+
+/** Status of a request to the compensation pages while they are locked. */
+export const LOCKED = 423;
+
+/**
+ * A user who may see compensation data and has given the compensation password lately;
+ * otherwise 401 / 403, or 423 when the pages are locked. Each call keeps them open longer.
+ */
+export async function requireCompensationUser(): Promise<User> {
+  const user = await requireCompensationAccess();
+  if (!isCompensationUnlocked(user.id)) {
+    throw new HttpError(LOCKED, "เมนูค่าตอบแทนถูกล็อก กรุณาใส่รหัสผ่านค่าตอบแทน");
+  }
+  unlockCompensation(user.id);
   return user;
 }
 

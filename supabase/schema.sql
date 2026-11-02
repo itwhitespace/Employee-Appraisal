@@ -157,6 +157,9 @@ alter table public.evaluations add column if not exists approved_by uuid
 -- open it; the flag is set here in SQL, never from the web app, so no admin can grant it
 -- to themselves. The tables start empty: salary figures are never kept in this file.
 alter table public.employees add column if not exists compensation_access boolean not null default false;
+-- A second password for the compensation pages, separate from the sign-in password; null = not
+-- set yet (the person sets it the first time, after confirming the sign-in password).
+alter table public.employees add column if not exists compensation_password_hash text;
 
 -- Salary bands; grade 1 is the highest. Compa-ratio = base salary / mid_salary.
 create table if not exists public.salary_grades (

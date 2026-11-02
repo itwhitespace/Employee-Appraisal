@@ -668,6 +668,29 @@ export async function listTestScores(): Promise<
   );
 }
 
+export async function getCompensationPasswordHash(employeeId: string): Promise<string | null> {
+  const row = check(
+    await db().from("employees").select("compensation_password_hash").eq("id", employeeId).maybeSingle(),
+  ) as { compensation_password_hash: string | null } | null;
+  return row?.compensation_password_hash ?? null;
+}
+
+export async function setCompensationPasswordHash(employeeId: string, hash: string): Promise<void> {
+  check(await db().from("employees").update({ compensation_password_hash: hash }).eq("id", employeeId));
+}
+
+/** How many access-log lines of this person start with `action` since `since` (ISO time). */
+export async function countRecentActions(actorId: string, action: string, since: string): Promise<number> {
+  const result = await db()
+    .from("compensation_audit")
+    .select("id", { count: "exact", head: true })
+    .eq("actor_id", actorId)
+    .like("action", `${action}%`)
+    .gte("at", since);
+  check(result);
+  return result.count ?? 0;
+}
+
 /** Records who opened or changed compensation data. */
 export async function logCompensation(actorId: string, action: string): Promise<void> {
   check(await db().from("compensation_audit").insert({ actor_id: actorId, action }));

@@ -32,6 +32,43 @@ export function startSession(userId: string): void {
 
 export function endSession(): void {
   cookies().delete(COOKIE);
+  cookies().delete(UNLOCK_COOKIE);
+}
+
+/**
+ * The compensation pages ask for their own password. Once it is given, this second signed
+ * cookie (bound to the same user) opens them; it lapses after 30 minutes without use and is
+ * renewed by every compensation request.
+ */
+const UNLOCK_COOKIE = "wsp_compensation";
+const UNLOCK_SECONDS = 30 * 60;
+
+export function unlockCompensation(userId: string): void {
+  const payload = `${userId}.${Date.now() + UNLOCK_SECONDS * 1000}`;
+  // "compensation." keeps a login cookie from ever passing for an unlock cookie.
+  cookies().set(UNLOCK_COOKIE, `${payload}.${sign(`compensation.${payload}`)}`, {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    maxAge: UNLOCK_SECONDS,
+  });
+}
+
+export function lockCompensation(): void {
+  cookies().delete(UNLOCK_COOKIE);
+}
+
+export function isCompensationUnlocked(userId: string): boolean {
+  const value = cookies().get(UNLOCK_COOKIE)?.value;
+  if (!value) return false;
+  const cut = value.lastIndexOf(".");
+  const payload = value.slice(0, cut);
+  const given = Buffer.from(value.slice(cut + 1));
+  const expected = Buffer.from(sign(`compensation.${payload}`));
+  if (given.length !== expected.length || !timingSafeEqual(given, expected)) return false;
+  const [owner, expires] = payload.split(".");
+  return owner === userId && Number(expires) > Date.now();
 }
 
 export async function getSessionUser(): Promise<User | null> {

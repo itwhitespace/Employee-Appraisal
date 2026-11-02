@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import CompensationGate, { LOCK_NOW } from "@/components/CompensationGate";
 import { useAuth } from "@/lib/auth";
 import { COMPANY_NAME, DEPARTMENTS, ROLE_NAMES } from "@/lib/constants";
 import { isEmployee } from "@/lib/evaluation";
@@ -275,9 +276,18 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           </div>
           <div className="flex shrink-0 gap-2 lg:flex-col">
             {inCompensation && (
-              <Link href={homePath(user)} className="btn-secondary py-1.5 text-xs">
-                ไประบบประเมิน
-              </Link>
+              <>
+                <button
+                  type="button"
+                  className="btn-secondary py-1.5 text-xs"
+                  onClick={() => window.dispatchEvent(new Event(LOCK_NOW))}
+                >
+                  ล็อกเมนูค่าตอบแทน
+                </button>
+                <Link href={homePath(user)} className="btn-secondary py-1.5 text-xs">
+                  ไประบบประเมิน
+                </Link>
+              </>
             )}
             <button type="button" className="btn-secondary py-1.5 text-xs" onClick={() => void logout()}>
               ออกจากระบบ
@@ -292,7 +302,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           inCompensation ? "compensation max-w-[1920px] sm:px-6" : "max-w-[1400px] sm:px-8"
         }`}
       >
-        {children}
+        {inCompensation ? <CompensationGate>{children}</CompensationGate> : children}
       </main>
     </div>
   );
