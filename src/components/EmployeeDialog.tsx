@@ -35,6 +35,7 @@ const BLANK: EmployeeInput = {
   supervisorId: null,
   startDate: null,
   levelSince: null,
+  birthDate: null,
   appraisalType: "Annual",
 };
 
@@ -235,6 +236,16 @@ export default function EmployeeDialog({
                 </option>
               ))}
             </select>
+          </label>
+          <label className="block">
+            <span className="mb-1.5 block text-sm font-medium">วันเกิด</span>
+            <input
+              type="date"
+              className="field"
+              max={new Date().toISOString().slice(0, 10)}
+              value={form.birthDate ?? ""}
+              onChange={(e) => set({ birthDate: e.target.value || null })}
+            />
           </label>
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium">วันเริ่มงาน</span>

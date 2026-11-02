@@ -110,6 +110,8 @@ export interface User {
   supervisorId: string | null;
   startDate: string | null;
   levelSince: string | null;
+  /** yyyy-mm-dd, or null when not recorded. */
+  birthDate: string | null;
   appraisalType: AppraisalType;
   /**
    * May open the compensation pages (salary structure, Compa-ratio). Granted only in the
@@ -341,7 +343,10 @@ export interface CompensationOverview {
   /** Every level of every department, for checking people added by the salary import. */
   levels: JobLevel[];
   /** Everyone in the system, appraised or not: codes in use and who can be a supervisor. */
-  directory: Pick<User, "id" | "code" | "name" | "role" | "position" | "team">[];
+  directory: Pick<
+    User,
+    "id" | "code" | "name" | "role" | "position" | "team" | "departmentId" | "supervisorId"
+  >[];
 }
 
 /** A person new to the system, from the salary import. Admin is never allowed. */
@@ -357,6 +362,7 @@ export interface ImportedEmployee {
   team: string;
   startDate: string | null;
   levelSince: string | null;
+  birthDate: string | null;
   appraisalType: AppraisalType;
 }
 

@@ -48,6 +48,7 @@ interface EmployeeRow {
   supervisor_id: string | null;
   start_date: string | null;
   level_since: string | null;
+  birth_date?: string | null;
   appraisal_type: User["appraisalType"];
   /** Missing until the column has been added by supabase/schema.sql. */
   compensation_access?: boolean | null;
@@ -69,6 +70,7 @@ const toUser = (row: EmployeeRow): User => ({
   supervisorId: row.supervisor_id,
   startDate: row.start_date,
   levelSince: row.level_since,
+  birthDate: row.birth_date ?? null,
   appraisalType: row.appraisal_type,
   compensationAccess: row.compensation_access === true,
 });
@@ -86,6 +88,7 @@ const toEmployeeRow = (input: EmployeeInput): Omit<EmployeeRow, "id"> => ({
   supervisor_id: input.supervisorId,
   start_date: input.startDate,
   level_since: input.levelSince,
+  birth_date: input.birthDate,
   appraisal_type: input.appraisalType,
 });
 

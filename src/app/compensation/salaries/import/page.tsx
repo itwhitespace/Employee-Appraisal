@@ -41,6 +41,8 @@ interface Reviewed {
   allowance: number;
   /** A person to add to the system: a code in the file that the system does not have. */
   newEmployee: ImportedEmployee | null;
+  /** Where a new person's supervisor came from; "" when none could be found. */
+  supervisorFrom: "picked" | "file" | "auto" | "";
   /** Job title / team in the file that differ from the system; null = the same or not given. */
   positionChange: string | null;
   teamChange: string | null;
@@ -105,6 +107,8 @@ export default function SalaryImportPage() {
   /** Employee picked by hand per line; "" = none. */
   const [picked, setPicked] = useState<Record<number, string>>({});
   const [ticked, setTicked] = useState<Record<number, boolean>>({});
+  /** Supervisor code picked by hand for a new person, per line. */
+  const [supervisorPicked, setSupervisorPicked] = useState<Record<number, string>>({});
   /** Lines whose job title and team are to replace the system's. */
   const [profileTicked, setProfileTicked] = useState<Record<number, boolean>>({});
   const [effectiveDate, setEffectiveDate] = useState(today());
@@ -127,11 +131,33 @@ export default function SalaryImportPage() {
   const rowsById = new Map(data.rows.map((row) => [row.employee.id, row]));
   const directoryCodes = new Map(data.directory.map((person) => [person.code, person]));
 
+  const directoryById = new Map(data.directory.map((person) => [person.id, person]));
+
+  /** The supervisor most people of this department (and team, when it decides) report to. */
+  const usualSupervisor = (departmentId: string, team: string): string => {
+    const mostCommon = (people: typeof data.directory) => {
+      const counts = new Map<string, number>();
+      for (const person of people) {
+        if (person.supervisorId) counts.set(person.supervisorId, (counts.get(person.supervisorId) ?? 0) + 1);
+      }
+      const [id] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [];
+      return id ? (directoryById.get(id)?.code ?? "") : "";
+    };
+    const inDepartment = data.directory.filter((person) => person.departmentId === departmentId);
+    const inTeam = team ? inDepartment.filter((person) => squash(person.team) === squash(team)) : [];
+    return mostCommon(inTeam) || mostCommon(inDepartment);
+  };
+
   /** A new person from a line of the employee export, or what is missing to make one. */
   const newEmployeeOf = (
     line: ImportMatch["line"],
     fileCodes: Set<string>,
-  ): { employee: ImportedEmployee | null; problems: string[] } => {
+    pickedSupervisor: string | undefined,
+  ): {
+    employee: ImportedEmployee | null;
+    problems: string[];
+    supervisorFrom: Reviewed["supervisorFrom"];
+  } => {
     const problems: string[] = [];
     if (!/^\d{5}$/.test(line.code)) problems.push("รหัสต้องเป็นตัวเลข 5 หลัก");
     if (!line.thaiName) problems.push("ไม่มีชื่อ");
@@ -158,13 +184,46 @@ export default function SalaryImportPage() {
       : undefined;
     if (department && !level)
       problems.push(line.levelName ? `ไม่พบ ${line.levelName} ในฝ่ายนี้` : "ไม่มี Level");
-    const supervisorCode =
-      line.supervisor.match(/\((\d{5})\)/)?.[1] ?? line.supervisor.match(/^\d{5}$/)?.[0] ?? "";
-    if (!supervisorCode) problems.push("ไม่มีรหัสหัวหน้า (เช่น ชื่อ (10401))");
-    else if (!directoryCodes.has(supervisorCode) && !fileCodes.has(supervisorCode)) {
-      problems.push(`ไม่พบหัวหน้ารหัส ${supervisorCode}`);
+    // Supervisor: picked on screen, else the code in the file, else whom the department usually reports to.
+    const fromFile = line.supervisor.match(/\((\d{5})\)/)?.[1] ?? line.supervisor.match(/^\d{5}$/)?.[0] ?? "";
+    const known = (code: string) => code !== "" && (directoryCodes.has(code) || fileCodes.has(code));
+    const fileOk = known(fromFile);
+    const auto = department ? usualSupervisor(department.id, line.team) : "";
+    const supervisorCode = pickedSupervisor ?? (fileOk ? fromFile : auto);
+    const supervisorFrom: Reviewed["supervisorFrom"] = pickedSupervisor
+      ? "picked"
+      : fileOk
+        ? "file"
+        : auto
+          ? "auto"
+          : "";
+    if (!known(supervisorCode)) problems.push("ยังไม่มีหัวหน้า: เลือกจากรายการ");
+    if (problems.length || !roleOf || !department || !level) {
+      // Only the supervisor missing: show the person, so one can be picked.
+      const onlySupervisor = roleOf && department && level && problems.length === 1 && !known(supervisorCode);
+      return {
+        employee: onlySupervisor
+          ? {
+              code: line.code,
+              name: line.thaiName,
+              nickname: line.nickname,
+              role: roleOf,
+              departmentId: department.id,
+              level: level.level,
+              supervisorCode: "",
+              position: line.position,
+              team: line.team,
+              startDate: line.startDate,
+              levelSince: line.levelSince,
+              birthDate: line.birthDate,
+              appraisalType:
+                APPRAISAL_TYPES.find((t) => squash(t) === squash(line.appraisalType)) ?? "Annual",
+            }
+          : null,
+        problems,
+        supervisorFrom,
+      };
     }
-    if (problems.length || !roleOf || !department || !level) return { employee: null, problems };
     return {
       employee: {
         code: line.code,
@@ -178,9 +237,11 @@ export default function SalaryImportPage() {
         team: line.team,
         startDate: line.startDate,
         levelSince: line.levelSince,
+        birthDate: line.birthDate,
         appraisalType: APPRAISAL_TYPES.find((t) => squash(t) === squash(line.appraisalType)) ?? "Annual",
       },
       problems,
+      supervisorFrom,
     };
   };
   const gradeOf = (row: CompensationRow) => data.structure.grades.find((g) => g.grade === row.grade);
@@ -203,7 +264,12 @@ export default function SalaryImportPage() {
       const base = line.baseSalary;
       const allowance = line.allowance ?? 0;
       const notes: string[] = [];
-      const fresh = { newEmployee: null, positionChange: null, teamChange: null };
+      const fresh = {
+        newEmployee: null,
+        supervisorFrom: "" as const,
+        positionChange: null,
+        teamChange: null,
+      };
       if (!row && match.kind === "unknownCode" && choices[index] === undefined) {
         const known = directoryCodes.get(line.code);
         if (known) {
@@ -212,14 +278,40 @@ export default function SalaryImportPage() {
           );
           return { index, match, row, status: "missing", notes, base, allowance, ...fresh };
         }
-        const { employee, problems } = newEmployeeOf(line, fileCodes);
-        if (!employee) {
+        const { employee, problems, supervisorFrom } = newEmployeeOf(
+          line,
+          fileCodes,
+          supervisorPicked[index],
+        );
+        if (!employee || problems.length) {
           notes.push(`ไม่พบรหัส ${line.code} ในระบบ · เพิ่มเป็นพนักงานใหม่ไม่ได้: ${problems.join(", ")}`);
-          return { index, match, row, status: "missing", notes, base, allowance, ...fresh };
+          return {
+            index,
+            match,
+            row,
+            status: "missing",
+            notes,
+            base,
+            allowance,
+            ...fresh,
+            newEmployee: employee,
+          };
         }
         notes.push("เพิ่มเป็นพนักงานใหม่ (ยังไม่มีรหัสผ่าน เข้าระบบไม่ได้จนกว่า IT จะตั้งให้)");
+        if (supervisorFrom === "auto") notes.push("หัวหน้าเลือกให้อัตโนมัติจากฝ่าย / ทีม ตรวจก่อนนำเข้า");
         if (base === null || base <= 0) notes.push("ไม่มี base salary ในไฟล์: เพิ่มเฉพาะข้อมูลพนักงาน");
-        return { index, match, row, status: "new", notes, base, allowance, ...fresh, newEmployee: employee };
+        return {
+          index,
+          match,
+          row,
+          status: "new",
+          notes,
+          base,
+          allowance,
+          ...fresh,
+          newEmployee: employee,
+          supervisorFrom,
+        };
       }
       if (!row) {
         notes.push(
@@ -235,6 +327,7 @@ export default function SalaryImportPage() {
       const person = directoryCodes.get(row.employee.code);
       const changes = {
         newEmployee: null,
+        supervisorFrom: "" as const,
         positionChange: line.position && line.position !== (person?.position ?? "") ? line.position : null,
         teamChange: line.team && line.team !== (person?.team ?? "") ? line.team : null,
       };
@@ -284,6 +377,7 @@ export default function SalaryImportPage() {
       setParsed({ fileName: file.name, sheet, matches });
       setPicked({});
       setProfileTicked({});
+      setSupervisorPicked({});
       // New people wait for a tick too: adding someone to the system is a choice.
       setTicked(Object.fromEntries(first.map((r) => [r.index, r.status === "update"])));
       setNote(`นำเข้าจาก ${file.name}`);
@@ -296,6 +390,20 @@ export default function SalaryImportPage() {
   };
 
   const reviewed = parsed ? review(parsed.matches, picked) : [];
+  const supervisorOptions = [
+    ...data.directory
+      .filter(
+        (person) =>
+          person.role !== "employee" || data.directory.some((other) => other.supervisorId === person.id),
+      )
+      .map((person) => ({ code: person.code, label: `${person.name} (${person.code})` })),
+    ...reviewed
+      .filter((r) => r.newEmployee?.role === "supervisor")
+      .map((r) => ({
+        code: r.newEmployee!.code,
+        label: `${r.newEmployee!.name} (${r.newEmployee!.code}) · ใหม่`,
+      })),
+  ].sort((a, b) => a.label.localeCompare(b.label, "th"));
   const randomLines = parsed ? parsed.matches.filter((m) => m.line.random).length : 0;
   const formulaLines = parsed ? parsed.matches.filter((m) => m.line.formula).length : 0;
   const counts = (Object.keys(STATUS) as Status[]).map((status) => ({
@@ -582,7 +690,7 @@ export default function SalaryImportPage() {
                               <div className="font-medium text-sky-700">+ เพิ่มเป็นพนักงานใหม่</div>
                               <div className="text-[11px] text-faint">
                                 {DEPARTMENTS.find((d) => d.id === r.newEmployee!.departmentId)?.name} ·{" "}
-                                {line.levelName} · หัวหน้า {r.newEmployee.supervisorCode} ·{" "}
+                                {line.levelName} ·{" "}
                                 <button
                                   type="button"
                                   className="btn-text !px-0"
@@ -591,6 +699,43 @@ export default function SalaryImportPage() {
                                   เลือกคนเดิมแทน
                                 </button>
                               </div>
+                              <label className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
+                                หัวหน้า
+                                <select
+                                  className={`field !w-auto max-w-[13rem] !py-0.5 text-[11.5px] ${
+                                    r.newEmployee.supervisorCode ? "" : "!border-red-400"
+                                  }`}
+                                  aria-label={`หัวหน้าของ ${r.newEmployee.name}`}
+                                  value={r.newEmployee.supervisorCode}
+                                  onChange={(e) =>
+                                    setSupervisorPicked({ ...supervisorPicked, [r.index]: e.target.value })
+                                  }
+                                >
+                                  <option value="">– เลือกหัวหน้า</option>
+                                  {supervisorOptions
+                                    .filter((option) => option.code !== r.newEmployee!.code)
+                                    .map((option) => (
+                                      <option key={option.code} value={option.code}>
+                                        {option.label}
+                                      </option>
+                                    ))}
+                                </select>
+                                {r.supervisorFrom && (
+                                  <span
+                                    className={`chip !px-1.5 !py-0 text-[10px] ${
+                                      r.supervisorFrom === "auto"
+                                        ? "bg-amber-50 text-amber-800"
+                                        : "bg-black/5 text-muted"
+                                    }`}
+                                  >
+                                    {r.supervisorFrom === "auto"
+                                      ? "อัตโนมัติ"
+                                      : r.supervisorFrom === "file"
+                                        ? "จากไฟล์"
+                                        : "เลือกเอง"}
+                                  </span>
+                                )}
+                              </label>
                             </>
                           ) : r.match.row && picked[r.index] === undefined ? (
                             <>

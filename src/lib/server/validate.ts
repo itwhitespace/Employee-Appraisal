@@ -109,6 +109,7 @@ export function parseEmployeeInput(body: Record<string, unknown>): EmployeeInput
     supervisorId,
     startDate: dateOf(body.startDate, "วันเริ่มงาน"),
     levelSince: dateOf(body.levelSince, "วันที่เริ่มระดับปัจจุบัน"),
+    birthDate: dateOf(body.birthDate, "วันเกิด"),
     appraisalType: APPRAISAL_TYPES.find((t) => t === body.appraisalType) ?? "Annual",
   };
 }

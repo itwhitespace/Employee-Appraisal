@@ -29,6 +29,7 @@ export interface ImportLine {
   team: string;
   startDate: string | null;
   levelSince: string | null;
+  birthDate: string | null;
   appraisalType: string;
   /**
    * The amount is worked out by a formula: the figure read is the one Excel saved last time,
@@ -59,6 +60,7 @@ const HEADINGS = {
   team: ["studio/team", "team", "ทีม", "studio"],
   startDate: ["วันเริ่มงาน", "startdate"],
   levelSince: ["อยู่levelนี้ตั้งแต่", "levelsince"],
+  birthDate: ["วันเกิด", "birthdate", "dateofbirth", "birthday"],
   appraisalType: ["ประเภทการประเมิน", "appraisaltype"],
 } as const;
 
@@ -157,6 +159,7 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
           team: cellText(read("team")),
           startDate: dayOf(read("startDate")),
           levelSince: dayOf(read("levelSince")),
+          birthDate: dayOf(read("birthDate")),
           appraisalType: cellText(read("appraisalType")),
           formula: formulas.some(Boolean),
           random: formulas.some((formula) => VOLATILE.test(formula)),

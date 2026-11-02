@@ -75,13 +75,15 @@ export async function compensationOverview(): Promise<CompensationOverview> {
           }),
     };
   });
-  const directory = users.map(({ id, code, name, role, position, team }) => ({
+  const directory = users.map(({ id, code, name, role, position, team, departmentId, supervisorId }) => ({
     id,
     code,
     name,
     role,
     position,
     team,
+    departmentId,
+    supervisorId,
   }));
   return { cycleId: cycle.id, structure, rows, levels, directory };
 }

@@ -129,6 +129,7 @@ alter table public.nine_box          enable row level security;
 alter table public.employees add column if not exists nickname text not null default '';
 alter table public.employees add column if not exists password_hash text;
 alter table public.employees add column if not exists appraisal_type text not null default 'Annual';
+alter table public.employees add column if not exists birth_date date;
 alter table public.employees drop constraint if exists employees_appraisal_type_check;
 alter table public.employees add constraint employees_appraisal_type_check
   check (appraisal_type in ('Annual', 'Mid-year', 'Probation'));
