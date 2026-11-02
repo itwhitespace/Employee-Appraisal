@@ -64,8 +64,13 @@ export interface MeritLine {
 export interface MeritResult {
   lines: MeritLine[];
   excluded: { row: CompensationRow; reason: string }[];
-  /** Monthly base pay of the people taking part, before the raise. */
+  /**
+   * Monthly base pay, before the raise, of everyone who can take part (a salary, a salary grade
+   * and the tenure), whether or not their appraisal is approved yet: the budget is planned on it.
+   */
   payroll: number;
+  /** How many people `payroll` covers. */
+  payrollPeople: number;
   /** Monthly base pay of everyone with a salary, like SUM(Base Salary) in the Excel sheet. */
   allPayroll: number;
   /** Monthly budget in baht; null when the plan has none. */
@@ -86,7 +91,8 @@ export function monthsBetween(start: string, today: string): number {
 }
 
 /** `percent`% of `payroll`, rounded up to whole baht as ROUNDUP(…, 0) does in Excel. */
-export const percentOf = (payroll: number, percent: number) => Math.ceil((payroll * percent) / 100 - 1e-9);
+export const percentOf = (payroll: number, percent: number) =>
+  Math.ceil((payroll * percent) / 100 - 1e-9) || 0; // never "-0"
 
 /** Monthly budget in baht: the amount typed in, or the percentage of `payroll`. */
 export function budgetOf(plan: MeritPlan, payroll: number): number | null {
@@ -101,17 +107,25 @@ export const roundUp = (value: number, to: number) => (to > 0 ? Math.ceil(value 
 export function solveMerit(overview: CompensationOverview, plan: MeritPlan, today: string): MeritResult {
   const excluded: MeritResult["excluded"] = [];
   const base: Pick<MeritLine, "row" | "grade" | "baseSalary" | "ratio" | "group" | "step" | "weight">[] = [];
+  let payroll = 0;
+  let payrollPeople = 0;
   for (const row of overview.rows) {
     const grade = overview.structure.grades.find((g) => g.grade === row.grade);
     const ratio = compaRatio(row.salary, grade);
     const start = row.employee.startDate;
     const skip = (reason: string) => excluded.push({ row, reason });
-    if (row.performance === null) skip("ผลประเมินยังไม่อนุมัติ");
-    else if (!row.salary) skip("ยังไม่มีเงินเดือน");
+    if (!row.salary) skip("ยังไม่มีเงินเดือน");
     else if (!grade || ratio === null) skip("Level นี้ยังไม่มีกระบอกเงินเดือน");
     else if (start && monthsBetween(start, today) < plan.minTenureMonths) {
       skip(`อายุงานไม่ถึง ${plan.minTenureMonths} เดือน`);
     } else {
+      // Counted in the budget's base even before the appraisal is approved.
+      payroll += row.salary.baseSalary;
+      payrollPeople += 1;
+      if (row.performance === null) {
+        skip("ผลประเมินยังไม่อนุมัติ");
+        continue;
+      }
       const group = compaGroup(ratio);
       const step = scoreStep(row.performance);
       base.push({
@@ -126,7 +140,6 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
     }
   }
 
-  const payroll = base.reduce((sum, line) => sum + line.baseSalary, 0);
   const allPayroll = overview.rows.reduce((sum, row) => sum + (row.salary?.baseSalary ?? 0), 0);
   const budget = budgetOf(plan, payroll);
   // The suggestions share the whole budget. An amount typed in (RoundUp) replaces only that
@@ -172,5 +185,5 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
   // To the satang, and never "-0".
   const gap = Math.round(((budget ?? 0) - spend) * 100) / 100 || 0;
   const budgetRatio = budget !== null && payroll > 0 ? budget / payroll : null;
-  return { lines, excluded, payroll, allPayroll, budget, budgetRatio, anchor, spend, gap };
+  return { lines, excluded, payroll, payrollPeople, allPayroll, budget, budgetRatio, anchor, spend, gap };
 }

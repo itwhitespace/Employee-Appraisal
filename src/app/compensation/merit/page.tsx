@@ -333,7 +333,7 @@ export default function MeritPage() {
           <header className="border-l-4 border-teal-500 px-5 py-4">
             <h2 className="text-[17px] font-semibold tracking-tight">งบประมาณ</h2>
             <p className="text-xs text-muted">
-              กรอกเป็นจำนวนเงิน หรือ % ของเงินเดือนฐานก่อนขึ้นของ {result.lines.length} คนที่มีสิทธิ์ ·
+              กรอกเป็นจำนวนเงิน หรือ % ของเงินเดือนฐานก่อนขึ้นของ {result.payrollPeople} คนที่มีสิทธิ์ ·
               บาทต่อเดือน
             </p>
           </header>
@@ -358,7 +358,8 @@ export default function MeritPage() {
                 <td className="text-muted">
                   เงินเดือนฐานรวมคนที่มีสิทธิ์ (ใช้คำนวณ)
                   <div className="text-[11px] text-faint">
-                    {result.lines.length} คนที่ผลประเมินอนุมัติแล้ว · งบถูกเกลี่ยให้คนกลุ่มนี้
+                    {result.payrollPeople} คนที่มีเงินเดือน กระบอก และอายุงานถึงเกณฑ์ (ไม่รอผลประเมิน) ·
+                    งบถูกเกลี่ยให้ {result.lines.length} คนที่ผลประเมินอนุมัติแล้ว
                   </div>
                 </td>
                 <td className="text-right font-semibold tabular-nums text-teal-900">
