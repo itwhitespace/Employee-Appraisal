@@ -45,13 +45,25 @@ const VOLATILE = /\b(RAND|RANDBETWEEN|RANDARRAY|NOW|TODAY|OFFSET|INDIRECT)\s*\(/
 
 /** Headings looked for, compared without case, spaces or line breaks. */
 const HEADINGS = {
-  code: ["รหัส", "รหัสพนักงาน", "code", "employeecode", "empcode"],
-  thaiName: ["employeename"],
-  englishName: ["name"],
-  nickname: ["nickname"],
+  code: [
+    "รหัส",
+    "รหัสพนักงาน",
+    "รหัสพนง",
+    "code",
+    "employeecode",
+    "empcode",
+    "employeeid",
+    "empid",
+    "staffid",
+    "employeeno",
+    "empno",
+  ],
+  thaiName: ["employeename", "ชื่อนามสกุล", "ชื่อสกุล", "ชื่อพนักงาน", "ชื่อ", "fullname"],
+  englishName: ["name", "englishname", "ชื่ออังกฤษ"],
+  nickname: ["nickname", "ชื่อเล่น"],
   jobLevel: ["joblevel"],
-  baseSalary: ["basesalary"],
-  allowance: ["allowance", "existingallowance"],
+  baseSalary: ["basesalary", "เงินเดือน", "ฐานเงินเดือน", "เงินเดือนฐาน", "salary", "base", "basicsalary"],
+  allowance: ["allowance", "existingallowance", "ค่าตำแหน่ง", "เงินเพิ่ม", "ค่าครองชีพ"],
   role: ["role", "สิทธิ์"],
   department: ["ฝ่าย", "department"],
   levelName: ["level"],
@@ -60,7 +72,7 @@ const HEADINGS = {
   team: ["studio/team", "team", "ทีม", "studio"],
   startDate: ["วันเริ่มงาน", "startdate"],
   levelSince: ["อยู่levelนี้ตั้งแต่", "levelsince"],
-  birthDate: ["วันเกิด", "birthdate", "dateofbirth", "birthday"],
+  birthDate: ["วันเกิด", "วันเดือนปีเกิด", "birthdate", "dateofbirth", "birthday", "dob"],
   appraisalType: ["ประเภทการประเมิน", "appraisaltype"],
 } as const;
 
@@ -204,9 +216,13 @@ function dayOf(value: unknown): string | null {
   return iso ? iso[0] : null;
 }
 
-/** A 5-digit code; Excel drops the leading zeros of a code typed as a number. */
+/**
+ * A 5-digit code; Excel drops the leading zeros of a code typed as a number. A 13-digit number
+ * is a national ID in a column headed like a code ("Employee ID"): it is dropped, never kept.
+ */
 function employeeCode(value: unknown): string {
-  const text = cellText(value).replace(/\s+/g, "");
+  const text = cellText(value).replace(/[\s-]+/g, "");
+  if (/^\d{13}$/.test(text)) return "";
   return /^\d{1,5}$/.test(text) ? text.padStart(5, "0") : text;
 }
 
