@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useMemo, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import EmployeeDialog from "@/components/EmployeeDialog";
@@ -166,6 +167,12 @@ export default function EmployeesPage() {
             value={query}
             onChange={(e) => setQuery(e.target.value)}
           />
+          <Link
+            href="/admin/employees/import"
+            className="btn rounded-full bg-emerald-700 text-white hover:bg-emerald-800"
+          >
+            Import Excel
+          </Link>
           <button type="button" className="btn-primary" onClick={() => setDialog("new")}>
             + เพิ่มพนักงาน
           </button>

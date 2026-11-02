@@ -7,7 +7,8 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 import { api, errorMessage } from "@/lib/api";
 import { baht } from "@/lib/compensation";
-import { APPRAISAL_TYPES, DEPARTMENTS } from "@/lib/constants";
+import { DEPARTMENTS } from "@/lib/constants";
+import { newEmployeeFrom, supervisorChoices, type SupervisorFrom } from "@/lib/employee-import";
 import { displayName } from "@/lib/format";
 import { ImportError, type ImportMatch, matchLines, nameKey, readSalaryWorkbook } from "@/lib/salary-import";
 import type { CompensationOverview, CompensationRow, ImportedEmployee, SalaryImport } from "@/lib/types";
@@ -21,9 +22,6 @@ const STATUS: Record<Status, { label: string; tone: string; order: number }> = {
   update: { label: "อัปเดต", tone: "bg-emerald-50 text-emerald-700", order: 3 },
   same: { label: "ไม่เปลี่ยน", tone: "bg-black/5 text-muted", order: 4 },
 };
-
-/** For comparing names of departments, levels and roles as typed in a file. */
-const squash = (text: string) => text.toLowerCase().replace(/[\s–-]+/g, "");
 
 interface Parsed {
   fileName: string;
@@ -41,8 +39,8 @@ interface Reviewed {
   allowance: number;
   /** A person to add to the system: a code in the file that the system does not have. */
   newEmployee: ImportedEmployee | null;
-  /** Where a new person's supervisor came from; "" when none could be found. */
-  supervisorFrom: "picked" | "file" | "auto" | "";
+  /** Where a new person's supervisor came from. */
+  supervisorFrom: SupervisorFrom;
   /** Job title / team in the file that differ from the system; null = the same or not given. */
   positionChange: string | null;
   teamChange: string | null;
@@ -131,119 +129,8 @@ export default function SalaryImportPage() {
   const rowsById = new Map(data.rows.map((row) => [row.employee.id, row]));
   const directoryCodes = new Map(data.directory.map((person) => [person.code, person]));
 
-  const directoryById = new Map(data.directory.map((person) => [person.id, person]));
-
-  /** The supervisor most people of this department (and team, when it decides) report to. */
-  const usualSupervisor = (departmentId: string, team: string): string => {
-    const mostCommon = (people: typeof data.directory) => {
-      const counts = new Map<string, number>();
-      for (const person of people) {
-        if (person.supervisorId) counts.set(person.supervisorId, (counts.get(person.supervisorId) ?? 0) + 1);
-      }
-      const [id] = [...counts].sort((a, b) => b[1] - a[1])[0] ?? [];
-      return id ? (directoryById.get(id)?.code ?? "") : "";
-    };
-    const inDepartment = data.directory.filter((person) => person.departmentId === departmentId);
-    const inTeam = team ? inDepartment.filter((person) => squash(person.team) === squash(team)) : [];
-    return mostCommon(inTeam) || mostCommon(inDepartment);
-  };
-
-  /** A new person from a line of the employee export, or what is missing to make one. */
-  const newEmployeeOf = (
-    line: ImportMatch["line"],
-    fileCodes: Set<string>,
-    pickedSupervisor: string | undefined,
-  ): {
-    employee: ImportedEmployee | null;
-    problems: string[];
-    supervisorFrom: Reviewed["supervisorFrom"];
-  } => {
-    const problems: string[] = [];
-    if (!/^\d{5}$/.test(line.code)) problems.push("รหัสต้องเป็นตัวเลข 5 หลัก");
-    if (!line.thaiName) problems.push("ไม่มีชื่อ");
-    const role = squash(line.role);
-    const roleOf =
-      role === "" || role === "พนักงาน" || role === "employee"
-        ? "employee"
-        : role === "หัวหน้า" || role === "supervisor"
-          ? "supervisor"
-          : null;
-    if (!roleOf) {
-      problems.push(
-        role === "admin"
-          ? "นำเข้าสิทธิ์ Admin ไม่ได้ (IT ตั้งในหน้าข้อมูลพนักงาน)"
-          : `ไม่รู้จักสิทธิ์ ${line.role}`,
-      );
-    }
-    const department = DEPARTMENTS.find(
-      (d) => squash(d.name) === squash(line.department) || d.id === line.department,
-    );
-    if (!department) problems.push(line.department ? `ไม่พบฝ่าย ${line.department}` : "ไม่มีฝ่าย");
-    const level = department
-      ? data.levels.find((l) => l.departmentId === department.id && squash(l.name) === squash(line.levelName))
-      : undefined;
-    if (department && !level)
-      problems.push(line.levelName ? `ไม่พบ ${line.levelName} ในฝ่ายนี้` : "ไม่มี Level");
-    // Supervisor: picked on screen, else the code in the file, else whom the department usually reports to.
-    const fromFile = line.supervisor.match(/\((\d{5})\)/)?.[1] ?? line.supervisor.match(/^\d{5}$/)?.[0] ?? "";
-    const known = (code: string) => code !== "" && (directoryCodes.has(code) || fileCodes.has(code));
-    const fileOk = known(fromFile);
-    const auto = department ? usualSupervisor(department.id, line.team) : "";
-    const supervisorCode = pickedSupervisor ?? (fileOk ? fromFile : auto);
-    const supervisorFrom: Reviewed["supervisorFrom"] = pickedSupervisor
-      ? "picked"
-      : fileOk
-        ? "file"
-        : auto
-          ? "auto"
-          : "";
-    if (!known(supervisorCode)) problems.push("ยังไม่มีหัวหน้า: เลือกจากรายการ");
-    if (problems.length || !roleOf || !department || !level) {
-      // Only the supervisor missing: show the person, so one can be picked.
-      const onlySupervisor = roleOf && department && level && problems.length === 1 && !known(supervisorCode);
-      return {
-        employee: onlySupervisor
-          ? {
-              code: line.code,
-              name: line.thaiName,
-              nickname: line.nickname,
-              role: roleOf,
-              departmentId: department.id,
-              level: level.level,
-              supervisorCode: "",
-              position: line.position,
-              team: line.team,
-              startDate: line.startDate,
-              levelSince: line.levelSince,
-              birthDate: line.birthDate,
-              appraisalType:
-                APPRAISAL_TYPES.find((t) => squash(t) === squash(line.appraisalType)) ?? "Annual",
-            }
-          : null,
-        problems,
-        supervisorFrom,
-      };
-    }
-    return {
-      employee: {
-        code: line.code,
-        name: line.thaiName,
-        nickname: line.nickname,
-        role: roleOf,
-        departmentId: department.id,
-        level: level.level,
-        supervisorCode,
-        position: line.position,
-        team: line.team,
-        startDate: line.startDate,
-        levelSince: line.levelSince,
-        birthDate: line.birthDate,
-        appraisalType: APPRAISAL_TYPES.find((t) => squash(t) === squash(line.appraisalType)) ?? "Annual",
-      },
-      problems,
-      supervisorFrom,
-    };
-  };
+  const newEmployeeOf = (line: ImportMatch["line"], fileCodes: Set<string>, picked: string | undefined) =>
+    newEmployeeFrom(line, { directory: data.directory, levels: data.levels, fileCodes, picked });
   const gradeOf = (row: CompensationRow) => data.structure.grades.find((g) => g.grade === row.grade);
 
   const review = (matches: ImportMatch[], choices: Record<number, string>): Reviewed[] => {
@@ -391,12 +278,7 @@ export default function SalaryImportPage() {
 
   const reviewed = parsed ? review(parsed.matches, picked) : [];
   const supervisorOptions = [
-    ...data.directory
-      .filter(
-        (person) =>
-          person.role !== "employee" || data.directory.some((other) => other.supervisorId === person.id),
-      )
-      .map((person) => ({ code: person.code, label: `${person.name} (${person.code})` })),
+    ...supervisorChoices(data.directory),
     ...reviewed
       .filter((r) => r.newEmployee?.role === "supervisor")
       .map((r) => ({

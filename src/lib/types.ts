@@ -366,6 +366,25 @@ export interface ImportedEmployee {
   appraisalType: AppraisalType;
 }
 
+/** What the employee import page of admin sends: no pay. */
+export interface EmployeeImport {
+  newEmployees: ImportedEmployee[];
+  updates: { employeeId: string; changes: Partial<Record<EmployeeChange, string | number | null>> }[];
+}
+
+/** What the employee import may change for someone already in the system. */
+export type EmployeeChange =
+  | "nickname"
+  | "position"
+  | "team"
+  | "departmentId"
+  | "level"
+  | "supervisorCode"
+  | "startDate"
+  | "levelSince"
+  | "birthDate"
+  | "appraisalType";
+
 /** What the salary import page sends once the user confirms. */
 export interface SalaryImport {
   effectiveDate: string;

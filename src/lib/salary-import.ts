@@ -94,8 +94,14 @@ function amount(value: unknown): number | null {
 
 export class ImportError extends Error {}
 
-/** The lines of the raw data sheet; throws ImportError with a message for the user. */
-export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; lines: ImportLine[] }> {
+/**
+ * The lines of the raw data sheet; throws ImportError with a message for the user.
+ * `salary: false` (the employee import of admin) needs no pay columns and leaves them unread.
+ */
+export async function readSalaryWorkbook(
+  file: File,
+  { salary = true }: { salary?: boolean } = {},
+): Promise<{ sheet: string; lines: ImportLine[] }> {
   if (!/\.xlsx$/i.test(file.name)) {
     throw new ImportError(
       "รองรับเฉพาะไฟล์ .xlsx · เปิดไฟล์ใน Excel แล้ว Save As เป็น Excel Workbook (.xlsx)",
@@ -126,9 +132,13 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
       });
       if (
         (columns.thaiName === undefined && columns.code === undefined) ||
-        columns.baseSalary === undefined
+        (salary && columns.baseSalary === undefined)
       ) {
         continue;
+      }
+      if (!salary) {
+        delete columns.baseSalary;
+        delete columns.allowance;
       }
 
       const lines: ImportLine[] = [];
@@ -168,7 +178,11 @@ export async function readSalaryWorkbook(file: File): Promise<{ sheet: string; l
       return { sheet: sheet.name, lines };
     }
   }
-  throw new ImportError('ไม่พบหัวคอลัมน์ "รหัส" หรือ "Employee Name" และ "base salary" ในไฟล์นี้');
+  throw new ImportError(
+    salary
+      ? 'ไม่พบหัวคอลัมน์ "รหัส" หรือ "Employee Name" และ "base salary" ในไฟล์นี้'
+      : 'ไม่พบหัวคอลัมน์ "รหัส" หรือ "Employee Name" ในไฟล์นี้',
+  );
 }
 
 /** yyyy-mm-dd from a date cell or text such as 15/01/2020; null when there is none. */

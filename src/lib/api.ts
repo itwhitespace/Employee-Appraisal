@@ -1,4 +1,5 @@
 import type {
+  EmployeeImport,
   SalaryImport,
   BonusData,
   BonusPlan,
@@ -88,6 +89,9 @@ export const api = {
   saveTemplate: (template: FormTemplate) =>
     request<{ template: FormTemplate }>("/api/templates", "PUT", template),
 
+  /** Admin: people added and changed from the employee workbook (no pay). */
+  importEmployees: (payload: EmployeeImport) =>
+    request<{ created: number; updated: number }>("/api/employees/import", "POST", payload),
   createEmployee: (input: EmployeeInput, password: string) =>
     request<{ user: User }>("/api/employees", "POST", { ...input, password }),
   /** An empty `password` keeps the one the employee already has. */

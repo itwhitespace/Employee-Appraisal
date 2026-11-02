@@ -1,23 +1,11 @@
 import { isEmployee } from "@/lib/evaluation";
 import { compensationOverview } from "@/lib/server/compensation";
-import {
-  createUser,
-  listLevels,
-  listUsers,
-  logCompensation,
-  saveSalaries,
-  updateEmployeeProfile,
-} from "@/lib/server/db";
+import { listLevels, listUsers, logCompensation, saveSalaries, updateEmployeeProfile } from "@/lib/server/db";
+import { asList, asObject, checkNewEmployees, createNewEmployees, text } from "@/lib/server/employee-import";
 import { handle, HttpError, readJson, requireCompensationUser } from "@/lib/server/http";
-import { parseEmployeeInput, parseSalaryRecord } from "@/lib/server/validate";
-import type { EmployeeInput } from "@/lib/types";
+import { parseSalaryRecord } from "@/lib/server/validate";
 
 export const dynamic = "force-dynamic";
-
-const asObject = (value: unknown) =>
-  (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
-const asList = (value: unknown) => (Array.isArray(value) ? value : []);
-const text = (value: unknown, max = 200) => (typeof value === "string" ? value.trim().slice(0, max) : "");
 
 /**
  * Saves what the user confirmed on the import page, in this order: people new to the system
@@ -39,29 +27,10 @@ export async function POST(request: Request) {
     const user = await requireCompensationUser();
     const body = await readJson(request);
     const [users, levels] = await Promise.all([listUsers(), listLevels()]);
-    const byCode = new Map(users.map((u) => [u.code, u]));
 
     // ---- people new to the system
-    const rawNew = asList(body.newEmployees).slice(0, 500).map(asObject);
-    const newCodes = new Set<string>();
-    const drafts = rawNew.map((raw) => {
-      const role = raw.role === "supervisor" ? "supervisor" : raw.role === "employee" ? "employee" : null;
-      if (!role) throw new HttpError(400, "นำเข้าได้เฉพาะสิทธิ์พนักงานหรือหัวหน้า");
-      const input = parseEmployeeInput({ ...raw, role, supervisorId: null });
-      if (byCode.has(input.code)) throw new HttpError(409, `รหัสพนักงาน ${input.code} มีอยู่ในระบบแล้ว`);
-      if (newCodes.has(input.code)) throw new HttpError(400, `รหัส ${input.code} ซ้ำกันในไฟล์`);
-      newCodes.add(input.code);
-      if (!input.departmentId || !input.level)
-        throw new HttpError(400, `${input.name}: กรุณาระบุฝ่ายและ Level`);
-      if (!levels.some((l) => l.departmentId === input.departmentId && l.level === input.level)) {
-        throw new HttpError(400, `${input.name}: ไม่พบ Level นี้ในฝ่ายที่ระบุ`);
-      }
-      const supervisorCode = text(raw.supervisorCode, 5);
-      if (!byCode.has(supervisorCode) && !rawNew.some((other) => text(other.code, 5) === supervisorCode)) {
-        throw new HttpError(400, `${input.name}: ไม่พบหัวหน้ารหัส ${supervisorCode || "–"}`);
-      }
-      return { input, supervisorCode };
-    });
+    const drafts = checkNewEmployees(body.newEmployees, users, levels);
+    const newCodes = new Set(drafts.map((d) => d.input.code));
 
     // ---- job titles and teams of people already in the system
     const updates = asList(body.profileUpdates)
@@ -103,19 +72,7 @@ export async function POST(request: Request) {
     }
 
     // ---- write: new people, supervisors first
-    const created = new Map<string, string>();
-    const idOf = (code: string) => created.get(code) ?? byCode.get(code)?.id ?? null;
-    let pending = drafts;
-    while (pending.length) {
-      const ready = pending.filter((d) => idOf(d.supervisorCode));
-      if (ready.length === 0)
-        throw new HttpError(400, "หัวหน้าของพนักงานใหม่อ้างถึงกันเป็นวง กรุณาตรวจคอลัมน์หัวหน้า");
-      for (const draft of ready) {
-        const input: EmployeeInput = { ...draft.input, supervisorId: idOf(draft.supervisorCode) };
-        created.set(input.code, (await createUser(input, null)).id);
-      }
-      pending = pending.filter((d) => !ready.includes(d));
-    }
+    const created = await createNewEmployees(drafts, users);
     if (drafts.length) {
       await logCompensation(
         user.id,
