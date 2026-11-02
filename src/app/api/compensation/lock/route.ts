@@ -55,10 +55,9 @@ export async function POST(request: Request) {
       await logCompensation(user.id, `${WRONG} (${detail})`);
       throw new HttpError(401, "รหัสผ่านไม่ถูกต้อง");
     };
+    // An 8-digit PIN: five wrong tries in 15 minutes stop guessing.
     const checkNew = (password: string) => {
-      if (password.length < 8) throw new HttpError(400, "รหัสผ่านค่าตอบแทนต้องยาวอย่างน้อย 8 ตัวอักษร");
-      if (/^\d+$/.test(password))
-        throw new HttpError(400, "รหัสผ่านค่าตอบแทนต้องมีตัวอักษร ไม่ใช่ตัวเลขอย่างเดียว");
+      if (!/^\d{8}$/.test(password)) throw new HttpError(400, "รหัสผ่านค่าตอบแทนต้องเป็นตัวเลข 8 หลัก");
     };
 
     if (body.action === "unlock") {

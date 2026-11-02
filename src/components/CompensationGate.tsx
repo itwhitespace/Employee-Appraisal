@@ -82,7 +82,7 @@ function LockScreen({
     event.preventDefault();
     onError(null);
     if (stage === "setup") {
-      if (newPassword.length < 8) return onError("รหัสผ่านค่าตอบแทนต้องยาวอย่างน้อย 8 ตัวอักษร");
+      if (!/^\d{8}$/.test(newPassword)) return onError("รหัสผ่านค่าตอบแทนต้องเป็นตัวเลข 8 หลัก");
       if (newPassword !== confirmPassword) return onError("รหัสผ่านใหม่สองช่องไม่ตรงกัน");
     }
     setBusy(true);
@@ -127,14 +127,14 @@ function LockScreen({
             </svg>
           </span>
           <h1 className="text-xl font-semibold text-teal-900">
-            {stage === "setup" ? "ตั้งรหัสผ่านค่าตอบแทน" : "เมนูค่าตอบแทนถูกล็อก"}
+            {stage === "setup" ? "ตั้ง PIN ค่าตอบแทน" : "เมนูค่าตอบแทนถูกล็อก"}
           </h1>
           <p className="text-sm text-muted">
             {stage === "setup"
-              ? "ครั้งแรก: ยืนยันรหัสเข้าระบบ แล้วตั้งรหัสผ่านสำหรับเมนูนี้โดยเฉพาะ (อย่างน้อย 8 ตัว มีตัวอักษร ไม่ซ้ำรหัสเข้าระบบ)"
+              ? "ครั้งแรก: ยืนยันรหัสเข้าระบบ แล้วตั้งรหัส PIN 8 หลักสำหรับเมนูนี้โดยเฉพาะ"
               : relocked
                 ? "ล็อกอัตโนมัติเมื่อไม่ได้ใช้งาน 30 นาที หรือกดล็อกเอง · ข้อมูลที่กรอกค้างไว้ยังอยู่"
-                : "ใส่รหัสผ่านค่าตอบแทนเพื่อเข้าใช้งาน"}
+                : "ใส่ PIN ค่าตอบแทน 8 หลักเพื่อเข้าใช้งาน"}
           </p>
         </div>
 
@@ -151,33 +151,36 @@ function LockScreen({
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">รหัสผ่านค่าตอบแทนใหม่</span>
+              <span className="mb-1.5 block text-sm font-medium">PIN ค่าตอบแทนใหม่ (ตัวเลข 8 หลัก)</span>
               <PasswordField
+                inputMode="numeric"
                 autoComplete="new-password"
-                className="field"
+                className="field text-center text-lg font-semibold tracking-[0.3em] tabular-nums"
                 value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
+                onChange={(e) => setNewPassword(toDigits(e.target.value).slice(0, 8))}
               />
             </label>
             <label className="block">
-              <span className="mb-1.5 block text-sm font-medium">ยืนยันรหัสผ่านค่าตอบแทนใหม่</span>
+              <span className="mb-1.5 block text-sm font-medium">ยืนยัน PIN ค่าตอบแทนใหม่</span>
               <PasswordField
+                inputMode="numeric"
                 autoComplete="new-password"
-                className="field"
+                className="field text-center text-lg font-semibold tracking-[0.3em] tabular-nums"
                 value={confirmPassword}
-                onChange={(e) => setConfirmPassword(e.target.value)}
+                onChange={(e) => setConfirmPassword(toDigits(e.target.value).slice(0, 8))}
               />
             </label>
           </>
         ) : (
           <label className="block">
-            <span className="mb-1.5 block text-sm font-medium">รหัสผ่านค่าตอบแทน</span>
+            <span className="mb-1.5 block text-sm font-medium">PIN ค่าตอบแทน (8 หลัก)</span>
             <PasswordField
+              inputMode="numeric"
               autoComplete="current-password"
               autoFocus
-              className="field"
+              className="field text-center text-lg font-semibold tracking-[0.3em] tabular-nums"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={(e) => setPassword(toDigits(e.target.value).slice(0, 8))}
             />
           </label>
         )}
@@ -188,10 +191,10 @@ function LockScreen({
           </p>
         )}
         <button type="submit" className="btn-primary w-full" disabled={busy}>
-          {busy ? "กำลังตรวจสอบ…" : stage === "setup" ? "ตั้งรหัสและเข้าใช้งาน" : "ปลดล็อก"}
+          {busy ? "กำลังตรวจสอบ…" : stage === "setup" ? "ตั้ง PIN และเข้าใช้งาน" : "ปลดล็อก"}
         </button>
         <p className="text-center text-xs text-faint">
-          ลืมรหัสผ่านค่าตอบแทน: ให้ IT รีเซ็ต แล้วตั้งใหม่ด้วยรหัสเข้าระบบ
+          ลืม PIN ค่าตอบแทน: ให้ IT รีเซ็ต แล้วตั้งใหม่ด้วยรหัสเข้าระบบ
         </p>
       </form>
     </div>
