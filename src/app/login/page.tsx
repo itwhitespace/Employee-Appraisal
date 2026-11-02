@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useState } from "react";
+import PasswordField, { toDigits } from "@/components/PasswordField";
 import { useAuth } from "@/lib/auth";
 import { COMPANY_NAME } from "@/lib/constants";
 
@@ -61,25 +62,23 @@ export default function LoginPage() {
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "code-error" : undefined}
             onChange={(e) => {
-              setCode(e.target.value.replace(/\D/g, "").slice(0, 5));
+              setCode(toDigits(e.target.value).slice(0, 5));
               setError(null);
             }}
           />
           <label htmlFor="password" className="mb-1.5 mt-4 block text-sm font-medium">
             รหัสผ่าน (เลขบัตรประชาชน 5 ตัวท้าย)
           </label>
-          <input
+          <PasswordField
             id="password"
-            type="password"
-            className="field py-3 text-center text-xl font-semibold tracking-[0.4em]"
+            className="field py-3 pl-11 text-center text-xl font-semibold tracking-[0.4em]"
             inputMode="numeric"
             autoComplete="current-password"
-            maxLength={5}
             value={password}
             aria-invalid={error ? true : undefined}
             aria-describedby={error ? "code-error" : undefined}
             onChange={(e) => {
-              setPassword(e.target.value.replace(/\D/g, "").slice(0, 5));
+              setPassword(toDigits(e.target.value).slice(0, 5));
               setError(null);
             }}
           />

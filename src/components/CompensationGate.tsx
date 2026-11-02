@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import PasswordField, { toDigits } from "@/components/PasswordField";
 import { api, COMPENSATION_LOCKED, errorMessage } from "@/lib/api";
 
 /** Asked for from outside, e.g. the lock button in the menu. */
@@ -141,19 +142,17 @@ function LockScreen({
           <>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium">รหัสเข้าระบบ (5 หลัก)</span>
-              <input
-                type="password"
+              <PasswordField
                 inputMode="numeric"
                 autoComplete="current-password"
                 className="field"
                 value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
+                onChange={(e) => setLoginPassword(toDigits(e.target.value).slice(0, 5))}
               />
             </label>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium">รหัสผ่านค่าตอบแทนใหม่</span>
-              <input
-                type="password"
+              <PasswordField
                 autoComplete="new-password"
                 className="field"
                 value={newPassword}
@@ -162,8 +161,7 @@ function LockScreen({
             </label>
             <label className="block">
               <span className="mb-1.5 block text-sm font-medium">ยืนยันรหัสผ่านค่าตอบแทนใหม่</span>
-              <input
-                type="password"
+              <PasswordField
                 autoComplete="new-password"
                 className="field"
                 value={confirmPassword}
@@ -174,8 +172,7 @@ function LockScreen({
         ) : (
           <label className="block">
             <span className="mb-1.5 block text-sm font-medium">รหัสผ่านค่าตอบแทน</span>
-            <input
-              type="password"
+            <PasswordField
               autoComplete="current-password"
               autoFocus
               className="field"
