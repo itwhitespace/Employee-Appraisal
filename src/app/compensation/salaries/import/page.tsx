@@ -9,18 +9,28 @@ import { api, errorMessage } from "@/lib/api";
 import { baht } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
 import { newEmployeeFrom, supervisorChoices, type SupervisorFrom } from "@/lib/employee-import";
-import { displayName } from "@/lib/format";
+import { displayName, formatDate } from "@/lib/format";
 import { ImportError, type ImportMatch, matchLines, nameKey, readSalaryWorkbook } from "@/lib/salary-import";
 import type { CompensationOverview, CompensationRow, ImportedEmployee, SalaryImport } from "@/lib/types";
 
 type Status = "missing" | "new" | "check" | "update" | "same";
 
-const STATUS: Record<Status, { label: string; tone: string; order: number }> = {
-  missing: { label: "ไม่พบ / ข้อมูลไม่ครบ", tone: "bg-red-50 text-red-700", order: 0 },
-  new: { label: "พนักงานใหม่", tone: "bg-sky-50 text-sky-700", order: 1 },
-  check: { label: "ต้องตรวจ", tone: "bg-amber-50 text-amber-800", order: 2 },
-  update: { label: "อัปเดต", tone: "bg-emerald-50 text-emerald-700", order: 3 },
-  same: { label: "ไม่เปลี่ยน", tone: "bg-black/5 text-muted", order: 4 },
+const STATUS: Record<Status, { label: string; tone: string; row: string; order: number }> = {
+  missing: {
+    label: "ไม่พบ / ข้อมูลไม่ครบ",
+    tone: "bg-red-50 text-red-700",
+    row: "bg-yellow-50 hover:!bg-yellow-100",
+    order: 0,
+  },
+  new: { label: "พนักงานใหม่", tone: "bg-sky-50 text-sky-700", row: "", order: 1 },
+  check: { label: "ต้องตรวจ", tone: "bg-amber-50 text-amber-800", row: "", order: 2 },
+  update: {
+    label: "อัปเดต",
+    tone: "bg-emerald-100 text-emerald-800",
+    row: "bg-emerald-50 hover:!bg-emerald-100",
+    order: 3,
+  },
+  same: { label: "ไม่เปลี่ยน", tone: "bg-black/5 text-muted", row: "text-muted", order: 4 },
 };
 
 interface Parsed {
@@ -411,8 +421,9 @@ export default function SalaryImportPage() {
         </label>
         <p className="text-xs text-muted">
           ไฟล์ถูกอ่านในเครื่องนี้เท่านั้น ไม่ได้อัปโหลดทั้งไฟล์ · อ่านเฉพาะคอลัมน์ รหัส, Employee Name, Name,
-          Nickname, Job level, base salary, allowance · คอลัมน์อื่น เช่น เลขบัตรประชาชน
-          จะไม่ถูกอ่านหรือส่งไปที่ใด · ไฟล์ .xls ให้เปิดใน Excel แล้ว Save As เป็น .xlsx ก่อน
+          Nickname, Job level, base salary, allowance และข้อมูลพนักงาน (ตำแหน่ง ทีม วันเกิด …) ·
+          แถวหัวคอลัมน์ซ้ำถูกข้ามให้ · คอลัมน์อื่น เช่น เลขบัตรประชาชน จะไม่ถูกอ่านหรือส่งไปที่ใด · ไฟล์ .xls
+          ให้เปิดใน Excel แล้ว Save As เป็น .xlsx ก่อน
         </p>
         {parsed && randomLines > 0 && (
           <div
@@ -509,7 +520,7 @@ export default function SalaryImportPage() {
             <div className="max-h-[70vh] overflow-auto border-t border-line">
               <table className="sheet min-w-[1400px]">
                 <thead className="sticky top-0 z-10">
-                  <tr>
+                  <tr className="[&>th]:!border-violet-950 [&>th]:!bg-violet-900 [&>th]:!text-white">
                     <th className="w-10 text-center">
                       <input
                         type="checkbox"
@@ -527,10 +538,12 @@ export default function SalaryImportPage() {
                       />
                     </th>
                     <th className="w-14 text-center">แถว</th>
+                    <th className="w-24">รหัสพนักงาน</th>
                     <th className="min-w-[14rem]">ในไฟล์</th>
                     <th className="w-64">พนักงานในระบบ</th>
                     <th className="w-48">ตำแหน่ง</th>
                     <th className="w-36">ทีม</th>
+                    <th className="w-28">วันเกิด</th>
                     <th className="text-right">Base Salary</th>
                     <th className="text-right">Allowance</th>
                     <th className="w-28 text-center">สถานะ</th>
@@ -542,7 +555,7 @@ export default function SalaryImportPage() {
                     const { line } = r.match;
                     const options = r.match.candidates.length > 1 ? r.match.candidates : data.rows;
                     return (
-                      <tr key={r.index} className={r.status === "same" ? "text-muted" : ""}>
+                      <tr key={r.index} className={STATUS[r.status].row}>
                         <td className="text-center">
                           <input
                             type="checkbox"
@@ -553,13 +566,19 @@ export default function SalaryImportPage() {
                           />
                         </td>
                         <td className="text-center tabular-nums text-faint">{line.sheetRow}</td>
+                        <td className="tabular-nums">
+                          {line.code ? (
+                            <span className="font-medium text-teal-700">{line.code}</span>
+                          ) : r.row ? (
+                            <span className="text-faint" title="ไฟล์ไม่มีรหัส: รหัสของคนที่จับคู่ในระบบ">
+                              {r.row.employee.code}
+                            </span>
+                          ) : (
+                            <span className="text-faint">–</span>
+                          )}
+                        </td>
                         <td>
-                          <div className="font-medium">
-                            {line.code && (
-                              <span className="mr-1.5 tabular-nums text-teal-700">{line.code}</span>
-                            )}
-                            {line.thaiName || "–"}
-                          </div>
+                          <div className="font-medium">{line.thaiName || "–"}</div>
                           <div className="text-[11px] text-faint">
                             {[line.englishName, line.nickname, line.jobLevel && `Job level ${line.jobLevel}`]
                               .filter(Boolean)
@@ -677,6 +696,13 @@ export default function SalaryImportPage() {
                             ticked={Boolean(profileTicked[r.index])}
                             onTick={(value) => setProfileTicked({ ...profileTicked, [r.index]: value })}
                           />
+                        </td>
+                        <td className="whitespace-nowrap tabular-nums">
+                          {line.birthDate ? (
+                            formatDate(line.birthDate)
+                          ) : (
+                            <span className="text-faint">–</span>
+                          )}
                         </td>
                         <td className="text-right">
                           <Change from={r.row?.salary?.baseSalary} to={r.base} />

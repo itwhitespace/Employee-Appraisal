@@ -68,6 +68,9 @@ type Field = keyof typeof HEADINGS;
 
 const squash = (text: string) => text.toLowerCase().replace(/[\s._-]+/g, "");
 
+/** Every heading, to tell a repeated heading row from a person. */
+const ALL_HEADINGS = new Set<string>(Object.values(HEADINGS).flat());
+
 /** What a cell shows: the result of a formula, rich text joined, dates and errors left out. */
 function cellText(value: unknown): string {
   if (value === null || value === undefined) return "";
@@ -152,6 +155,11 @@ export async function readSalaryWorkbook(
         const englishName = cellText(read("englishName"));
         const code = employeeCode(read("code"));
         if (!thaiName && !englishName && !code) continue;
+        // A second heading row (or headings repeated further down) is not a person.
+        const headingCells = (Object.keys(columns) as Field[]).filter((field) =>
+          ALL_HEADINGS.has(squash(cellText(read(field)))),
+        );
+        if (headingCells.length >= 2) continue;
         lines.push({
           sheetRow: i,
           code,
