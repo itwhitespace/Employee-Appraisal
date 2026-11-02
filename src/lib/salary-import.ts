@@ -134,6 +134,8 @@ export async function readSalaryWorkbook(
   const sheets = [...book.worksheets].sort(
     (a, b) => Number(/raw/i.test(b.name)) - Number(/raw/i.test(a.name)),
   );
+  // Headings of people found, but no pay column: a file for the employee import instead.
+  let noSalary = false;
   for (const sheet of sheets) {
     for (let r = 1; r <= Math.min(30, sheet.rowCount); r++) {
       const columns: Partial<Record<Field, number>> = {};
@@ -145,10 +147,9 @@ export async function readSalaryWorkbook(
           }
         }
       });
-      if (
-        (columns.thaiName === undefined && columns.code === undefined) ||
-        (salary && columns.baseSalary === undefined)
-      ) {
+      if (columns.thaiName === undefined && columns.code === undefined) continue;
+      if (salary && columns.baseSalary === undefined) {
+        noSalary = true;
         continue;
       }
       if (!salary) {
@@ -197,6 +198,12 @@ export async function readSalaryWorkbook(
       }
       return { sheet: sheet.name, lines };
     }
+  }
+  if (noSalary) {
+    throw new ImportError(
+      'พบคอลัมน์รหัส / ชื่อ แต่ไม่พบคอลัมน์เงินเดือน ("base salary", "เงินเดือน" หรือ "Salary") · ' +
+        "ไฟล์ที่ไม่มีเงินเดือน เช่น วันเกิด ตำแหน่ง ทีม ให้ IT นำเข้าที่หน้า ข้อมูลพนักงาน > Import Excel",
+    );
   }
   throw new ImportError(
     salary
