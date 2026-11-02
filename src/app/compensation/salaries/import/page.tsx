@@ -645,7 +645,7 @@ export default function SalaryImportPage() {
                       />
                     </th>
                     <th className="w-14 text-center">แถว</th>
-                    <th>ในไฟล์</th>
+                    <th className="min-w-[14rem]">ในไฟล์</th>
                     <th className="w-64">พนักงานในระบบ</th>
                     <th className="w-48">ตำแหน่ง</th>
                     <th className="w-36">ทีม</th>
