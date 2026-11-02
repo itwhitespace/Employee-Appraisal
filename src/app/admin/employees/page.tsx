@@ -29,6 +29,21 @@ const segment = (active: boolean) =>
 
 const teamOf = (user: User) => user.team || NO_TEAM;
 
+/** One colour per team, in the order the teams are listed. Full class names, for Tailwind. */
+const TEAM_TONES = [
+  { band: "border-sky-500 bg-sky-100 text-sky-900", dot: "bg-sky-500" },
+  { band: "border-emerald-500 bg-emerald-100 text-emerald-900", dot: "bg-emerald-500" },
+  { band: "border-violet-500 bg-violet-100 text-violet-900", dot: "bg-violet-500" },
+  { band: "border-amber-500 bg-amber-100 text-amber-900", dot: "bg-amber-500" },
+  { band: "border-rose-500 bg-rose-100 text-rose-900", dot: "bg-rose-500" },
+  { band: "border-teal-500 bg-teal-100 text-teal-900", dot: "bg-teal-500" },
+  { band: "border-indigo-500 bg-indigo-100 text-indigo-900", dot: "bg-indigo-500" },
+  { band: "border-orange-500 bg-orange-100 text-orange-900", dot: "bg-orange-500" },
+  { band: "border-fuchsia-500 bg-fuchsia-100 text-fuchsia-900", dot: "bg-fuchsia-500" },
+  { band: "border-lime-600 bg-lime-100 text-lime-900", dot: "bg-lime-600" },
+];
+const NO_TEAM_TONE = { band: "border-slate-400 bg-slate-100 text-slate-700", dot: "bg-slate-400" };
+
 /**
  * By team, each team kept together even when its people are in different departments.
  * Teams come in the order of the first department among their people (the studios first),
@@ -69,6 +84,13 @@ export default function EmployeesPage() {
     for (const user of sorted) counts.set(teamOf(user), (counts.get(teamOf(user)) ?? 0) + 1);
     return [...counts];
   }, [sorted]);
+
+  // A team keeps its colour whatever the filter or search.
+  const toneOf = (name: string) => {
+    if (name === NO_TEAM) return NO_TEAM_TONE;
+    const index = teams.findIndex(([teamName]) => teamName === name);
+    return TEAM_TONES[Math.max(0, index) % TEAM_TONES.length];
+  };
 
   const users = useMemo(() => {
     const term = query.trim().toLowerCase();
@@ -167,6 +189,10 @@ export default function EmployeesPage() {
             onClick={() => setTeam(name)}
             className={segment(team === name)}
           >
+            <span
+              className={`mr-1.5 inline-block h-2.5 w-2.5 rounded-full ${toneOf(name).dot}`}
+              aria-hidden="true"
+            />
             {name} <span className="tabular-nums opacity-60">{count}</span>
           </button>
         ))}
@@ -208,9 +234,12 @@ export default function EmployeesPage() {
                   <Fragment key={user.id}>
                     {firstOfTeam && (
                       <tr>
-                        <td colSpan={COLUMNS} className="bg-canvas/70 py-1.5 text-xs font-semibold">
+                        <td
+                          colSpan={COLUMNS}
+                          className={`border-l-[6px] py-2 text-sm font-semibold ${toneOf(teamOf(user)).band}`}
+                        >
                           {teamOf(user)}{" "}
-                          <span className="font-normal text-faint">
+                          <span className="font-normal opacity-60">
                             {users.filter((u) => teamOf(u) === teamOf(user)).length} คน
                           </span>
                         </td>
