@@ -18,19 +18,24 @@ type Status = "missing" | "new" | "check" | "update" | "same";
 const STATUS: Record<Status, { label: string; tone: string; row: string; order: number }> = {
   missing: {
     label: "ไม่พบ / ข้อมูลไม่ครบ",
-    tone: "bg-red-50 text-red-700",
-    row: "bg-yellow-50 hover:!bg-yellow-100",
+    tone: "bg-red-600 text-white",
+    row: "!bg-yellow-200",
     order: 0,
   },
-  new: { label: "พนักงานใหม่", tone: "bg-sky-50 text-sky-700", row: "", order: 1 },
-  check: { label: "ต้องตรวจ", tone: "bg-amber-50 text-amber-800", row: "", order: 2 },
+  new: { label: "พนักงานใหม่", tone: "bg-sky-50 text-sky-700", row: "hover:!bg-transparent", order: 1 },
+  check: { label: "ต้องตรวจ", tone: "bg-amber-50 text-amber-800", row: "hover:!bg-transparent", order: 2 },
   update: {
     label: "อัปเดต",
-    tone: "bg-emerald-100 text-emerald-800",
-    row: "bg-emerald-50 hover:!bg-emerald-100",
+    tone: "bg-emerald-700 text-white",
+    row: "!bg-emerald-200",
     order: 3,
   },
-  same: { label: "ไม่เปลี่ยน", tone: "bg-black/5 text-muted", row: "text-muted", order: 4 },
+  same: {
+    label: "ไม่เปลี่ยน",
+    tone: "bg-black/5 text-muted",
+    row: "text-muted hover:!bg-transparent",
+    order: 4,
+  },
 };
 
 interface Parsed {
