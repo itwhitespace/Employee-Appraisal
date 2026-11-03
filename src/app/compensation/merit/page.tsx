@@ -51,6 +51,8 @@ export default function MeritPage() {
   const [jobLevel, setJobLevel] = useState("all");
   const [team, setTeam] = useState("all");
   const [exporting, setExporting] = useState(false);
+  /** The yearly budget as typed: the monthly one is it ÷ 12 rounded up, so ×12 may differ a little. */
+  const [yearTyped, setYearTyped] = useState<number | null>(null);
 
   const load = (next: MeritData) => {
     setData(next);
@@ -369,18 +371,45 @@ export default function MeritPage() {
               <tr>
                 <td className="font-medium">
                   Total Merit increase budget
-                  {result.budget !== null && (
-                    <div className="text-[11px] font-normal text-faint">
-                      ต่อปี {baht(result.budget * 12)} บาท
-                    </div>
-                  )}
+                  <div className="text-[11px] font-normal text-faint">ต่อเดือน</div>
                 </td>
                 <td>
                   <div className="flex items-center justify-end gap-2">
                     <MoneyInput
                       value={result.budget}
                       label="งบประมาณขึ้นเงินเดือน (บาทต่อเดือน)"
-                      onChange={(value) => edit({ budgetAmount: value, targetPercent: null })}
+                      onChange={(value) => {
+                        setYearTyped(null);
+                        edit({ budgetAmount: value, targetPercent: null });
+                      }}
+                    />
+                    <span className="w-6 text-muted">บาท</span>
+                  </div>
+                </td>
+              </tr>
+              <tr>
+                <td className="text-muted">
+                  งบต่อปี
+                  <div className="text-[11px] text-faint">ต่อเดือน = ต่อปี ÷ 12 ปัดขึ้นเป็นบาท</div>
+                </td>
+                <td>
+                  <div className="flex items-center justify-end gap-2">
+                    <MoneyInput
+                      value={
+                        result.budget === null
+                          ? null
+                          : yearTyped !== null && Math.ceil(yearTyped / 12) === result.budget
+                            ? yearTyped
+                            : Math.round(result.budget * 12)
+                      }
+                      label="งบประมาณขึ้นเงินเดือน (บาทต่อปี)"
+                      onChange={(value) => {
+                        setYearTyped(value);
+                        edit({
+                          budgetAmount: value === null ? null : Math.ceil(value / 12),
+                          targetPercent: null,
+                        });
+                      }}
                     />
                     <span className="w-6 text-muted">บาท</span>
                   </div>
