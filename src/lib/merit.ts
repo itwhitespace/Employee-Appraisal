@@ -114,7 +114,8 @@ export function solveMerit(overview: CompensationOverview, plan: MeritPlan, toda
     const ratio = compaRatio(row.salary, grade);
     const start = row.employee.startDate;
     const skip = (reason: string) => excluded.push({ row, reason });
-    if (!row.salary) skip("ยังไม่มีเงินเดือน");
+    if (!row.appraised) skip("ไม่มีแบบประเมิน (ไม่ขึ้นตาม Matrix)");
+    else if (!row.salary) skip("ยังไม่มีเงินเดือน");
     else if (!grade || ratio === null) skip("Level นี้ยังไม่มีกระบอกเงินเดือน");
     else if (start && monthsBetween(start, today) < plan.minTenureMonths) {
       skip(`อายุงานไม่ถึง ${plan.minTenureMonths} เดือน`);

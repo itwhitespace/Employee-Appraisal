@@ -318,8 +318,19 @@ export interface SalaryRecord {
 export interface CompensationRow {
   employee: Pick<
     User,
-    "id" | "code" | "name" | "nickname" | "position" | "team" | "departmentId" | "level" | "startDate"
+    | "id"
+    | "code"
+    | "name"
+    | "nickname"
+    | "position"
+    | "team"
+    | "departmentId"
+    | "level"
+    | "startDate"
+    | "birthDate"
   >;
+  /** Has an appraisal form (a supervisor); false for people such as the MD. */
+  appraised: boolean;
   levelName: string | null;
   /** The grade whose level is the employee's level; null when there is none. */
   grade: number | null;
@@ -349,15 +360,21 @@ export interface CompensationOverview {
   >[];
 }
 
-/** A person new to the system, from the salary import. Admin is never allowed. */
+/**
+ * A person new to the system, filled in on the import pages. Never with compensation access:
+ * that is granted only in the database.
+ */
 export interface ImportedEmployee {
   code: string;
   name: string;
   nickname: string;
-  role: "employee" | "supervisor";
+  role: Role;
   departmentId: DepartmentId;
   level: Level;
+  /** "" only for admin, who may report to no one (like the MD). */
   supervisorCode: string;
+  /** Last five digits of the national ID; "" = none yet, so no sign-in until admin sets one. */
+  password: string;
   position: string;
   team: string;
   startDate: string | null;
@@ -390,7 +407,7 @@ export interface SalaryImport {
   effectiveDate: string;
   note: string;
   newEmployees: ImportedEmployee[];
-  profileUpdates: { employeeId: string; position?: string; team?: string }[];
+  profileUpdates: { employeeId: string; position?: string; team?: string; birthDate?: string }[];
   /** One per salary: an employee already in the system, or a new one by code. */
   items: { employeeId?: string; newCode?: string; baseSalary: number; allowance: number }[];
 }

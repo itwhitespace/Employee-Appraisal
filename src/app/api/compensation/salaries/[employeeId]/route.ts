@@ -1,4 +1,4 @@
-import { isEmployee } from "@/lib/evaluation";
+import { onPayScale } from "@/lib/evaluation";
 import { compensationOverview } from "@/lib/server/compensation";
 import { getUser, logCompensation, saveSalary } from "@/lib/server/db";
 import { handle, HttpError, readJson, requireCompensationUser } from "@/lib/server/http";
@@ -15,10 +15,13 @@ export async function PUT(request: Request, { params }: Context) {
   return handle(async () => {
     const user = await requireCompensationUser();
     const employee = await getUser(params.employeeId);
-    if (!employee || !isEmployee(employee)) throw new HttpError(404, "ไม่พบพนักงานคนนี้");
+    if (!employee || !onPayScale(employee)) throw new HttpError(404, "ไม่พบพนักงานคนนี้");
     const record = parseSalaryRecord(await readJson(request));
     await saveSalary(employee.id, record, user.id);
-    await logCompensation(user.id, `บันทึกเงินเดือน เมนู ฐานเงินเดือนพนักงาน >>> ${employee.name} (มีผล ${record.effectiveDate})`);
+    await logCompensation(
+      user.id,
+      `บันทึกเงินเดือน เมนู ฐานเงินเดือนพนักงาน >>> ${employee.name} (มีผล ${record.effectiveDate})`,
+    );
     return compensationOverview();
   });
 }

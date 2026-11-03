@@ -137,9 +137,10 @@ export async function createUser(input: EmployeeInput, passwordHash: string | nu
 /** Job title and team only, e.g. from the salary import; the rest of the record is left alone. */
 export async function updateEmployeeProfile(
   id: string,
-  profile: { position?: string; team?: string },
+  { birthDate, ...profile }: { position?: string; team?: string; birthDate?: string },
 ): Promise<void> {
-  check(await db().from("employees").update(profile).eq("id", id));
+  const row = birthDate === undefined ? profile : { ...profile, birth_date: birthDate };
+  check(await db().from("employees").update(row).eq("id", id));
 }
 
 /** `passwordHash` null keeps the password the employee already has. */

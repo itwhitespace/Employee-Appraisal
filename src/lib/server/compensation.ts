@@ -1,6 +1,6 @@
 import "server-only";
 import { salaryInEffect } from "../compensation";
-import { findLevel, findTemplate, isEmployee } from "../evaluation";
+import { findLevel, findTemplate, isEmployee, onPayScale } from "../evaluation";
 import { summarize } from "../scoring";
 import type { CompensationOverview, CompensationRow } from "../types";
 import { resolveCycle } from "./cycles";
@@ -19,9 +19,8 @@ export const todayInThailand = (): string =>
   new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
 
 /**
- * Everyone with an appraisal form (people without a department and level, such as the MD,
- * are left out), with their pay, salary grade and approved Performance Score of the
- * current cycle.
+ * Everyone with a department and level (with or without an appraisal form, so the MD too),
+ * with their pay, salary grade and approved Performance Score of the current cycle.
  */
 export async function compensationOverview(): Promise<CompensationOverview> {
   const [{ cycle }, users, levels, structure, salaries, testScores] = await Promise.all([
@@ -35,7 +34,7 @@ export async function compensationOverview(): Promise<CompensationOverview> {
   const [templates, evaluations] = await Promise.all([getTemplates(levels), listEvaluations(cycle.id)]);
   const today = todayInThailand();
 
-  const rows = users.filter(isEmployee).map((user): CompensationRow => {
+  const rows = users.filter(onPayScale).map((user): CompensationRow => {
     const evaluation = evaluations[user.id];
     const approved = evaluation?.status === "approved" ? evaluation : null;
     const template = approved?.snapshot?.template ?? findTemplate(templates, user.departmentId, user.level);
@@ -52,7 +51,9 @@ export async function compensationOverview(): Promise<CompensationOverview> {
         departmentId: user.departmentId,
         level: user.level,
         startDate: user.startDate,
+        birthDate: user.birthDate,
       },
+      appraised: isEmployee(user),
       levelName,
       // Grades go by the level's name, the same in every department.
       grade: (levelName && structure.grades.find((g) => g.levelName === levelName)?.grade) || null,

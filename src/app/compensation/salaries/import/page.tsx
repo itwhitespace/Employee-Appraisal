@@ -8,7 +8,8 @@ import { useLeaveGuard } from "@/components/useLeaveGuard";
 import { api, errorMessage } from "@/lib/api";
 import { baht } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
-import { newEmployeeFrom, supervisorChoices, type SupervisorFrom } from "@/lib/employee-import";
+import NewEmployeeDialog from "@/components/NewEmployeeDialog";
+import { draftFrom } from "@/lib/employee-import";
 import { displayName, formatDate } from "@/lib/format";
 import { ImportError, type ImportMatch, matchLines, nameKey, readSalaryWorkbook } from "@/lib/salary-import";
 import type { CompensationOverview, CompensationRow, ImportedEmployee, SalaryImport } from "@/lib/types";
@@ -52,13 +53,14 @@ interface Reviewed {
   notes: string[];
   base: number | null;
   allowance: number;
-  /** A person to add to the system: a code in the file that the system does not have. */
+  /** A person to add to the system, as filled in with the "add" button. */
   newEmployee: ImportedEmployee | null;
-  /** Where a new person's supervisor came from. */
-  supervisorFrom: SupervisorFrom;
-  /** Job title / team in the file that differ from the system; null = the same or not given. */
+  /** Nobody in the system matches: the line can become a new person. */
+  canAdd: boolean;
+  /** Job title / team / birth date in the file that differ from the system; null = the same or not given. */
   positionChange: string | null;
   teamChange: string | null;
+  birthChange: string | null;
 }
 
 const departmentName = (row: CompensationRow) =>
@@ -87,6 +89,7 @@ function ProfileCell({
   from,
   ticked,
   onTick,
+  show = (value) => value,
 }: {
   file: string;
   change: string | null;
@@ -94,14 +97,17 @@ function ProfileCell({
   from: string | null;
   ticked: boolean;
   onTick: (value: boolean) => void;
+  /** How a value is written on screen, e.g. a date. */
+  show?: (value: string) => string;
 }) {
   if (from === null || change === null) {
-    return <span className={file ? "" : "text-faint"}>{file || from || "–"}</span>;
+    const value = from || file;
+    return <span className={value ? "" : "text-faint"}>{value ? show(value) : "–"}</span>;
   }
   return (
     <div>
-      <div className="text-[11px] text-faint line-through">{from || "(ว่าง)"}</div>
-      <div className="font-medium text-amber-800">{change}</div>
+      <div className="text-[11px] text-faint line-through">{from ? show(from) : "(ว่าง)"}</div>
+      <div className="font-medium text-amber-800">{show(change)}</div>
       <label className="mt-0.5 inline-flex items-center gap-1 text-[11px] text-muted">
         <input type="checkbox" checked={ticked} onChange={(e) => onTick(e.target.checked)} />
         อัปเดต
@@ -120,9 +126,11 @@ export default function SalaryImportPage() {
   /** Employee picked by hand per line; "" = none. */
   const [picked, setPicked] = useState<Record<number, string>>({});
   const [ticked, setTicked] = useState<Record<number, boolean>>({});
-  /** Supervisor code picked by hand for a new person, per line. */
-  const [supervisorPicked, setSupervisorPicked] = useState<Record<number, string>>({});
-  /** Lines whose job title and team are to replace the system's. */
+  /** People to add, filled in with the "add" button, per line. */
+  const [drafts, setDrafts] = useState<Record<number, ImportedEmployee>>({});
+  /** The line whose new person is being filled in. */
+  const [adding, setAdding] = useState<number | null>(null);
+  /** Lines whose job title, team and birth date are to replace the system's. */
   const [profileTicked, setProfileTicked] = useState<Record<number, boolean>>({});
   const [effectiveDate, setEffectiveDate] = useState(today());
   const [note, setNote] = useState("");
@@ -144,8 +152,6 @@ export default function SalaryImportPage() {
   const rowsById = new Map(data.rows.map((row) => [row.employee.id, row]));
   const directoryCodes = new Map(data.directory.map((person) => [person.code, person]));
 
-  const newEmployeeOf = (line: ImportMatch["line"], fileCodes: Set<string>, picked: string | undefined) =>
-    newEmployeeFrom(line, { directory: data.directory, levels: data.levels, fileCodes, picked });
   const gradeOf = (row: CompensationRow) => data.structure.grades.find((g) => g.grade === row.grade);
 
   const review = (matches: ImportMatch[], choices: Record<number, string>): Reviewed[] => {
@@ -155,11 +161,6 @@ export default function SalaryImportPage() {
     const uses = new Map<string, number>();
     for (const row of chosen) if (row) uses.set(row.employee.id, (uses.get(row.employee.id) ?? 0) + 1);
 
-    // Codes of people the file adds, so one can be the supervisor of another.
-    const fileCodes = new Set(
-      matches.flatMap((m, i) => (m.kind === "unknownCode" && choices[i] === undefined ? [m.line.code] : [])),
-    );
-
     return matches.map((match, index): Reviewed => {
       const row = chosen[index];
       const { line } = match;
@@ -168,39 +169,33 @@ export default function SalaryImportPage() {
       const notes: string[] = [];
       const fresh = {
         newEmployee: null,
-        supervisorFrom: "" as const,
+        canAdd: false,
         positionChange: null,
         teamChange: null,
+        birthChange: null,
       };
-      if (!row && match.kind === "unknownCode" && choices[index] === undefined) {
-        const known = directoryCodes.get(line.code);
+      if (!row && choices[index] === undefined && match.kind !== "ambiguous") {
+        const known = line.code ? directoryCodes.get(line.code) : undefined;
         if (known) {
           notes.push(
-            `รหัส ${line.code} (${known.name}) มีในระบบแต่ยังไม่มีฝ่าย / Level / หัวหน้า · ให้ IT เพิ่มในหน้าข้อมูลพนักงานก่อน`,
+            `รหัส ${line.code} (${known.name}) มีในระบบแต่ยังไม่มีฝ่าย / Level · ให้ IT เพิ่มในหน้าข้อมูลพนักงานก่อน`,
           );
           return { index, match, row, status: "missing", notes, base, allowance, ...fresh };
         }
-        const { employee, problems, supervisorFrom } = newEmployeeOf(
-          line,
-          fileCodes,
-          supervisorPicked[index],
-        );
-        if (!employee || problems.length) {
-          notes.push(`ไม่พบรหัส ${line.code} ในระบบ · เพิ่มเป็นพนักงานใหม่ไม่ได้: ${problems.join(", ")}`);
-          return {
-            index,
-            match,
-            row,
-            status: "missing",
-            notes,
-            base,
-            allowance,
-            ...fresh,
-            newEmployee: employee,
-          };
+        const draft = drafts[index];
+        if (!draft) {
+          notes.push(
+            line.code
+              ? `ไม่พบรหัส ${line.code} ในระบบ · กด "เพิ่มพนักงานใหม่" หรือเลือกคนเดิม`
+              : `ไม่พบชื่อนี้ในระบบ · กด "เพิ่มพนักงานใหม่" หรือเลือกคนเดิม`,
+          );
+          return { index, match, row, status: "missing", notes, base, allowance, ...fresh, canAdd: true };
         }
-        notes.push("เพิ่มเป็นพนักงานใหม่ (ยังไม่มีรหัสผ่าน เข้าระบบไม่ได้จนกว่า IT จะตั้งให้)");
-        if (supervisorFrom === "auto") notes.push("หัวหน้าเลือกให้อัตโนมัติจากฝ่าย / ทีม ตรวจก่อนนำเข้า");
+        notes.push(
+          draft.password
+            ? "เพิ่มเป็นพนักงานใหม่ พร้อมรหัสผ่าน"
+            : "เพิ่มเป็นพนักงานใหม่ (ยังไม่มีรหัสผ่าน เข้าระบบไม่ได้จนกว่า IT จะตั้งให้)",
+        );
         if (base === null || base <= 0) notes.push("ไม่มี base salary ในไฟล์: เพิ่มเฉพาะข้อมูลพนักงาน");
         return {
           index,
@@ -211,8 +206,8 @@ export default function SalaryImportPage() {
           base,
           allowance,
           ...fresh,
-          newEmployee: employee,
-          supervisorFrom,
+          canAdd: true,
+          newEmployee: draft,
         };
       }
       if (!row) {
@@ -229,9 +224,10 @@ export default function SalaryImportPage() {
       const person = directoryCodes.get(row.employee.code);
       const changes = {
         newEmployee: null,
-        supervisorFrom: "" as const,
+        canAdd: false,
         positionChange: line.position && line.position !== (person?.position ?? "") ? line.position : null,
         teamChange: line.team && line.team !== (person?.team ?? "") ? line.team : null,
+        birthChange: line.birthDate && line.birthDate !== row.employee.birthDate ? line.birthDate : null,
       };
       if (base === null || base <= 0) {
         notes.push("ไม่มี base salary ในไฟล์");
@@ -279,7 +275,7 @@ export default function SalaryImportPage() {
       setParsed({ fileName: file.name, sheet, matches });
       setPicked({});
       setProfileTicked({});
-      setSupervisorPicked({});
+      setDrafts({});
       // New people wait for a tick too: adding someone to the system is a choice.
       setTicked(Object.fromEntries(first.map((r) => [r.index, r.status === "update"])));
       setNote(`นำเข้าจาก ${file.name}`);
@@ -292,15 +288,15 @@ export default function SalaryImportPage() {
   };
 
   const reviewed = parsed ? review(parsed.matches, picked) : [];
-  const supervisorOptions = [
-    ...supervisorChoices(data.directory),
-    ...reviewed
-      .filter((r) => r.newEmployee?.role === "supervisor")
-      .map((r) => ({
-        code: r.newEmployee!.code,
-        label: `${r.newEmployee!.name} (${r.newEmployee!.code}) · ใหม่`,
-      })),
-  ].sort((a, b) => a.label.localeCompare(b.label, "th"));
+  // New people of this import who may lead others, for the dialog.
+  const newSupervisors = (except: number) =>
+    Object.entries(drafts)
+      .filter(([index, draft]) => Number(index) !== except && draft.role !== "employee")
+      .map(([, draft]) => ({ code: draft.code, label: `${draft.name} (${draft.code}) · ใหม่` }));
+  const supervisorName = (code: string) =>
+    data.directory.find((p) => p.code === code)?.name ??
+    Object.values(drafts).find((d) => d.code === code)?.name ??
+    "";
   const randomLines = parsed ? parsed.matches.filter((m) => m.line.random).length : 0;
   const formulaLines = parsed ? parsed.matches.filter((m) => m.line.formula).length : 0;
   const counts = (Object.keys(STATUS) as Status[]).map((status) => ({
@@ -313,9 +309,19 @@ export default function SalaryImportPage() {
   const existing = chosen.filter((r) => r.row !== null);
   const duplicateChosen = new Set(existing.map((r) => r.row!.employee.id)).size !== existing.length;
   const profileChosen = reviewed.filter(
-    (r) => r.row !== null && profileTicked[r.index] && (r.positionChange !== null || r.teamChange !== null),
+    (r) =>
+      r.row !== null &&
+      profileTicked[r.index] &&
+      (r.positionChange !== null || r.teamChange !== null || r.birthChange !== null),
   );
   const newChosen = chosen.filter((r) => r.newEmployee !== null);
+  // A new supervisor left out of the import cannot lead someone who is in it.
+  const newCodesChosen = new Set(newChosen.map((r) => r.newEmployee!.code));
+  const draftCodes = new Set(Object.values(drafts).map((d) => d.code));
+  const bossLeftOut = newChosen.filter(
+    (r) =>
+      draftCodes.has(r.newEmployee!.supervisorCode) && !newCodesChosen.has(r.newEmployee!.supervisorCode),
+  );
   const salaryChosen = chosen.filter((r) => r.base !== null && r.base > 0);
   const actions = chosen.length + profileChosen.length;
   const matchedIds = new Set(reviewed.flatMap((r) => (r.row ? [r.row.employee.id] : [])));
@@ -332,11 +338,18 @@ export default function SalaryImportPage() {
     setProfileTicked({ ...profileTicked, [index]: false });
   };
 
+  const removeDraft = (index: number) => {
+    const rest = { ...drafts };
+    delete rest[index];
+    setDrafts(rest);
+    setTicked({ ...ticked, [index]: false });
+  };
+
   const save = async () => {
     if (!effectiveDate) return;
     const parts = [
-      newChosen.length ? `เพิ่มพนักงานใหม่ ${newChosen.length} คน (ยังไม่มีรหัสผ่าน)` : "",
-      profileChosen.length ? `แก้ตำแหน่ง / ทีม ${profileChosen.length} คน` : "",
+      newChosen.length ? `เพิ่มพนักงานใหม่ ${newChosen.length} คน` : "",
+      profileChosen.length ? `แก้ตำแหน่ง / ทีม / วันเกิด ${profileChosen.length} คน` : "",
       salaryChosen.length ? `เงินเดือน ${salaryChosen.length} คน มีผลวันที่ ${effectiveDate}` : "",
     ].filter(Boolean);
     const agreed = await confirm({
@@ -355,6 +368,7 @@ export default function SalaryImportPage() {
           employeeId: r.row!.employee.id,
           ...(r.positionChange !== null ? { position: r.positionChange } : {}),
           ...(r.teamChange !== null ? { team: r.teamChange } : {}),
+          ...(r.birthChange !== null ? { birthDate: r.birthChange } : {}),
         })),
         items: salaryChosen.map((r) => ({
           ...(r.row ? { employeeId: r.row.employee.id } : { newCode: r.newEmployee!.code }),
@@ -510,13 +524,21 @@ export default function SalaryImportPage() {
                 <button
                   type="button"
                   className="btn-primary"
-                  disabled={saving || actions === 0 || duplicateChosen || !effectiveDate}
+                  disabled={
+                    saving || actions === 0 || duplicateChosen || bossLeftOut.length > 0 || !effectiveDate
+                  }
                   onClick={() => void save()}
                 >
                   {saving ? "กำลังนำเข้า…" : `นำเข้า ${actions} รายการ`}
                 </button>
               </div>
             </header>
+            {bossLeftOut.length > 0 && (
+              <p role="alert" className="border-t border-red-200 bg-red-50 px-5 py-2.5 text-sm text-red-700">
+                หัวหน้าของ {bossLeftOut.map((r) => r.newEmployee!.name).join(", ")}{" "}
+                เป็นพนักงานใหม่ที่ไม่ได้ติ๊กนำเข้า กรุณาติ๊กหัวหน้าด้วย หรือเปลี่ยนหัวหน้า
+              </p>
+            )}
             {duplicateChosen && (
               <p role="alert" className="border-t border-red-200 bg-red-50 px-5 py-2.5 text-sm text-red-700">
                 มีพนักงานคนเดียวกันถูกเลือกมากกว่าหนึ่งแถว กรุณาเลือกเพียงแถวเดียว
@@ -552,7 +574,7 @@ export default function SalaryImportPage() {
                     <th className="text-right">Base Salary</th>
                     <th className="text-right">Allowance</th>
                     <th className="w-28 text-center">สถานะ</th>
-                    <th>หมายเหตุ</th>
+                    <th className="min-w-[16rem]">หมายเหตุ</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -562,17 +584,29 @@ export default function SalaryImportPage() {
                     return (
                       <tr key={r.index} className={STATUS[r.status].row}>
                         <td className="text-center">
-                          <input
-                            type="checkbox"
-                            aria-label={`นำเข้าแถว ${line.sheetRow}`}
-                            disabled={!selectable(r)}
-                            checked={Boolean(ticked[r.index]) && selectable(r)}
-                            onChange={(e) => setTicked({ ...ticked, [r.index]: e.target.checked })}
-                          />
+                          {r.canAdd && !r.newEmployee ? (
+                            <button
+                              type="button"
+                              className="whitespace-nowrap rounded-lg bg-sky-600 px-2.5 py-1 text-xs font-semibold text-white hover:bg-sky-700"
+                              onClick={() => setAdding(r.index)}
+                            >
+                              + เพิ่มพนักงานใหม่
+                            </button>
+                          ) : (
+                            <input
+                              type="checkbox"
+                              aria-label={`นำเข้าแถว ${line.sheetRow}`}
+                              disabled={!selectable(r)}
+                              checked={Boolean(ticked[r.index]) && selectable(r)}
+                              onChange={(e) => setTicked({ ...ticked, [r.index]: e.target.checked })}
+                            />
+                          )}
                         </td>
                         <td className="text-center tabular-nums text-faint">{line.sheetRow}</td>
                         <td className="tabular-nums">
-                          {line.code ? (
+                          {r.newEmployee ? (
+                            <span className="font-medium text-sky-700">{r.newEmployee.code}</span>
+                          ) : line.code ? (
                             <span className="font-medium text-teal-700">{line.code}</span>
                           ) : r.row ? (
                             <span className="text-faint" title="ไฟล์ไม่มีรหัส: รหัสของคนที่จับคู่ในระบบ">
@@ -593,55 +627,34 @@ export default function SalaryImportPage() {
                         <td>
                           {r.newEmployee ? (
                             <>
-                              <div className="font-medium text-sky-700">+ เพิ่มเป็นพนักงานใหม่</div>
-                              <div className="text-[11px] text-faint">
+                              <div className="font-medium text-sky-700">+ {r.newEmployee.name}</div>
+                              <div className="text-[11px] text-muted">
                                 {DEPARTMENTS.find((d) => d.id === r.newEmployee!.departmentId)?.name} ·{" "}
-                                {line.levelName} ·{" "}
+                                {data.levels.find(
+                                  (l) =>
+                                    l.departmentId === r.newEmployee!.departmentId &&
+                                    l.level === r.newEmployee!.level,
+                                )?.name ?? ""}{" "}
+                                · หัวหน้า {supervisorName(r.newEmployee.supervisorCode) || "–"} ·{" "}
+                                {r.newEmployee.password ? "มีรหัสผ่าน" : "ยังไม่มีรหัสผ่าน"}
+                              </div>
+                              <div className="text-[11px]">
                                 <button
                                   type="button"
                                   className="btn-text !px-0"
-                                  onClick={() => pick(r.index, "")}
+                                  onClick={() => setAdding(r.index)}
                                 >
-                                  เลือกคนเดิมแทน
+                                  แก้ไข
+                                </button>{" "}
+                                ·{" "}
+                                <button
+                                  type="button"
+                                  className="btn-text !px-0 text-red-700"
+                                  onClick={() => removeDraft(r.index)}
+                                >
+                                  ไม่เพิ่ม
                                 </button>
                               </div>
-                              <label className="mt-1 flex items-center gap-1.5 text-[11px] text-muted">
-                                หัวหน้า
-                                <select
-                                  className={`field !w-auto max-w-[13rem] !py-0.5 text-[11.5px] ${
-                                    r.newEmployee.supervisorCode ? "" : "!border-red-400"
-                                  }`}
-                                  aria-label={`หัวหน้าของ ${r.newEmployee.name}`}
-                                  value={r.newEmployee.supervisorCode}
-                                  onChange={(e) =>
-                                    setSupervisorPicked({ ...supervisorPicked, [r.index]: e.target.value })
-                                  }
-                                >
-                                  <option value="">– เลือกหัวหน้า</option>
-                                  {supervisorOptions
-                                    .filter((option) => option.code !== r.newEmployee!.code)
-                                    .map((option) => (
-                                      <option key={option.code} value={option.code}>
-                                        {option.label}
-                                      </option>
-                                    ))}
-                                </select>
-                                {r.supervisorFrom && (
-                                  <span
-                                    className={`chip !px-1.5 !py-0 text-[10px] ${
-                                      r.supervisorFrom === "auto"
-                                        ? "bg-amber-50 text-amber-800"
-                                        : "bg-black/5 text-muted"
-                                    }`}
-                                  >
-                                    {r.supervisorFrom === "auto"
-                                      ? "อัตโนมัติ"
-                                      : r.supervisorFrom === "file"
-                                        ? "จากไฟล์"
-                                        : "เลือกเอง"}
-                                  </span>
-                                )}
-                              </label>
                             </>
                           ) : r.match.row && picked[r.index] === undefined ? (
                             <>
@@ -666,39 +679,27 @@ export default function SalaryImportPage() {
                                 aria-label={`เลือกพนักงานสำหรับแถว ${line.sheetRow}`}
                                 value={picked[r.index] ?? ""}
                                 onChange={(e) => {
-                                  if (e.target.value !== "new") return pick(r.index, e.target.value);
-                                  // Back to adding the person from the file.
+                                  if (e.target.value) return pick(r.index, e.target.value);
+                                  // Back to "not in the system", so the person can be added instead.
                                   const rest = { ...picked };
                                   delete rest[r.index];
                                   setPicked(rest);
+                                  setTicked({ ...ticked, [r.index]: false });
                                 }}
                               >
                                 <option value="">– ข้าม / ยังไม่เลือก</option>
-                                {r.match.kind === "unknownCode" && (
-                                  // Nothing picked and still no new person: the file lacks what it takes.
-                                  <option value="new" disabled={picked[r.index] === undefined}>
-                                    {picked[r.index] === undefined
-                                      ? "+ เพิ่มเป็นพนักงานใหม่ไม่ได้ (ข้อมูลในไฟล์ไม่ครบ)"
-                                      : "+ เพิ่มเป็นพนักงานใหม่"}
-                                  </option>
-                                )}
                                 {options.map((row) => (
                                   <option key={row.employee.id} value={row.employee.id}>
                                     {displayName(row.employee)} · {departmentName(row)}
                                   </option>
                                 ))}
                               </select>
-                              {r.match.kind === "unknownCode" && picked[r.index] === undefined && (
-                                <div className="mt-1 text-[11px] font-medium text-red-700">
-                                  {r.notes.join(" · ")}
-                                </div>
-                              )}
                             </>
                           )}
                         </td>
                         <td>
                           <ProfileCell
-                            file={line.position}
+                            file={r.newEmployee ? r.newEmployee.position : line.position}
                             change={r.positionChange}
                             from={r.row ? (directoryCodes.get(r.row.employee.code)?.position ?? "") : null}
                             ticked={Boolean(profileTicked[r.index])}
@@ -707,7 +708,7 @@ export default function SalaryImportPage() {
                         </td>
                         <td>
                           <ProfileCell
-                            file={line.team}
+                            file={r.newEmployee ? r.newEmployee.team : line.team}
                             change={r.teamChange}
                             from={r.row ? (directoryCodes.get(r.row.employee.code)?.team ?? "") : null}
                             ticked={Boolean(profileTicked[r.index])}
@@ -715,11 +716,14 @@ export default function SalaryImportPage() {
                           />
                         </td>
                         <td className="whitespace-nowrap tabular-nums">
-                          {line.birthDate ? (
-                            formatDate(line.birthDate)
-                          ) : (
-                            <span className="text-faint">–</span>
-                          )}
+                          <ProfileCell
+                            file={(r.newEmployee ? r.newEmployee.birthDate : line.birthDate) ?? ""}
+                            change={r.birthChange}
+                            from={r.row ? (r.row.employee.birthDate ?? "") : null}
+                            ticked={Boolean(profileTicked[r.index])}
+                            onTick={(value) => setProfileTicked({ ...profileTicked, [r.index]: value })}
+                            show={formatDate}
+                          />
                         </td>
                         <td className="text-right">
                           <Change from={r.row?.salary?.baseSalary} to={r.base} />
@@ -740,6 +744,29 @@ export default function SalaryImportPage() {
               </table>
             </div>
           </section>
+
+          {adding !== null && (
+            <NewEmployeeDialog
+              initial={drafts[adding] ?? draftFrom(parsed.matches[adding].line, data.directory, data.levels)}
+              sheetRow={parsed.matches[adding].line.sheetRow}
+              directory={data.directory}
+              levels={data.levels}
+              newSupervisors={newSupervisors(adding)}
+              takenCodes={
+                new Set([
+                  ...data.directory.map((p) => p.code),
+                  ...Object.entries(drafts)
+                    .filter(([index]) => Number(index) !== adding)
+                    .map(([, d]) => d.code),
+                ])
+              }
+              onSave={(employee) => {
+                setDrafts({ ...drafts, [adding]: employee });
+                setTicked({ ...ticked, [adding]: true });
+              }}
+              onClose={() => setAdding(null)}
+            />
+          )}
 
           {notInFile.length > 0 && (
             <details className="card overflow-hidden">

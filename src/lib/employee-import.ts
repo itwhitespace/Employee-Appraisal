@@ -1,6 +1,6 @@
 import { APPRAISAL_TYPES, DEPARTMENTS } from "./constants";
 import type { ImportLine } from "./salary-import";
-import type { ImportedEmployee, JobLevel, User } from "./types";
+import type { DepartmentId, ImportedEmployee, JobLevel, Level, Role, User } from "./types";
 
 /**
  * Turning a line of the employee workbook into a person for the system: used by the salary
@@ -12,9 +12,6 @@ export type Person = Pick<
   User,
   "id" | "code" | "name" | "role" | "position" | "team" | "departmentId" | "supervisorId"
 >;
-
-/** Where a new person's supervisor came from; "" when none could be found. */
-export type SupervisorFrom = "picked" | "file" | "auto" | "";
 
 /** For comparing names of departments, levels and roles as typed in a file. */
 export const squash = (text: string) => text.toLowerCase().replace(/[\s–-]+/g, "");
@@ -56,68 +53,74 @@ export const supervisorCodeOf = (text: string) =>
 export const appraisalTypeOf = (text: string) =>
   APPRAISAL_TYPES.find((t) => squash(t) === squash(text)) ?? "Annual";
 
+/** A new person as filled in on the import page: department and level may still be missing. */
+export type NewPersonForm = Omit<ImportedEmployee, "departmentId" | "level"> & {
+  departmentId: DepartmentId | null;
+  level: Level | null;
+};
+
+const roleOf = (text: string): Role => {
+  const role = squash(text);
+  if (role === "admin" || role === "แอดมิน") return "admin";
+  if (role === "หัวหน้า" || role === "ผู้ประเมิน" || role === "supervisor") return "supervisor";
+  return "employee";
+};
+
 /**
- * A new person from a line, or what is missing to make one. The supervisor is the one picked on
- * screen, else the code in the file, else whom the department usually reports to. When only the
- * supervisor is missing the person is still returned (with no supervisor), so one can be picked.
+ * What the file says about someone not in the system, to start the form with. The supervisor
+ * is the code in the file when it is known, else whom the department usually reports to.
  */
-export function newEmployeeFrom(
-  line: ImportLine,
-  context: { directory: Person[]; levels: JobLevel[]; fileCodes: Set<string>; picked?: string },
-): { employee: ImportedEmployee | null; problems: string[]; supervisorFrom: SupervisorFrom } {
-  const { directory, levels, fileCodes, picked } = context;
-  const problems: string[] = [];
-  if (!/^\d{5}$/.test(line.code)) problems.push("รหัสต้องเป็นตัวเลข 5 หลัก");
-  if (!line.thaiName) problems.push("ไม่มีชื่อ");
-  const role = squash(line.role);
-  const roleOf =
-    role === "" || role === "พนักงาน" || role === "employee"
-      ? "employee"
-      : role === "หัวหน้า" || role === "ผู้ประเมิน" || role === "supervisor"
-        ? "supervisor"
-        : null;
-  if (!roleOf) {
-    problems.push(
-      role === "admin" || role === "แอดมิน"
-        ? "นำเข้าสิทธิ์ Admin ไม่ได้ (IT ตั้งในหน้าข้อมูลพนักงาน)"
-        : `ไม่รู้จักสิทธิ์ ${line.role}`,
-    );
-  }
+export function draftFrom(line: ImportLine, directory: Person[], levels: JobLevel[]): NewPersonForm {
   const { department, level } = departmentAndLevel(line, levels);
-  if (!department) problems.push(line.department ? `ไม่พบฝ่าย ${line.department}` : "ไม่มีฝ่าย");
-  if (department && !level)
-    problems.push(line.levelName ? `ไม่พบ ${line.levelName} ในฝ่ายนี้` : "ไม่มี Level");
-
   const codes = new Set(directory.map((person) => person.code));
-  const known = (code: string) => code !== "" && (codes.has(code) || fileCodes.has(code));
   const fromFile = supervisorCodeOf(line.supervisor);
-  const fileOk = known(fromFile);
-  const auto = department ? usualSupervisor(directory, department.id, line.team) : "";
-  const supervisorCode = picked ?? (fileOk ? fromFile : auto);
-  const supervisorFrom: SupervisorFrom = picked ? "picked" : fileOk ? "file" : auto ? "auto" : "";
-  if (!known(supervisorCode)) problems.push("ยังไม่มีหัวหน้า: เลือกจากรายการ");
+  return {
+    code: /^\d{5}$/.test(line.code) ? line.code : "",
+    name: line.thaiName,
+    nickname: line.nickname,
+    role: line.role ? roleOf(line.role) : "employee",
+    departmentId: department?.id ?? null,
+    level: level?.level ?? null,
+    supervisorCode: codes.has(fromFile)
+      ? fromFile
+      : department
+        ? usualSupervisor(directory, department.id, line.team)
+        : "",
+    password: "",
+    position: line.position,
+    team: line.team,
+    startDate: line.startDate,
+    levelSince: line.levelSince,
+    birthDate: line.birthDate,
+    appraisalType: appraisalTypeOf(line.appraisalType),
+  };
+}
 
-  const build = (supervisor: string): ImportedEmployee | null =>
-    roleOf && department && level
-      ? {
-          code: line.code,
-          name: line.thaiName,
-          nickname: line.nickname,
-          role: roleOf,
-          departmentId: department.id,
-          level: level.level,
-          supervisorCode: supervisor,
-          position: line.position,
-          team: line.team,
-          startDate: line.startDate,
-          levelSince: line.levelSince,
-          birthDate: line.birthDate,
-          appraisalType: appraisalTypeOf(line.appraisalType),
-        }
-      : null;
-  if (problems.length === 0) return { employee: build(supervisorCode), problems, supervisorFrom };
-  const onlySupervisor = problems.length === 1 && !known(supervisorCode);
-  return { employee: onlySupervisor ? build("") : null, problems, supervisorFrom };
+/**
+ * What still stops the person from being added; empty when the form is complete.
+ * `takenCodes`: codes in the system and of the other new people of this import.
+ * `supervisorCodes`: who may be named as the supervisor.
+ */
+export function draftProblems(
+  form: NewPersonForm,
+  {
+    levels,
+    takenCodes,
+    supervisorCodes,
+  }: { levels: JobLevel[]; takenCodes: Set<string>; supervisorCodes: Set<string> },
+): Partial<Record<"code" | "name" | "departmentId" | "level" | "supervisorCode" | "password", string>> {
+  const problems: ReturnType<typeof draftProblems> = {};
+  if (!/^\d{5}$/.test(form.code)) problems.code = "รหัสต้องเป็นตัวเลข 5 หลัก";
+  else if (takenCodes.has(form.code)) problems.code = `รหัส ${form.code} มีอยู่แล้ว`;
+  if (!form.name.trim()) problems.name = "กรุณากรอกชื่อ-สกุล";
+  if (!form.departmentId) problems.departmentId = "กรุณาเลือกฝ่าย";
+  if (!form.level || !levels.some((l) => l.departmentId === form.departmentId && l.level === form.level))
+    problems.level = "กรุณาเลือก Level";
+  if (form.supervisorCode === form.code && form.code) problems.supervisorCode = "เป็นหัวหน้าของตัวเองไม่ได้";
+  else if (form.supervisorCode ? !supervisorCodes.has(form.supervisorCode) : form.role !== "admin")
+    problems.supervisorCode = "กรุณาเลือกหัวหน้า";
+  if (form.password && !/^\d{5}$/.test(form.password)) problems.password = "ต้องเป็นตัวเลข 5 หลัก";
+  return problems;
 }
 
 /** Who can be picked as a supervisor: anyone who is not a plain employee or already leads someone. */

@@ -1,4 +1,4 @@
-import { isEmployee } from "@/lib/evaluation";
+import { onPayScale } from "@/lib/evaluation";
 import { compensationOverview } from "@/lib/server/compensation";
 import { listLevels, listUsers, logCompensation, saveSalaries, updateEmployeeProfile } from "@/lib/server/db";
 import { asList, asObject, checkNewEmployees, createNewEmployees, text } from "@/lib/server/employee-import";
@@ -15,12 +15,12 @@ export const dynamic = "force-dynamic";
  * Body: {
  *   effectiveDate, note,
  *   newEmployees: [{ code, name, nickname, role, departmentId, level, supervisorCode, position, team,
- *                    startDate, levelSince, appraisalType }],
- *   profileUpdates: [{ employeeId, position?, team? }],
+ *                    startDate, levelSince, birthDate, appraisalType, password }],
+ *   profileUpdates: [{ employeeId, position?, team?, birthDate? }],
  *   items: [{ employeeId | newCode, baseSalary, allowance }],
  * }
- * New people are employees or supervisors only, never admin, never with compensation access,
- * and have no password: they cannot sign in until admin sets one.
+ * New people may have any role and a password (last five digits of the national ID), never
+ * compensation access: that is granted only in the database.
  */
 export async function POST(request: Request) {
   return handle(async () => {
@@ -39,9 +39,15 @@ export async function POST(request: Request) {
       .map((raw) => {
         const employee = users.find((u) => u.id === raw.employeeId);
         if (!employee) throw new HttpError(400, "มีพนักงานที่ไม่พบในระบบ กรุณาโหลดหน้าใหม่");
-        const profile: { position?: string; team?: string } = {};
+        const profile: { position?: string; team?: string; birthDate?: string } = {};
         if (typeof raw.position === "string") profile.position = text(raw.position);
         if (typeof raw.team === "string") profile.team = text(raw.team);
+        if (typeof raw.birthDate === "string") {
+          if (!/^\d{4}-\d{2}-\d{2}$/.test(raw.birthDate) || Number.isNaN(Date.parse(raw.birthDate))) {
+            throw new HttpError(400, `${employee.name}: วันเกิดไม่ถูกต้อง`);
+          }
+          profile.birthDate = raw.birthDate;
+        }
         return { employee, profile };
       });
 
@@ -54,7 +60,7 @@ export async function POST(request: Request) {
         const newCode = text(raw.newCode, 5);
         const employeeId = typeof raw.employeeId === "string" ? raw.employeeId : "";
         const key = newCode ? `new:${newCode}` : employeeId;
-        if (newCode ? !newCodes.has(newCode) : !users.some((u) => u.id === employeeId && isEmployee(u))) {
+        if (newCode ? !newCodes.has(newCode) : !users.some((u) => u.id === employeeId && onPayScale(u))) {
           throw new HttpError(400, "มีพนักงานที่ไม่พบในระบบ กรุณาโหลดหน้าใหม่");
         }
         if (seen.has(key)) throw new HttpError(400, "มีพนักงานคนเดียวกันถูกเลือกมากกว่าหนึ่งแถว");
@@ -84,7 +90,7 @@ export async function POST(request: Request) {
     if (updates.length) {
       await logCompensation(
         user.id,
-        `แก้ตำแหน่ง/ทีมจาก Excel เมนู ฐานเงินเดือนพนักงาน >>> ${updates.map((u) => u.employee.name).join(", ")}`,
+        `แก้ตำแหน่ง/ทีม/วันเกิดจาก Excel เมนู ฐานเงินเดือนพนักงาน >>> ${updates.map((u) => u.employee.name).join(", ")}`,
       );
     }
 

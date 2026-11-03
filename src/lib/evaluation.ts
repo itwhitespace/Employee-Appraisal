@@ -16,6 +16,14 @@ export function isEmployee(user: User): user is Employee {
   return user.departmentId !== null && user.level !== null && user.supervisorId !== null;
 }
 
+/**
+ * Has a department and level, so a salary grade: everyone on the compensation pages, including
+ * people with no appraisal form because they report to no one (the MD).
+ */
+export function onPayScale(user: User): user is User & { departmentId: DepartmentId; level: Level } {
+  return user.departmentId !== null && user.level !== null;
+}
+
 /** Position of a department in DEPARTMENTS; no department comes last. */
 export function departmentRank(departmentId: DepartmentId | null): number {
   const index = DEPARTMENTS.findIndex((d) => d.id === departmentId);
@@ -64,8 +72,7 @@ export function createEmptyEvaluation(employeeId: string, cycle: string): Evalua
 }
 
 /** The supervisor has confirmed the result (approved or still waiting for it). */
-export const isConfirmed = (status: string): boolean =>
-  status === "completed" || status === "approved";
+export const isConfirmed = (status: string): boolean => status === "completed" || status === "approved";
 
 /** The copy an employee gets before the supervisor's result is confirmed. */
 export function withoutSupervisorInput(evaluation: Evaluation): Evaluation {
@@ -114,8 +121,7 @@ export function validateTemplate(template: FormTemplate): string | null {
   for (const key of ALL_SECTIONS) {
     const questions = template.sections[key];
     if (questions.length === 0) return `หมวด ${key} ต้องมีอย่างน้อย 1 ข้อ`;
-    if (questions.some((q) => q.title.trim() === ""))
-      return `หมวด ${key} มีข้อที่ยังไม่ได้ใส่หัวข้อประเมิน`;
+    if (questions.some((q) => q.title.trim() === "")) return `หมวด ${key} มีข้อที่ยังไม่ได้ใส่หัวข้อประเมิน`;
   }
   return null;
 }

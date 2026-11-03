@@ -2,7 +2,8 @@ import "server-only";
 import type { EmployeeInput, JobLevel, User } from "../types";
 import { createUser, updateUser } from "./db";
 import { HttpError } from "./errors";
-import { parseEmployeeInput } from "./validate";
+import { hashPassword } from "./password";
+import { parseEmployeeInput, parsePassword } from "./validate";
 
 /**
  * People added and changed from an Excel file, shared by the salary import (MD) and the
@@ -18,21 +19,23 @@ export const text = (value: unknown, max = 200) =>
 
 export interface NewPersonDraft {
   input: EmployeeInput;
+  /** "" only for admin, who may report to no one. */
   supervisorCode: string;
+  passwordHash: string | null;
 }
 
 /**
- * People new to the system. Employees or supervisors only, never admin, never with
- * compensation access, and with no password: they cannot sign in until admin sets one.
+ * People new to the system, as filled in on the import page: any role, never with
+ * compensation access (granted only in the database). Without a password they cannot sign in
+ * until admin sets one.
  */
 export function checkNewEmployees(value: unknown, users: User[], levels: JobLevel[]): NewPersonDraft[] {
   const byCode = new Set(users.map((u) => u.code));
   const rawNew = asList(value).slice(0, 500).map(asObject);
   const newCodes = new Set<string>();
   return rawNew.map((raw) => {
-    const role = raw.role === "supervisor" ? "supervisor" : raw.role === "employee" ? "employee" : null;
-    if (!role) throw new HttpError(400, "นำเข้าได้เฉพาะสิทธิ์พนักงานหรือหัวหน้า");
-    const input = parseEmployeeInput({ ...raw, role, supervisorId: null });
+    const input = parseEmployeeInput({ ...raw, supervisorId: null });
+    const password = parsePassword(raw);
     if (byCode.has(input.code)) throw new HttpError(409, `รหัสพนักงาน ${input.code} มีอยู่ในระบบแล้ว`);
     if (newCodes.has(input.code)) throw new HttpError(400, `รหัส ${input.code} ซ้ำกันในไฟล์`);
     newCodes.add(input.code);
@@ -42,10 +45,16 @@ export function checkNewEmployees(value: unknown, users: User[], levels: JobLeve
       throw new HttpError(400, `${input.name}: ไม่พบ Level นี้ในฝ่ายที่ระบุ`);
     }
     const supervisorCode = text(raw.supervisorCode, 5);
-    if (!byCode.has(supervisorCode) && !rawNew.some((other) => text(other.code, 5) === supervisorCode)) {
+    const bossFree = supervisorCode === "" && input.role === "admin";
+    if (supervisorCode === input.code) throw new HttpError(400, `${input.name}: เป็นหัวหน้าของตัวเองไม่ได้`);
+    if (
+      !bossFree &&
+      !byCode.has(supervisorCode) &&
+      !rawNew.some((other) => text(other.code, 5) === supervisorCode)
+    ) {
       throw new HttpError(400, `${input.name}: ไม่พบหัวหน้ารหัส ${supervisorCode || "–"}`);
     }
-    return { input, supervisorCode };
+    return { input, supervisorCode, passwordHash: password ? hashPassword(password) : null };
   });
 }
 
@@ -59,13 +68,14 @@ export async function createNewEmployees(
   const idOf = (code: string) => created.get(code) ?? byCode.get(code) ?? null;
   let pending = drafts;
   while (pending.length) {
-    const ready = pending.filter((d) => idOf(d.supervisorCode));
+    const ready = pending.filter((d) => d.supervisorCode === "" || idOf(d.supervisorCode));
     if (ready.length === 0) {
       throw new HttpError(400, "หัวหน้าของพนักงานใหม่อ้างถึงกันเป็นวง กรุณาตรวจคอลัมน์หัวหน้า");
     }
     for (const draft of ready) {
-      const input: EmployeeInput = { ...draft.input, supervisorId: idOf(draft.supervisorCode) };
-      created.set(input.code, (await createUser(input, null)).id);
+      const supervisorId = draft.supervisorCode ? idOf(draft.supervisorCode) : null;
+      const input: EmployeeInput = { ...draft.input, supervisorId };
+      created.set(input.code, (await createUser(input, draft.passwordHash)).id);
     }
     pending = pending.filter((d) => !ready.includes(d));
   }
