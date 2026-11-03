@@ -118,6 +118,11 @@ export interface User {
    * database, never from the app, so no admin can give it to themselves.
    */
   compensationAccess: boolean;
+  /**
+   * Sees the compensation pages with made-up pay (the `_demo` tables) and can never reach the
+   * real figures; set in the database for IT. Implies compensationAccess.
+   */
+  compensationSandbox: boolean;
 }
 
 /** A user who has an appraisal form. */
@@ -281,7 +286,7 @@ export type EvaluationAction =
   "save" | "submit_self" | "send_back" | "confirm" | "reopen" | "approve" | "unapprove";
 
 /** Fields admin can set when adding or editing an employee. */
-export type EmployeeInput = Omit<User, "id" | "compensationAccess">;
+export type EmployeeInput = Omit<User, "id" | "compensationAccess" | "compensationSandbox">;
 
 /* ------------------------------------------------------------------ */
 /* Compensation                                                        */

@@ -12,6 +12,7 @@ import {
   listSalaryHistory,
   listTestScores,
   listUsers,
+  type PayTables,
 } from "./db";
 
 /** Today in Thailand, as yyyy-mm-dd. */
@@ -19,17 +20,30 @@ export const todayInThailand = (): string =>
   new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Bangkok" });
 
 /**
- * Everyone with a department and level (with or without an appraisal form, so the MD too),
- * with their pay, salary grade and approved Performance Score of the current cycle.
+ * Made-up scores for the sandbox, the same for a person every time (from their id), so the
+ * merit and bonus pages have figures to try without touching the shared test scores.
  */
-export async function compensationOverview(): Promise<CompensationOverview> {
+function demoScores(employeeId: string): { performance: number; potential: number } {
+  let hash = 2166136261;
+  for (const ch of employeeId) hash = Math.imul(hash ^ ch.charCodeAt(0), 16777619) >>> 0;
+  const performance = 2 + (hash % 281) / 100; // 2.00 … 4.80
+  const potential = 2 + ((hash >>> 9) % 301) / 100; // 2.00 … 5.00
+  return { performance, potential };
+}
+
+/**
+ * Everyone with a department and level (with or without an appraisal form, so the MD too),
+ * with their pay (from the tables of `pay`), salary grade and approved Performance Score of the
+ * current cycle. In the sandbox, people without an approved appraisal get made-up scores.
+ */
+export async function compensationOverview(pay: PayTables): Promise<CompensationOverview> {
   const [{ cycle }, users, levels, structure, salaries, testScores] = await Promise.all([
     resolveCycle(),
     listUsers(),
     listLevels(),
     getSalaryStructure(),
-    listSalaryHistory(),
-    listTestScores(),
+    listSalaryHistory(pay),
+    pay.sandbox ? Promise.resolve({} as Awaited<ReturnType<typeof listTestScores>>) : listTestScores(),
   ]);
   const [templates, evaluations] = await Promise.all([getTemplates(levels), listEvaluations(cycle.id)]);
   const today = todayInThailand();
@@ -69,11 +83,13 @@ export async function compensationOverview(): Promise<CompensationOverview> {
               performanceIsTest: false,
             };
           })()
-        : {
-            performance: testScores[user.id]?.performance ?? null,
-            potential: testScores[user.id]?.potential ?? null,
-            performanceIsTest: testScores[user.id] !== undefined,
-          }),
+        : pay.sandbox
+          ? { ...demoScores(user.id), performanceIsTest: true }
+          : {
+              performance: testScores[user.id]?.performance ?? null,
+              potential: testScores[user.id]?.potential ?? null,
+              performanceIsTest: testScores[user.id] !== undefined,
+            }),
     };
   });
   const directory = users.map(({ id, code, name, role, position, team, departmentId, supervisorId }) => ({

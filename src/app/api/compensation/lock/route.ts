@@ -4,6 +4,7 @@ import {
   getLoginRecord,
   logCompensation,
   setCompensationPasswordHash,
+  payTablesOf,
 } from "@/lib/server/db";
 import { handle, HttpError, readJson, requireCompensationAccess } from "@/lib/server/http";
 import { hashPassword, verifyPassword } from "@/lib/server/password";
@@ -19,6 +20,7 @@ const WINDOW_MINUTES = 15;
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationAccess();
+    const pay = payTablesOf(user);
     return {
       hasPassword: (await getCompensationPasswordHash(user.id)) !== null,
       unlocked: isCompensationUnlocked(user.id),
@@ -37,22 +39,23 @@ export async function GET() {
 export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireCompensationAccess();
+    const pay = payTablesOf(user);
     const body = await readJson(request);
     const text = (value: unknown) => (typeof value === "string" ? value : "");
 
     if (body.action === "lock") {
       lockCompensation();
-      await logCompensation(user.id, "ล็อกเมนูค่าตอบแทน");
+      await logCompensation(pay, user.id, "ล็อกเมนูค่าตอบแทน");
       return { ok: true };
     }
 
     const since = new Date(Date.now() - WINDOW_MINUTES * 60_000).toISOString();
-    if ((await countRecentActions(user.id, WRONG, since)) >= MAX_TRIES) {
+    if ((await countRecentActions(pay, user.id, WRONG, since)) >= MAX_TRIES) {
       throw new HttpError(429, `ใส่รหัสผ่านผิดหลายครั้ง กรุณารอ ${WINDOW_MINUTES} นาทีแล้วลองใหม่`);
     }
     const stored = await getCompensationPasswordHash(user.id);
     const refuse = async (detail: string) => {
-      await logCompensation(user.id, `${WRONG} (${detail})`);
+      await logCompensation(pay, user.id, `${WRONG} (${detail})`);
       throw new HttpError(401, "รหัสผ่านไม่ถูกต้อง");
     };
     // An 8-digit PIN: five wrong tries in 15 minutes stop guessing.
@@ -64,7 +67,7 @@ export async function POST(request: Request) {
       if (!stored) throw new HttpError(409, "ยังไม่ได้ตั้งรหัสผ่านค่าตอบแทน");
       if (!verifyPassword(text(body.password), stored)) await refuse("ปลดล็อก");
       unlockCompensation(user.id);
-      await logCompensation(user.id, "ปลดล็อกเมนูค่าตอบแทน");
+      await logCompensation(pay, user.id, "ปลดล็อกเมนูค่าตอบแทน");
       return { ok: true };
     }
 
@@ -80,7 +83,7 @@ export async function POST(request: Request) {
       }
       await setCompensationPasswordHash(user.id, hashPassword(password));
       unlockCompensation(user.id);
-      await logCompensation(user.id, "ตั้งรหัสผ่านค่าตอบแทน");
+      await logCompensation(pay, user.id, "ตั้งรหัสผ่านค่าตอบแทน");
       return { ok: true };
     }
 
@@ -90,7 +93,7 @@ export async function POST(request: Request) {
       checkNew(password);
       await setCompensationPasswordHash(user.id, hashPassword(password));
       unlockCompensation(user.id);
-      await logCompensation(user.id, "เปลี่ยนรหัสผ่านค่าตอบแทน");
+      await logCompensation(pay, user.id, "เปลี่ยนรหัสผ่านค่าตอบแทน");
       return { ok: true };
     }
 

@@ -1,14 +1,14 @@
 import { compensationOverview } from "@/lib/server/compensation";
-import { getMeritPlan, logCompensation, saveMeritPlan } from "@/lib/server/db";
+import { getMeritPlan, logCompensation, saveMeritPlan, payTablesOf, type PayTables } from "@/lib/server/db";
 import { handle, readJson, requireCompensationUser } from "@/lib/server/http";
 import { parseMeritPlan } from "@/lib/server/validate";
 import type { MeritData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-async function meritData(): Promise<MeritData> {
-  const overview = await compensationOverview();
-  const saved = await getMeritPlan(overview.cycleId);
+async function meritData(pay: PayTables): Promise<MeritData> {
+  const overview = await compensationOverview(pay);
+  const saved = await getMeritPlan(pay, overview.cycleId);
   return { overview, plan: saved?.plan ?? null, updatedAt: saved?.updatedAt ?? null };
 }
 
@@ -16,8 +16,9 @@ async function meritData(): Promise<MeritData> {
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationUser();
-    await logCompensation(user.id, "เปิดดูเมนู ปรับเงินเดือนประจำปี");
-    return meritData();
+    const pay = payTablesOf(user);
+    await logCompensation(pay, user.id, "เปิดดูเมนู ปรับเงินเดือนประจำปี");
+    return meritData(pay);
   });
 }
 
@@ -25,12 +26,13 @@ export async function GET() {
 export async function PUT(request: Request) {
   return handle(async () => {
     const user = await requireCompensationUser();
+    const pay = payTablesOf(user);
     const plan = parseMeritPlan(await readJson(request));
-    const { cycleId } = (await meritData()).overview;
-    await saveMeritPlan(cycleId, plan, user.id);
+    const { cycleId } = (await meritData(pay)).overview;
+    await saveMeritPlan(pay, cycleId, plan, user.id);
     const budget =
       plan.budgetAmount !== null ? `${plan.budgetAmount.toLocaleString()} บาท` : `${plan.targetPercent}%`;
-    await logCompensation(user.id, `บันทึกแผน เมนู ปรับเงินเดือนประจำปี ${cycleId} (งบ ${budget})`);
-    return meritData();
+    await logCompensation(pay, user.id, `บันทึกแผน เมนู ปรับเงินเดือนประจำปี ${cycleId} (งบ ${budget})`);
+    return meritData(pay);
   });
 }

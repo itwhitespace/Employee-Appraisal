@@ -123,6 +123,8 @@ export const api = {
     request<{ ok: true }>("/api/compensation/audit", "POST", { event: "salary-view", employeeId }),
 
   salaries: () => request<CompensationOverview>("/api/compensation/salaries"),
+  /** Sandbox only: new made-up salaries for everyone. */
+  drawDemoSalaries: () => request<CompensationOverview>("/api/compensation/demo", "POST"),
   saveSalary: (employeeId: string, record: SalaryRecord) =>
     request<CompensationOverview>(`/api/compensation/salaries/${employeeId}`, "PUT", record),
   /** Saves an import: new people, job titles and teams, then salaries. See the route for the body. */

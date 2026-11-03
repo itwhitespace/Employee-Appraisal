@@ -5,6 +5,7 @@ import { useConfirm } from "@/components/ConfirmDialog";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 import IconButton from "@/components/IconButton";
 import { api, errorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import type { JobLevel, SalaryGrade, SalaryStructure } from "@/lib/types";
 
 interface Notice {
@@ -60,6 +61,8 @@ function spread(grade: GradeDraft): string {
 
 export default function SalaryStructurePage() {
   const confirm = useConfirm();
+  // The structure is shared with the MD: the sandbox only looks.
+  const sandbox = useAuth().user?.compensationSandbox === true;
   const [grades, setGrades] = useState<GradeDraft[] | null>(null);
   const [levels, setLevels] = useState<JobLevel[]>([]);
   const [dirty, setDirty] = useState(false);
@@ -167,7 +170,13 @@ export default function SalaryStructurePage() {
               {notice.text}
             </span>
           )}
-          <button type="button" className="btn-primary" disabled={!dirty || saving} onClick={() => void save()}>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={sandbox || !dirty || saving}
+            title={sandbox ? "โหมดทดสอบ: บันทึกไม่ได้ เพราะกระบอกเงินเดือนใช้ร่วมกับ MD" : undefined}
+            onClick={() => void save()}
+          >
             {saving ? "กำลังบันทึก…" : "บันทึก"}
           </button>
         </div>
@@ -177,7 +186,8 @@ export default function SalaryStructurePage() {
         <header className="border-l-4 border-teal-500 px-5 py-4">
           <h2 className="text-[17px] font-semibold tracking-tight">กระบอกเงินเดือน</h2>
           <p className="text-xs text-muted">
-            Grade 1 คือกระบอกสูงสุด · จำนวนเงินเป็นบาทต่อเดือน · ทุกฝ่ายที่อยู่ Level เดียวกันใช้กระบอกเดียวกัน
+            Grade 1 คือกระบอกสูงสุด · จำนวนเงินเป็นบาทต่อเดือน · ทุกฝ่ายที่อยู่ Level
+            เดียวกันใช้กระบอกเดียวกัน
           </p>
         </header>
         <div className="overflow-x-auto border-t border-line">
@@ -294,7 +304,6 @@ export default function SalaryStructurePage() {
           </button>
         </div>
       </section>
-
     </div>
   );
 }

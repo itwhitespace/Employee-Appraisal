@@ -1,6 +1,13 @@
 import { onPayScale } from "@/lib/evaluation";
 import { compensationOverview } from "@/lib/server/compensation";
-import { listLevels, listUsers, logCompensation, saveSalaries, updateEmployeeProfile } from "@/lib/server/db";
+import {
+  listLevels,
+  listUsers,
+  logCompensation,
+  saveSalaries,
+  updateEmployeeProfile,
+  payTablesOf,
+} from "@/lib/server/db";
 import { asList, asObject, checkNewEmployees, createNewEmployees, text } from "@/lib/server/employee-import";
 import { handle, HttpError, readJson, requireCompensationUser } from "@/lib/server/http";
 import { parseSalaryRecord } from "@/lib/server/validate";
@@ -25,6 +32,9 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireCompensationUser();
+    const pay = payTablesOf(user);
+    // The import also adds and changes employees, who are shared with the real pages.
+    if (pay.sandbox) throw new HttpError(403, "โหมดทดสอบ: บันทึกไม่ได้ (ข้อมูลจริงใช้ร่วมกับ MD)");
     const body = await readJson(request);
     const [users, levels] = await Promise.all([listUsers(), listLevels()]);
 
@@ -81,6 +91,7 @@ export async function POST(request: Request) {
     const created = await createNewEmployees(drafts, users);
     if (drafts.length) {
       await logCompensation(
+        pay,
         user.id,
         `เพิ่มพนักงานใหม่จาก Excel เมนู ฐานเงินเดือนพนักงาน >>> ${drafts.map((d) => `${d.input.name} (${d.input.code})`).join(", ")}`,
       );
@@ -89,6 +100,7 @@ export async function POST(request: Request) {
     for (const { employee, profile } of updates) await updateEmployeeProfile(employee.id, profile);
     if (updates.length) {
       await logCompensation(
+        pay,
         user.id,
         `แก้ตำแหน่ง/ทีม/วันเกิดจาก Excel เมนู ฐานเงินเดือนพนักงาน >>> ${updates.map((u) => u.employee.name).join(", ")}`,
       );
@@ -96,6 +108,7 @@ export async function POST(request: Request) {
 
     if (salaryItems.length) {
       await saveSalaries(
+        pay,
         salaryItems.map((item) => ({
           employeeId: item.newCode ? created.get(item.newCode)! : item.employeeId,
           record: item.record,
@@ -103,10 +116,11 @@ export async function POST(request: Request) {
         user.id,
       );
       await logCompensation(
+        pay,
         user.id,
         `นำเข้า Excel เมนู ฐานเงินเดือนพนักงาน ${salaryItems.length} คน (มีผล ${salaryItems[0].record.effectiveDate})`,
       );
     }
-    return compensationOverview();
+    return compensationOverview(pay);
   });
 }

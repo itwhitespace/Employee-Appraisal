@@ -302,6 +302,15 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           inCompensation ? "compensation max-w-[1920px] sm:px-6" : "max-w-[1400px] sm:px-8"
         }`}
       >
+        {inCompensation && user.compensationSandbox && (
+          <div
+            role="note"
+            className="mb-5 rounded-xl border border-orange-300 bg-orange-100 px-5 py-2.5 text-sm font-medium text-orange-900"
+          >
+            โหมดทดสอบ · เงินเดือนและคะแนนเป็นตัวเลขสมมุติ ไม่ใช่ข้อมูลจริง · รายชื่อพนักงานเป็นคนจริง ·
+            บันทึกได้เฉพาะในโหมดทดสอบ (ไม่กระทบข้อมูลของ MD)
+          </div>
+        )}
         {inCompensation ? <CompensationGate>{children}</CompensationGate> : children}
       </main>
     </div>

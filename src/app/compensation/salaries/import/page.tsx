@@ -6,6 +6,7 @@ import { today } from "@/components/CompensationParts";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 import { api, errorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { baht } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
 import NewEmployeeDialog from "@/components/NewEmployeeDialog";
@@ -133,6 +134,8 @@ function ProfileCell({
 
 export default function SalaryImportPage() {
   const confirm = useConfirm();
+  // The sandbox walks through every step, but cannot save: employees are shared with the MD.
+  const sandbox = useAuth().user?.compensationSandbox === true;
   const [data, setData] = useState<CompensationOverview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [parsed, setParsed] = useState<Parsed | null>(null);
@@ -540,12 +543,25 @@ export default function SalaryImportPage() {
                   type="button"
                   className="btn-primary"
                   disabled={
-                    saving || actions === 0 || duplicateChosen || bossLeftOut.length > 0 || !effectiveDate
+                    sandbox ||
+                    saving ||
+                    actions === 0 ||
+                    duplicateChosen ||
+                    bossLeftOut.length > 0 ||
+                    !effectiveDate
+                  }
+                  title={
+                    sandbox
+                      ? "โหมดทดสอบ: บันทึกไม่ได้ เพราะข้อมูลพนักงานและกระบอกเงินเดือนใช้ร่วมกับ MD"
+                      : undefined
                   }
                   onClick={() => void save()}
                 >
                   {saving ? "กำลังนำเข้า…" : `นำเข้า ${actions} รายการ`}
                 </button>
+                {sandbox && (
+                  <span className="text-xs font-medium text-orange-700">โหมดทดสอบ: ปุ่มนำเข้าใช้ไม่ได้</span>
+                )}
               </div>
             </header>
             {bossLeftOut.length > 0 && (

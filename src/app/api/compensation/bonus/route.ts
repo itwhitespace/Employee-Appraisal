@@ -1,14 +1,14 @@
 import { compensationOverview } from "@/lib/server/compensation";
-import { getBonusPlan, logCompensation, saveBonusPlan } from "@/lib/server/db";
+import { getBonusPlan, logCompensation, saveBonusPlan, payTablesOf, type PayTables } from "@/lib/server/db";
 import { handle, readJson, requireCompensationUser } from "@/lib/server/http";
 import { parseBonusPlan } from "@/lib/server/validate";
 import type { BonusData } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
 
-async function bonusData(): Promise<BonusData> {
-  const overview = await compensationOverview();
-  const saved = await getBonusPlan(overview.cycleId);
+async function bonusData(pay: PayTables): Promise<BonusData> {
+  const overview = await compensationOverview(pay);
+  const saved = await getBonusPlan(pay, overview.cycleId);
   return { overview, plan: saved?.plan ?? null, updatedAt: saved?.updatedAt ?? null };
 }
 
@@ -16,8 +16,9 @@ async function bonusData(): Promise<BonusData> {
 export async function GET() {
   return handle(async () => {
     const user = await requireCompensationUser();
-    await logCompensation(user.id, "เปิดดูเมนู โบนัสประจำปี");
-    return bonusData();
+    const pay = payTablesOf(user);
+    await logCompensation(pay, user.id, "เปิดดูเมนู โบนัสประจำปี");
+    return bonusData(pay);
   });
 }
 
@@ -25,13 +26,15 @@ export async function GET() {
 export async function PUT(request: Request) {
   return handle(async () => {
     const user = await requireCompensationUser();
+    const pay = payTablesOf(user);
     const plan = parseBonusPlan(await readJson(request));
-    const { cycleId } = (await bonusData()).overview;
-    await saveBonusPlan(cycleId, plan, user.id);
+    const { cycleId } = (await bonusData(pay)).overview;
+    await saveBonusPlan(pay, cycleId, plan, user.id);
     await logCompensation(
+      pay,
       user.id,
       `บันทึกแผน เมนู โบนัสประจำปี ${cycleId} (งบ ${(plan.budget ?? 0).toLocaleString()} บาท)`,
     );
-    return bonusData();
+    return bonusData(pay);
   });
 }

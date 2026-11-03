@@ -53,6 +53,7 @@ interface EmployeeRow {
   appraisal_type: User["appraisalType"];
   /** Missing until the column has been added by supabase/schema.sql. */
   compensation_access?: boolean | null;
+  compensation_sandbox?: boolean | null;
   /** Never sent to the browser: toUser leaves it out. */
   password_hash?: string | null;
 }
@@ -73,10 +74,12 @@ const toUser = (row: EmployeeRow): User => ({
   levelSince: row.level_since,
   birthDate: row.birth_date ?? null,
   appraisalType: row.appraisal_type,
-  compensationAccess: row.compensation_access === true,
+  // The sandbox opens the pages too, always on the made-up figures.
+  compensationAccess: row.compensation_access === true || row.compensation_sandbox === true,
+  compensationSandbox: row.compensation_sandbox === true,
 });
 
-// compensation_access is left out, so saving an employee never changes it.
+// compensation_access and compensation_sandbox are left out, so saving an employee never changes them.
 const toEmployeeRow = (input: EmployeeInput): Omit<EmployeeRow, "id"> => ({
   code: input.code,
   name: input.name,
@@ -571,6 +574,36 @@ export async function saveSalaryStructure(structure: SalaryStructure): Promise<S
 }
 
 /**
+ * Where a user's pay data lives: the real tables for the MD, the `_demo` tables (made-up pay)
+ * for a sandbox user. Every function that reads or writes pay takes one, so no page can reach
+ * the real figures without it having been chosen from the signed-in user.
+ */
+export interface PayTables {
+  sandbox: boolean;
+  salaries: string;
+  merit: string;
+  bonus: string;
+  audit: string;
+}
+
+const REAL_TABLES: PayTables = {
+  sandbox: false,
+  salaries: "salaries",
+  merit: "merit_plans",
+  bonus: "bonus_plans",
+  audit: "compensation_audit",
+};
+const DEMO_TABLES: PayTables = {
+  sandbox: true,
+  salaries: "salaries_demo",
+  merit: "merit_plans_demo",
+  bonus: "bonus_plans_demo",
+  audit: "compensation_audit_demo",
+};
+
+export const payTablesOf = (user: User): PayTables => (user.compensationSandbox ? DEMO_TABLES : REAL_TABLES);
+
+/**
  * A cycle's saved plan in `merit_plans` or `bonus_plans`, encrypted in `plan_enc`. A plan saved
  * before encryption (in `plan`) is still read until the conversion script has run.
  */
@@ -597,12 +630,12 @@ async function savePlan(table: string, cycleId: string, plan: unknown, actorId: 
   );
 }
 
-export const getMeritPlan = (cycleId: string) => getPlan<MeritPlan>("merit_plans", cycleId);
-export const saveMeritPlan = (cycleId: string, plan: MeritPlan, actorId: string) =>
-  savePlan("merit_plans", cycleId, plan, actorId);
-export const getBonusPlan = (cycleId: string) => getPlan<BonusPlan>("bonus_plans", cycleId);
-export const saveBonusPlan = (cycleId: string, plan: BonusPlan, actorId: string) =>
-  savePlan("bonus_plans", cycleId, plan, actorId);
+export const getMeritPlan = (pay: PayTables, cycleId: string) => getPlan<MeritPlan>(pay.merit, cycleId);
+export const saveMeritPlan = (pay: PayTables, cycleId: string, plan: MeritPlan, actorId: string) =>
+  savePlan(pay.merit, cycleId, plan, actorId);
+export const getBonusPlan = (pay: PayTables, cycleId: string) => getPlan<BonusPlan>(pay.bonus, cycleId);
+export const saveBonusPlan = (pay: PayTables, cycleId: string, plan: BonusPlan, actorId: string) =>
+  savePlan(pay.bonus, cycleId, plan, actorId);
 
 interface SalaryRow {
   employee_id: string;
@@ -617,45 +650,59 @@ interface SalaryRow {
 
 type Amounts = Pick<SalaryRecord, "baseSalary" | "allowance">;
 
-function toSalaryRecord(row: SalaryRow): SalaryRecord {
+function toSalaryRecord(table: string, row: SalaryRow): SalaryRecord {
   const amounts: Amounts = row.amounts_enc
-    ? decryptJson<Amounts>(row.amounts_enc, salaryContext(row.employee_id, row.effective_date))
+    ? decryptJson<Amounts>(row.amounts_enc, salaryContext(table, row.employee_id, row.effective_date))
     : { baseSalary: Number(row.base_salary), allowance: Number(row.allowance ?? 0) };
   return { effectiveDate: row.effective_date, ...amounts, note: row.note };
 }
 
 /** Every salary record keyed by employee id, newest first. */
-export async function listSalaryHistory(): Promise<Record<string, SalaryRecord[]>> {
-  const rows = await scaleRows<SalaryRow>("salaries", "employee_id");
+export async function listSalaryHistory(pay: PayTables): Promise<Record<string, SalaryRecord[]>> {
+  const rows = await scaleRows<SalaryRow>(pay.salaries, "employee_id");
   const byEmployee: Record<string, SalaryRecord[]> = {};
-  for (const row of rows) (byEmployee[row.employee_id] ??= []).push(toSalaryRecord(row));
+  for (const row of rows) (byEmployee[row.employee_id] ??= []).push(toSalaryRecord(pay.salaries, row));
   for (const history of Object.values(byEmployee)) {
     history.sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
   }
   return byEmployee;
 }
 
+/** Empties the made-up salaries of the sandbox, before new ones are drawn. Never the real table. */
+export async function clearDemoSalaries(pay: PayTables): Promise<void> {
+  if (!pay.sandbox || pay.salaries === REAL_TABLES.salaries) {
+    throw new HttpError(403, "ล้างได้เฉพาะเงินเดือนสมมุติของโหมดทดสอบ");
+  }
+  check(await db().from(pay.salaries).delete().not("employee_id", "is", null));
+}
+
 /** Adds a record, or corrects the one that starts on the same date. */
-export async function saveSalary(employeeId: string, record: SalaryRecord, actorId: string): Promise<void> {
-  await saveSalaries([{ employeeId, record }], actorId);
+export async function saveSalary(
+  pay: PayTables,
+  employeeId: string,
+  record: SalaryRecord,
+  actorId: string,
+): Promise<void> {
+  await saveSalaries(pay, [{ employeeId, record }], actorId);
 }
 
 /** saveSalary for many people in one go, e.g. an import: all are saved or none. */
 export async function saveSalaries(
+  pay: PayTables,
   entries: { employeeId: string; record: SalaryRecord }[],
   actorId: string,
 ): Promise<void> {
   if (entries.length === 0) return;
   check(
     await db()
-      .from("salaries")
+      .from(pay.salaries)
       .upsert(
         entries.map(({ employeeId, record }) => ({
           employee_id: employeeId,
           effective_date: record.effectiveDate,
           amounts_enc: encryptJson(
             { baseSalary: record.baseSalary, allowance: record.allowance },
-            salaryContext(employeeId, record.effectiveDate),
+            salaryContext(pay.salaries, employeeId, record.effectiveDate),
           ),
           note: record.note,
           created_by: actorId,
@@ -699,9 +746,14 @@ export async function setCompensationPasswordHash(employeeId: string, hash: stri
 }
 
 /** How many access-log lines of this person start with `action` since `since` (ISO time). */
-export async function countRecentActions(actorId: string, action: string, since: string): Promise<number> {
+export async function countRecentActions(
+  pay: PayTables,
+  actorId: string,
+  action: string,
+  since: string,
+): Promise<number> {
   const result = await db()
-    .from("compensation_audit")
+    .from(pay.audit)
     .select("id", { count: "exact", head: true })
     .eq("actor_id", actorId)
     .like("action", `${action}%`)
@@ -711,14 +763,14 @@ export async function countRecentActions(actorId: string, action: string, since:
 }
 
 /** Records who opened or changed compensation data. */
-export async function logCompensation(actorId: string, action: string): Promise<void> {
-  check(await db().from("compensation_audit").insert({ actor_id: actorId, action }));
+export async function logCompensation(pay: PayTables, actorId: string, action: string): Promise<void> {
+  check(await db().from(pay.audit).insert({ actor_id: actorId, action }));
 }
 
-export async function listCompensationAudit(limit = 30): Promise<CompensationAuditEntry[]> {
+export async function listCompensationAudit(pay: PayTables, limit = 30): Promise<CompensationAuditEntry[]> {
   const rows = check(
     await db()
-      .from("compensation_audit")
+      .from(pay.audit)
       .select("at, action, employees(name)")
       .order("at", { ascending: false })
       .limit(limit),

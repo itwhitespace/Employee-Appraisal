@@ -51,9 +51,9 @@ export function decryptJson<T>(stored: string, context: string): T {
   }
 }
 
-/** Where a salary record belongs: its employee and date. */
-export const salaryContext = (employeeId: string, effectiveDate: string) =>
-  `salaries:${employeeId}:${effectiveDate}`;
+/** Where a salary record belongs: its table, employee and date. */
+export const salaryContext = (table: string, employeeId: string, effectiveDate: string) =>
+  `${table}:${employeeId}:${effectiveDate}`;
 
 /** Where a plan belongs: its table and cycle. */
 export const planContext = (table: string, cycleId: string) => `${table}:${cycleId}`;

@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { CompaPill, segment, Tile, today } from "@/components/CompensationParts";
 import IconButton from "@/components/IconButton";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { api, errorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import { baht, COMPA_GROUPS, compaGroup, compaRatio, percent } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
 import { departmentRank } from "@/lib/evaluation";
@@ -178,6 +180,9 @@ function SalaryDialog({ row, grade, onSave, onClose }: SalaryDialogProps) {
 export default function SalariesPage() {
   const [data, setData] = useState<CompensationOverview | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
+  const { user } = useAuth();
+  const confirm = useConfirm();
+  const [drawing, setDrawing] = useState(false);
   const [department, setDepartment] = useState<string>("all");
   const [group, setGroup] = useState<number | null>(null);
   const [search, setSearch] = useState("");
@@ -246,12 +251,40 @@ export default function SalariesPage() {
             {data.cycleId}
           </p>
         </div>
-        <Link
-          href="/compensation/salaries/import"
-          className="btn rounded-lg bg-emerald-700 py-1.5 text-sm text-white shadow-sm hover:bg-emerald-800"
-        >
-          Import Excel
-        </Link>
+        <div className="flex flex-wrap items-center gap-2">
+          {user?.compensationSandbox && (
+            <button
+              type="button"
+              disabled={drawing}
+              className="btn rounded-lg bg-orange-500 py-1.5 text-sm text-white shadow-sm hover:bg-orange-600"
+              onClick={async () => {
+                const agreed = await confirm({
+                  title: "สุ่มเงินเดือนสมมุติ?",
+                  message:
+                    "เงินเดือนสมมุติเดิมของโหมดทดสอบจะถูกแทนที่ทั้งหมด ด้วยตัวเลขสุ่มในช่วงกระบอกของแต่ละ Level · ไม่กระทบข้อมูลจริงของ MD",
+                  confirmLabel: "สุ่มใหม่",
+                });
+                if (!agreed) return;
+                setDrawing(true);
+                try {
+                  setData(await api.drawDemoSalaries());
+                } catch (e) {
+                  setLoadError(errorMessage(e));
+                } finally {
+                  setDrawing(false);
+                }
+              }}
+            >
+              {drawing ? "กำลังสุ่ม…" : "🎲 สุ่มเงินเดือนสมมุติ"}
+            </button>
+          )}
+          <Link
+            href="/compensation/salaries/import"
+            className="btn rounded-lg bg-emerald-700 py-1.5 text-sm text-white shadow-sm hover:bg-emerald-800"
+          >
+            Import Excel
+          </Link>
+        </div>
       </div>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

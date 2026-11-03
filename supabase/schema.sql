@@ -242,6 +242,48 @@ begin
   end if;
 end $$;
 
+-- Sandbox: the compensation pages on made-up pay (the *_demo tables), for people with
+-- compensation_sandbox (set only here, like compensation_access). See supabase/sandbox.local.sql.
+alter table public.employees add column if not exists compensation_sandbox boolean not null default false;
+
+create table if not exists public.salaries_demo (
+  id             bigint generated always as identity primary key,
+  employee_id    uuid not null references public.employees (id) on delete cascade,
+  effective_date date not null,
+  amounts_enc    text not null,
+  note           text not null default '',
+  created_by     uuid references public.employees (id) on delete set null,
+  created_at     timestamptz not null default now(),
+  unique (employee_id, effective_date)
+);
+
+create table if not exists public.merit_plans_demo (
+  cycle_id   text primary key references public.cycles (id) on delete cascade,
+  plan_enc   text not null,
+  updated_by uuid references public.employees (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.bonus_plans_demo (
+  cycle_id   text primary key references public.cycles (id) on delete cascade,
+  plan_enc   text not null,
+  updated_by uuid references public.employees (id) on delete set null,
+  updated_at timestamptz not null default now()
+);
+
+create table if not exists public.compensation_audit_demo (
+  id       bigint generated always as identity primary key,
+  at       timestamptz not null default now(),
+  actor_id uuid references public.employees (id) on delete set null,
+  action   text not null
+);
+create index if not exists compensation_audit_demo_at_idx on public.compensation_audit_demo (at desc);
+
+alter table public.salaries_demo           enable row level security;
+alter table public.merit_plans_demo        enable row level security;
+alter table public.bonus_plans_demo        enable row level security;
+alter table public.compensation_audit_demo enable row level security;
+
 alter table public.salaries            enable row level security;
 alter table public.bonus_plans         enable row level security;
 alter table public.salary_grades       enable row level security;
