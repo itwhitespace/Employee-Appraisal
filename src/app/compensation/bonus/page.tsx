@@ -5,6 +5,7 @@ import { MoneyInput, MultiplierInput, segment } from "@/components/CompensationP
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 import { api, errorMessage } from "@/lib/api";
+import { useAuth } from "@/lib/auth";
 import {
   DEFAULT_BONUS_PLAN,
   PERFORMANCE_CAPTIONS,
@@ -41,6 +42,8 @@ const dateTime = (iso: string) =>
 const SCORES = [5, 4, 3, 2, 1];
 
 export default function BonusPage() {
+  // Tried in the sandbox first: tenure next to the job level. Remove the condition to show it to the MD.
+  const tenureUpFront = useAuth().user?.compensationSandbox === true;
   const confirm = useConfirm();
   const [data, setData] = useState<BonusData | null>(null);
   const [plan, setPlan] = useState<BonusPlan>(DEFAULT_BONUS_PLAN);
@@ -623,7 +626,7 @@ export default function BonusPage() {
           <table className="sheet roster min-w-[1200px]">
             <thead className="sticky top-0 z-20">
               <tr>
-                <th colSpan={6} className="!border-0 !bg-white text-right !text-muted">
+                <th colSpan={tenureUpFront ? 7 : 6} className="!border-0 !bg-white text-right !text-muted">
                   {filterLabel ? `รวม ${filterLabel}` : "รวม"}
                 </th>
                 <th className="sum">{baht(totals.base)}</th>
@@ -635,7 +638,7 @@ export default function BonusPage() {
                 >
                   {noBudget ? "–" : baht(totals.total)}
                 </th>
-                <th colSpan={2} className="!border-0 !bg-white" />
+                <th colSpan={tenureUpFront ? 1 : 2} className="!border-0 !bg-white" />
               </tr>
               <tr>
                 <th className="sticky left-0 z-10 w-40">พนักงาน</th>
@@ -644,6 +647,7 @@ export default function BonusPage() {
                   <br />
                   level
                 </th>
+                {tenureUpFront && <th className="whitespace-nowrap">อายุงาน</th>}
                 <th className="text-center">
                   Performance
                   <br />
@@ -685,7 +689,7 @@ export default function BonusPage() {
                   Salary
                   <br />X
                 </th>
-                <th>อายุงาน</th>
+                {!tenureUpFront && <th>อายุงาน</th>}
               </tr>
             </thead>
             <tbody>
@@ -720,6 +724,11 @@ export default function BonusPage() {
                     <td className="text-center font-medium" title={row.levelName ?? undefined}>
                       {jobLevelOf(entry)}
                     </td>
+                    {tenureUpFront && (
+                      <td className="whitespace-nowrap text-[11.5px] text-muted">
+                        {tenureSince(employee.startDate) ?? "–"}
+                      </td>
+                    )}
                     <td className="text-center tabular-nums">
                       {row.performance === null ? (
                         dash
@@ -785,7 +794,11 @@ export default function BonusPage() {
                       {raised ? baht(raised.total) : dash}
                     </td>
                     <td className="text-right tabular-nums">{raised ? raised.months.toFixed(2) : dash}</td>
-                    <td className="whitespace-nowrap text-muted">{tenureSince(employee.startDate) ?? "–"}</td>
+                    {!tenureUpFront && (
+                      <td className="whitespace-nowrap text-muted">
+                        {tenureSince(employee.startDate) ?? "–"}
+                      </td>
+                    )}
                   </tr>
                 );
               })}
