@@ -153,6 +153,7 @@ const ICONS = {
   gift: "M3.5 8.5h13v3h-13zM4.5 11.5v5h11v-5M10 8.5v8M10 8.5S8.5 4 6.5 4.5 7 8.5 10 8.5Zm0 0s1.5-4.5 3.5-4 .5 4-3.5 4Z",
   history: "M10 3.5a6.5 6.5 0 1 1-6.1 4.3M3.5 4v4h4M10 6.5V10l2.5 1.5",
   raise: "M3.5 14.5l4.5-4.5 3 3 5.5-5.5M12 7.5h4.5V12",
+  info: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM10 9.5v4M10 6.5h.01",
   money: "M3 5.5h14v9H3zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.5 8v4M14.5 8v4",
 };
 
@@ -178,7 +179,10 @@ function navItems(user: User, inCompensation: boolean): (NavItem | NavGroup)[] {
         },
       ]
     : [];
-  return [...roleItems(user), ...compensation];
+  // The rules of the appraisal, last in admin's menu.
+  const info: NavItem[] =
+    user.role === "admin" ? [{ href: "/admin/info", label: "Info", icon: ICONS.info, tone: "slate" }] : [];
+  return [...roleItems(user), ...compensation, ...info];
 }
 
 function roleItems(user: User): (NavItem | NavGroup)[] {
