@@ -54,14 +54,45 @@ const STEPS: { status: string; tone: string; who: string; what: string[] }[] = [
   },
 ];
 
-function Card({ title, note, children }: { title: string; note?: string; children: React.ReactNode }) {
+/** One colour per topic, so each heading stands out. */
+const TONES = {
+  sky: { band: "from-sky-500 to-sky-400", badge: "bg-white text-sky-700" },
+  violet: { band: "from-violet-600 to-violet-400", badge: "bg-white text-violet-700" },
+  emerald: { band: "from-emerald-600 to-emerald-400", badge: "bg-white text-emerald-700" },
+  amber: { band: "from-amber-500 to-amber-400", badge: "bg-white text-amber-700" },
+  rose: { band: "from-rose-500 to-rose-400", badge: "bg-white text-rose-700" },
+  indigo: { band: "from-indigo-600 to-indigo-400", badge: "bg-white text-indigo-700" },
+  teal: { band: "from-teal-600 to-teal-400", badge: "bg-white text-teal-700" },
+};
+
+function Card({
+  n,
+  title,
+  note,
+  tone,
+  children,
+}: {
+  n: number;
+  title: string;
+  note?: string;
+  tone: keyof typeof TONES;
+  children: React.ReactNode;
+}) {
+  const t = TONES[tone];
   return (
     <section className="card overflow-hidden">
-      <header className="border-l-4 border-accent px-5 py-4">
-        <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
-        {note && <p className="text-xs text-muted">{note}</p>}
+      <header className={`flex items-center gap-3 bg-gradient-to-r px-5 py-3.5 text-white ${t.band}`}>
+        <span
+          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-[15px] font-bold shadow-sm ${t.badge}`}
+        >
+          {n}
+        </span>
+        <div>
+          <h2 className="text-[17px] font-semibold tracking-tight">{title}</h2>
+          {note && <p className="text-xs text-white/85">{note}</p>}
+        </div>
       </header>
-      <div className="border-t border-line px-5 py-4 text-sm leading-relaxed">{children}</div>
+      <div className="px-5 py-4 text-sm leading-relaxed">{children}</div>
     </section>
   );
 }
@@ -99,7 +130,12 @@ export default function InfoPage() {
         </p>
       </div>
 
-      <Card title="1. ขั้นตอนของแบบประเมิน" note="สถานะเรียงตามลำดับ · ชื่อสถานะตรงกับในหน้า รายการประเมิน">
+      <Card
+        n={1}
+        tone="sky"
+        title="ขั้นตอนของแบบประเมิน"
+        note="สถานะเรียงตามลำดับ · ชื่อสถานะตรงกับในหน้า รายการประเมิน"
+      >
         <ol className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           {STEPS.map((step, i) => (
             <li key={step.status} className="rounded-xl border border-line p-4">
@@ -119,7 +155,7 @@ export default function InfoPage() {
         </p>
       </Card>
 
-      <Card title="2. ใครมีแบบประเมิน และใครเห็นอะไร">
+      <Card n={2} tone="violet" title="ใครมีแบบประเมิน และใครเห็นอะไร">
         <Bullets
           items={[
             <>
@@ -145,7 +181,9 @@ export default function InfoPage() {
       </Card>
 
       <Card
-        title="3. หมวดและการคิดคะแนน"
+        n={3}
+        tone="emerald"
+        title="หมวดและการคิดคะแนน"
         note="น้ำหนักตั้งแยกตามฝ่ายและ Level ในหน้า กำหนดหัวข้อประเมิน (รวมต้องเท่ากับ 100%) · ตารางนี้คือค่าเริ่มต้น"
       >
         <div className="overflow-x-auto">
@@ -210,7 +248,9 @@ export default function InfoPage() {
       </Card>
 
       <Card
-        title="4. Rating Band (เกรดผลงาน)"
+        n={4}
+        tone="amber"
+        title="Rating Band (เกรดผลงาน)"
         note="จาก Performance Score ของผู้ประเมิน · แก้ได้ที่หน้า Scale & Rating"
       >
         <div className="overflow-x-auto">
@@ -242,7 +282,9 @@ export default function InfoPage() {
       </Card>
 
       <Card
-        title="5. 9-Box Grid (หน้า Dashboard)"
+        n={5}
+        tone="indigo"
+        title="9-Box Grid (หน้า Dashboard)"
         note="เกณฑ์แต่ละแกนและชื่อช่องแก้ได้ที่หน้า Scale & Rating"
       >
         <Bullets
@@ -275,7 +317,7 @@ export default function InfoPage() {
         </div>
       </Card>
 
-      <Card title="6. รอบประเมิน (หน้า รอบประเมิน)">
+      <Card n={6} tone="teal" title="รอบประเมิน (หน้า รอบประเมิน)">
         <Bullets
           items={[
             "มีรอบปัจจุบันได้รอบเดียว ทุกคนกรอกในรอบปัจจุบัน",
@@ -288,6 +330,66 @@ export default function InfoPage() {
             "ประเภทการประเมิน (Annual / Mid-year / Probation) แสดงบนแบบฟอร์มเท่านั้น ยังไม่มีเงื่อนไขต่างกัน",
           ]}
         />
+      </Card>
+
+      <Card
+        n={7}
+        tone="rose"
+        title="ประวัติคะแนนย้อนหลัง"
+        note="ขึ้นรอบใหม่แล้ว ประวัติเดิมยังอยู่ครบ · ดูได้จากช่องเลือกรอบในหน้า Dashboard, รายการประเมิน และในแบบประเมิน"
+      >
+        <p>
+          แบบประเมินแต่ละใบผูกกับ <b>พนักงาน + รอบ</b> การเปิดรอบใหม่เป็นการเริ่มใบใหม่ ไม่เขียนทับใบเดิม
+          และก่อนสลับรอบ ระบบเก็บสำเนาของรอบเดิมไว้:
+        </p>
+        <div className="mt-3 overflow-x-auto">
+          <table className="sheet">
+            <thead>
+              <tr>
+                <th>สิ่งที่เก็บไว้</th>
+                <th>ผล</th>
+              </tr>
+            </thead>
+            <tbody>
+              {[
+                ["คะแนน Self / Supervisor, ความเห็น, IDP, KPI เฉพาะบุคคล", "อยู่ครบตามเดิม"],
+                ["หัวข้อแบบฟอร์ม ณ ตอนนั้น", "แก้หัวข้อปีใหม่ ประวัติเก่าไม่เปลี่ยน"],
+                [
+                  "ข้อมูลพนักงาน ณ ตอนนั้น (ฝ่าย, Level, ตำแหน่ง, หัวหน้า)",
+                  "เลื่อนระดับหรือย้ายฝ่าย ประวัติเก่ายังแสดงตามจริงในปีนั้น",
+                ],
+                ["เกณฑ์ Scale & Rating ณ ตอนนั้น", "ปรับเกณฑ์ปีหน้า เกรดและ 9-Box ของปีเก่าไม่เปลี่ยน"],
+                ["สถานะ รวมใบที่ยังทำไม่เสร็จ", "เก็บตามสถานะ ณ วันที่ปิดรอบ"],
+              ].map(([what, result]) => (
+                <tr key={what}>
+                  <td>{what}</td>
+                  <td className="text-muted">{result}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-rose-900">
+          <div className="mb-1.5 font-semibold">⚠️ กรณีที่ประวัติจะหาย</div>
+          <Bullets
+            items={[
+              <>
+                <b>ลบพนักงาน</b> ในหน้า ข้อมูลพนักงาน: แบบประเมิน<b>ทุกรอบ</b>ของคนนั้นถูกลบไปด้วย ·
+                พนักงานลาออก แนะนำให้เก็บไว้ หรือเอาผู้ประเมินออก แทนการลบ
+              </>,
+              <>
+                ปุ่ม <b>ล้างแบบประเมิน</b>: ลบเฉพาะใบของรอบปัจจุบัน รอบเก่าไม่โดน
+              </>,
+              <>
+                <b>ลบรอบประเมิน</b>: ทำได้เฉพาะรอบที่ยังไม่มีแบบประเมินเลย รอบที่มีข้อมูลระบบไม่ให้ลบ
+              </>,
+              <>
+                ฐานข้อมูลเสียหรือลบผิด: กู้จากไฟล์ backup · ทำ backup (
+                <code>node handover/scripts/backup.mjs</code>)<b> ก่อนกดเปิดรอบใหม่ทุกครั้ง</b>
+              </>,
+            ]}
+          />
+        </div>
       </Card>
     </div>
   );
