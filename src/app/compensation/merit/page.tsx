@@ -5,7 +5,6 @@ import { MoneyInput, MultiplierInput, segment, today } from "@/components/Compen
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 import { api, errorMessage } from "@/lib/api";
-import { useAuth } from "@/lib/auth";
 import { meritWorkbook, type MeritExportRow } from "@/lib/merit-export";
 import { baht, COMPA_GROUPS, compaGroup, compaRatio, percent } from "@/lib/compensation";
 import { DEPARTMENTS } from "@/lib/constants";
@@ -41,8 +40,6 @@ const dateTime = (iso: string) =>
   new Date(iso).toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
 
 export default function MeritPage() {
-  // Tried in the sandbox first: tenure next to the job level. Remove the condition to show it to the MD.
-  const tenureUpFront = useAuth().user?.compensationSandbox === true;
   const confirm = useConfirm();
   const [data, setData] = useState<MeritData | null>(null);
   const [plan, setPlan] = useState<MeritPlan>(DEFAULT_MERIT_PLAN);
@@ -745,7 +742,7 @@ export default function MeritPage() {
           <table className="sheet roster min-w-[1120px]">
             <thead className="sticky top-0 z-20">
               <tr>
-                <th colSpan={tenureUpFront ? 9 : 8} className="!border-0 !bg-white text-right !text-muted">
+                <th colSpan={9} className="!border-0 !bg-white text-right !text-muted">
                   {filterLabel ? `รวม ${filterLabel}` : "รวม"}
                 </th>
                 <th className="sum">{noBudget ? "–" : baht(totals.suggested)}</th>
@@ -761,12 +758,12 @@ export default function MeritPage() {
               </tr>
               <tr>
                 <th className="sticky left-0 z-10 w-40">พนักงาน</th>
+                <th className="whitespace-nowrap">อายุงาน</th>
                 <th className="text-center">
                   Job
                   <br />
                   level
                 </th>
-                {tenureUpFront && <th className="whitespace-nowrap">อายุงาน</th>}
                 <th className="text-center">Grade</th>
                 <th className="text-center">
                   Performance
@@ -826,7 +823,7 @@ export default function MeritPage() {
             <tbody>
               {shown.length === 0 && (
                 <tr>
-                  <td colSpan={tenureUpFront ? 17 : 16} className="py-6 text-center text-muted">
+                  <td colSpan={17} className="py-6 text-center text-muted">
                     ยังไม่มีพนักงาน
                   </td>
                 </tr>
@@ -849,14 +846,12 @@ export default function MeritPage() {
                         {DEPARTMENTS.find((d) => d.id === employee.departmentId)?.name}
                       </div>
                     </td>
+                    <td className="whitespace-nowrap text-[11.5px] text-muted">
+                      {tenureSince(employee.startDate) ?? "–"}
+                    </td>
                     <td className="text-center font-medium" title={row.levelName ?? undefined}>
                       {grade?.jobLevel || row.levelName || "–"}
                     </td>
-                    {tenureUpFront && (
-                      <td className="whitespace-nowrap text-[11.5px] text-muted">
-                        {tenureSince(employee.startDate) ?? "–"}
-                      </td>
-                    )}
                     <td className="text-center tabular-nums">
                       {grade ? <span className="font-medium text-teal-800">{grade.grade}</span> : "–"}
                     </td>
