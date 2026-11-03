@@ -660,28 +660,40 @@ export default function SalaryImportPage() {
                               </div>
                             </>
                           ) : (
-                            <select
-                              className="field"
-                              aria-label={`เลือกพนักงานสำหรับแถว ${line.sheetRow}`}
-                              value={picked[r.index] ?? ""}
-                              onChange={(e) => {
-                                if (e.target.value !== "new") return pick(r.index, e.target.value);
-                                // Back to adding the person from the file.
-                                const rest = { ...picked };
-                                delete rest[r.index];
-                                setPicked(rest);
-                              }}
-                            >
-                              <option value="">– ข้าม / ยังไม่เลือก</option>
-                              {r.match.kind === "unknownCode" && (
-                                <option value="new">+ เพิ่มเป็นพนักงานใหม่</option>
+                            <>
+                              <select
+                                className="field"
+                                aria-label={`เลือกพนักงานสำหรับแถว ${line.sheetRow}`}
+                                value={picked[r.index] ?? ""}
+                                onChange={(e) => {
+                                  if (e.target.value !== "new") return pick(r.index, e.target.value);
+                                  // Back to adding the person from the file.
+                                  const rest = { ...picked };
+                                  delete rest[r.index];
+                                  setPicked(rest);
+                                }}
+                              >
+                                <option value="">– ข้าม / ยังไม่เลือก</option>
+                                {r.match.kind === "unknownCode" && (
+                                  // Nothing picked and still no new person: the file lacks what it takes.
+                                  <option value="new" disabled={picked[r.index] === undefined}>
+                                    {picked[r.index] === undefined
+                                      ? "+ เพิ่มเป็นพนักงานใหม่ไม่ได้ (ข้อมูลในไฟล์ไม่ครบ)"
+                                      : "+ เพิ่มเป็นพนักงานใหม่"}
+                                  </option>
+                                )}
+                                {options.map((row) => (
+                                  <option key={row.employee.id} value={row.employee.id}>
+                                    {displayName(row.employee)} · {departmentName(row)}
+                                  </option>
+                                ))}
+                              </select>
+                              {r.match.kind === "unknownCode" && picked[r.index] === undefined && (
+                                <div className="mt-1 text-[11px] font-medium text-red-700">
+                                  {r.notes.join(" · ")}
+                                </div>
                               )}
-                              {options.map((row) => (
-                                <option key={row.employee.id} value={row.employee.id}>
-                                  {displayName(row.employee)} · {departmentName(row)}
-                                </option>
-                              ))}
-                            </select>
+                            </>
                           )}
                         </td>
                         <td>
