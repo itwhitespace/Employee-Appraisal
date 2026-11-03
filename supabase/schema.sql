@@ -217,6 +217,31 @@ create table if not exists public.bonus_plans (
   updated_at timestamptz not null default now()
 );
 
+-- Pay figures are encrypted by the app (AES-256-GCM, key COMPENSATION_KEY in Vercel): salaries
+-- keep base salary + allowance in amounts_enc, plans in plan_enc. The plain columns stay nullable
+-- until supabase/encrypt-step2.local.sql removes them.
+alter table public.salaries add column if not exists amounts_enc text;
+alter table public.merit_plans add column if not exists plan_enc text;
+alter table public.bonus_plans add column if not exists plan_enc text;
+do $$
+begin
+  -- Only while the plain columns still exist (step 2 drops them).
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'salaries' and column_name = 'base_salary') then
+    alter table public.salaries alter column base_salary drop not null;
+    alter table public.salaries alter column allowance drop not null;
+    alter table public.salaries alter column allowance drop default;
+  end if;
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'merit_plans' and column_name = 'plan') then
+    alter table public.merit_plans alter column plan drop not null;
+  end if;
+  if exists (select 1 from information_schema.columns
+             where table_schema = 'public' and table_name = 'bonus_plans' and column_name = 'plan') then
+    alter table public.bonus_plans alter column plan drop not null;
+  end if;
+end $$;
+
 alter table public.salaries            enable row level security;
 alter table public.bonus_plans         enable row level security;
 alter table public.salary_grades       enable row level security;

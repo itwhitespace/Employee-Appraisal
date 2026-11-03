@@ -20,6 +20,7 @@ import type {
   Scales,
   User,
 } from "../types";
+import { decryptJson, encryptJson, planContext, salaryContext } from "./crypto";
 import { HttpError } from "./errors";
 import { db } from "./supabase";
 
@@ -569,23 +570,30 @@ export async function saveSalaryStructure(structure: SalaryStructure): Promise<S
   return getSalaryStructure();
 }
 
-/** A cycle's saved plan in `merit_plans` or `bonus_plans`. */
+/**
+ * A cycle's saved plan in `merit_plans` or `bonus_plans`, encrypted in `plan_enc`. A plan saved
+ * before encryption (in `plan`) is still read until the conversion script has run.
+ */
 async function getPlan<T>(table: string, cycleId: string): Promise<{ plan: T; updatedAt: string } | null> {
-  const result = await db().from(table).select("plan, updated_at").eq("cycle_id", cycleId).maybeSingle();
+  const result = await db().from(table).select("*").eq("cycle_id", cycleId).maybeSingle();
   // A table not created yet (its SQL not run) simply has no plan.
   if (result.error && MISSING_TABLE.includes(result.error.code ?? "")) return null;
-  const row = check(result) as { plan: T; updated_at: string } | null;
-  return row ? { plan: row.plan, updatedAt: row.updated_at } : null;
+  const row = check(result) as { plan?: T | null; plan_enc?: string | null; updated_at: string } | null;
+  if (!row) return null;
+  const plan = row.plan_enc ? decryptJson<T>(row.plan_enc, planContext(table, cycleId)) : row.plan;
+  return plan ? { plan, updatedAt: row.updated_at } : null;
 }
 
 async function savePlan(table: string, cycleId: string, plan: unknown, actorId: string): Promise<void> {
   check(
-    await db().from(table).upsert({
-      cycle_id: cycleId,
-      plan,
-      updated_by: actorId,
-      updated_at: new Date().toISOString(),
-    }),
+    await db()
+      .from(table)
+      .upsert({
+        cycle_id: cycleId,
+        plan_enc: encryptJson(plan, planContext(table, cycleId)),
+        updated_by: actorId,
+        updated_at: new Date().toISOString(),
+      }),
   );
 }
 
@@ -599,17 +607,22 @@ export const saveBonusPlan = (cycleId: string, plan: BonusPlan, actorId: string)
 interface SalaryRow {
   employee_id: string;
   effective_date: string;
-  base_salary: number;
-  allowance: number;
+  /** The amounts, encrypted; null only for a record saved before encryption. */
+  amounts_enc?: string | null;
+  /** Plain amounts of records saved before encryption, until the conversion script has run. */
+  base_salary?: number | null;
+  allowance?: number | null;
   note: string;
 }
 
-const toSalaryRecord = (row: SalaryRow): SalaryRecord => ({
-  effectiveDate: row.effective_date,
-  baseSalary: Number(row.base_salary),
-  allowance: Number(row.allowance),
-  note: row.note,
-});
+type Amounts = Pick<SalaryRecord, "baseSalary" | "allowance">;
+
+function toSalaryRecord(row: SalaryRow): SalaryRecord {
+  const amounts: Amounts = row.amounts_enc
+    ? decryptJson<Amounts>(row.amounts_enc, salaryContext(row.employee_id, row.effective_date))
+    : { baseSalary: Number(row.base_salary), allowance: Number(row.allowance ?? 0) };
+  return { effectiveDate: row.effective_date, ...amounts, note: row.note };
+}
 
 /** Every salary record keyed by employee id, newest first. */
 export async function listSalaryHistory(): Promise<Record<string, SalaryRecord[]>> {
@@ -640,8 +653,10 @@ export async function saveSalaries(
         entries.map(({ employeeId, record }) => ({
           employee_id: employeeId,
           effective_date: record.effectiveDate,
-          base_salary: record.baseSalary,
-          allowance: record.allowance,
+          amounts_enc: encryptJson(
+            { baseSalary: record.baseSalary, allowance: record.allowance },
+            salaryContext(employeeId, record.effectiveDate),
+          ),
           note: record.note,
           created_by: actorId,
         })),
