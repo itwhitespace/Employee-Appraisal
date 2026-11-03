@@ -66,6 +66,21 @@ interface Reviewed {
 const departmentName = (row: CompensationRow) =>
   DEPARTMENTS.find((d) => d.id === row.employee.departmentId)?.name ?? "";
 
+/** Whole years from a birth date (yyyy-mm-dd) to today. */
+function ageOf(birthDate: string): number {
+  const [y1, m1, d1] = birthDate.split("-").map(Number);
+  const [y2, m2, d2] = today().split("-").map(Number);
+  return y2 - y1 - (m2 < m1 || (m2 === m1 && d2 < d1) ? 1 : 0);
+}
+
+/** A birth date with the age under it. */
+const birthText = (birthDate: string) => (
+  <>
+    {formatDate(birthDate)}
+    <span className="block text-[11px] text-muted">อายุ {ageOf(birthDate)} ปี</span>
+  </>
+);
+
 /** Old → new, with the new figure stressed when it changes. */
 function Change({ from, to }: { from: number | null | undefined; to: number | null }) {
   if (to === null) return <span className="text-faint">–</span>;
@@ -98,7 +113,7 @@ function ProfileCell({
   ticked: boolean;
   onTick: (value: boolean) => void;
   /** How a value is written on screen, e.g. a date. */
-  show?: (value: string) => string;
+  show?: (value: string) => React.ReactNode;
 }) {
   if (from === null || change === null) {
     const value = from || file;
@@ -567,7 +582,6 @@ export default function SalaryImportPage() {
                     <th className="w-14 text-center">แถว</th>
                     <th className="w-24">รหัสพนักงาน</th>
                     <th className="min-w-[14rem]">ในไฟล์</th>
-                    <th className="w-64">พนักงานในระบบ</th>
                     <th className="w-48">ตำแหน่ง</th>
                     <th className="w-36">ทีม</th>
                     <th className="w-28">วันเกิด</th>
@@ -580,7 +594,6 @@ export default function SalaryImportPage() {
                 <tbody>
                   {sorted.map((r) => {
                     const { line } = r.match;
-                    const options = r.match.candidates.length > 1 ? r.match.candidates : data.rows;
                     return (
                       <tr key={r.index} className={STATUS[r.status].row}>
                         <td className="text-center">
@@ -623,22 +636,20 @@ export default function SalaryImportPage() {
                               .filter(Boolean)
                               .join(" · ")}
                           </div>
-                        </td>
-                        <td>
                           {r.newEmployee ? (
-                            <>
-                              <div className="font-medium text-sky-700">+ {r.newEmployee.name}</div>
-                              <div className="text-[11px] text-muted">
+                            <div className="mt-1 text-[11px]">
+                              <div className="font-medium text-sky-700">
+                                + เพิ่มใหม่: {r.newEmployee.name} ·{" "}
                                 {DEPARTMENTS.find((d) => d.id === r.newEmployee!.departmentId)?.name} ·{" "}
                                 {data.levels.find(
                                   (l) =>
                                     l.departmentId === r.newEmployee!.departmentId &&
                                     l.level === r.newEmployee!.level,
-                                )?.name ?? ""}{" "}
-                                · หัวหน้า {supervisorName(r.newEmployee.supervisorCode) || "–"} ·{" "}
-                                {r.newEmployee.password ? "มีรหัสผ่าน" : "ยังไม่มีรหัสผ่าน"}
+                                )?.name ?? ""}
                               </div>
-                              <div className="text-[11px]">
+                              <div className="text-muted">
+                                หัวหน้า {supervisorName(r.newEmployee.supervisorCode) || "–"} ·{" "}
+                                {r.newEmployee.password ? "มีรหัสผ่าน" : "ยังไม่มีรหัสผ่าน"} ·{" "}
                                 <button
                                   type="button"
                                   className="btn-text !px-0"
@@ -655,46 +666,38 @@ export default function SalaryImportPage() {
                                   ไม่เพิ่ม
                                 </button>
                               </div>
-                            </>
-                          ) : r.match.row && picked[r.index] === undefined ? (
-                            <>
-                              <div>{displayName(r.match.row.employee)}</div>
-                              <div className="text-[11px] text-faint">
-                                {departmentName(r.match.row)} ·{" "}
-                                <button
-                                  type="button"
-                                  className="btn-text !px-0"
-                                  onClick={() =>
-                                    setPicked({ ...picked, [r.index]: r.match.row!.employee.id })
-                                  }
-                                >
-                                  เปลี่ยน
-                                </button>
-                              </div>
-                            </>
-                          ) : (
-                            <>
-                              <select
-                                className="field"
-                                aria-label={`เลือกพนักงานสำหรับแถว ${line.sheetRow}`}
-                                value={picked[r.index] ?? ""}
-                                onChange={(e) => {
-                                  if (e.target.value) return pick(r.index, e.target.value);
-                                  // Back to "not in the system", so the person can be added instead.
-                                  const rest = { ...picked };
-                                  delete rest[r.index];
-                                  setPicked(rest);
-                                  setTicked({ ...ticked, [r.index]: false });
-                                }}
-                              >
-                                <option value="">– ข้าม / ยังไม่เลือก</option>
-                                {options.map((row) => (
-                                  <option key={row.employee.id} value={row.employee.id}>
-                                    {displayName(row.employee)} · {departmentName(row)}
-                                  </option>
-                                ))}
-                              </select>
-                            </>
+                            </div>
+                          ) : r.row &&
+                            line.thaiName &&
+                            nameKey(line.thaiName) === nameKey(r.row.employee.name) ? (
+                            <div className="mt-1 text-[11px] font-medium text-emerald-800">
+                              ✓ ชื่อตรงกับในระบบ
+                            </div>
+                          ) : r.row ? (
+                            <div className="mt-1 text-[11px] font-medium text-amber-800">
+                              {line.thaiName ? "⚠ ชื่อไม่ตรง · " : ""}ในระบบ: {r.row.employee.name}
+                            </div>
+                          ) : null}
+                          {r.match.kind === "ambiguous" && (
+                            <select
+                              className="field mt-1 !py-0.5 text-[11.5px]"
+                              aria-label={`เลือกพนักงานสำหรับแถว ${line.sheetRow}`}
+                              value={picked[r.index] ?? ""}
+                              onChange={(e) => {
+                                if (e.target.value) return pick(r.index, e.target.value);
+                                const rest = { ...picked };
+                                delete rest[r.index];
+                                setPicked(rest);
+                                setTicked({ ...ticked, [r.index]: false });
+                              }}
+                            >
+                              <option value="">– ชื่อซ้ำ เลือกคนในระบบ</option>
+                              {r.match.candidates.map((row) => (
+                                <option key={row.employee.id} value={row.employee.id}>
+                                  {displayName(row.employee)} · {row.employee.code}
+                                </option>
+                              ))}
+                            </select>
                           )}
                         </td>
                         <td>
@@ -722,7 +725,7 @@ export default function SalaryImportPage() {
                             from={r.row ? (r.row.employee.birthDate ?? "") : null}
                             ticked={Boolean(profileTicked[r.index])}
                             onTick={(value) => setProfileTicked({ ...profileTicked, [r.index]: value })}
-                            show={formatDate}
+                            show={birthText}
                           />
                         </td>
                         <td className="text-right">

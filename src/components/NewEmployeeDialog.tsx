@@ -115,6 +115,10 @@ export default function NewEmployeeDialog({
   };
 
   const departmentLevels = levels.filter((l) => l.departmentId === form.departmentId);
+  // Teams already in use, to pick from.
+  const teams = [...new Set(directory.map((p) => p.team.trim()).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "th", { numeric: true }),
+  );
   const autoBoss = !bossPicked && form.supervisorCode !== "";
 
   return (
@@ -232,8 +236,21 @@ export default function NewEmployeeDialog({
               ))}
             </select>
           </Field>
-          <Field label="Studio / Team">
-            <input className="field" value={form.team} onChange={(e) => set({ team: e.target.value })} />
+          <Field
+            label="Studio / Team"
+            hint={form.team && !teams.includes(form.team) ? "ชื่อทีมจากไฟล์ ยังไม่มีในระบบ" : undefined}
+          >
+            <select className="field" value={form.team} onChange={(e) => set({ team: e.target.value })}>
+              <option value="">– ไม่ระบุ –</option>
+              {form.team && !teams.includes(form.team) && (
+                <option value={form.team}>{form.team} (จากไฟล์)</option>
+              )}
+              {teams.map((team) => (
+                <option key={team} value={team}>
+                  {team}
+                </option>
+              ))}
+            </select>
           </Field>
           <Field
             label="หัวหน้า (ผู้ประเมิน)"
