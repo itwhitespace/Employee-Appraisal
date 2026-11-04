@@ -167,8 +167,13 @@ const COMPENSATION_ITEMS: NavItem[] = [
   { href: "/compensation/audit", label: "ประวัติการเข้าถึง", icon: ICONS.history, tone: "amber" },
 ];
 
-function navItems(user: User, inCompensation: boolean): (NavItem | NavGroup)[] {
+const IT_ASSET_ITEMS: NavItem[] = [
+  { href: "/it-assets/software", label: "Software / License", icon: ICONS.list, tone: "indigo" },
+];
+
+function navItems(user: User, inCompensation: boolean, inItAssets: boolean): (NavItem | NavGroup)[] {
   if (inCompensation) return COMPENSATION_ITEMS;
+  if (inItAssets) return IT_ASSET_ITEMS;
   const compensation: NavItem[] = user.compensationAccess
     ? [
         {
@@ -183,17 +188,16 @@ function navItems(user: User, inCompensation: boolean): (NavItem | NavGroup)[] {
   // The rules of the appraisal, last in admin's menu.
   const info: NavItem[] =
     user.role === "admin" ? [{ href: "/admin/info", label: "Info", icon: ICONS.info, tone: "slate" }] : [];
-  // IT Assets, for admin and IT.
-  const itAssets: NavGroup[] =
+  // IT Assets, for admin and IT: its own area in a new tab, like compensation.
+  const itAssets: NavItem[] =
     user.role === "admin"
       ? [
           {
+            href: IT_ASSET_ITEMS[0].href,
             label: "IT Assets",
             icon: ICONS.computer,
+            newTab: true,
             tone: "indigo",
-            children: [
-              { href: "/admin/software", label: "Software / License", icon: ICONS.list, tone: "indigo" },
-            ],
           },
         ]
       : [];
@@ -237,14 +241,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
   const onLogin = pathname === "/login";
   const inCompensation = pathname.startsWith("/compensation");
+  const inItAssets = pathname.startsWith("/it-assets");
   const allowed = user ? canAccessPath(user, pathname) : false;
 
   // Tells the two tabs apart.
   useEffect(() => {
     document.title = inCompensation
       ? "Compensation | Whitespace Partners"
-      : "Performance Appraisal | Whitespace Partners";
-  }, [inCompensation]);
+      : inItAssets
+        ? "IT Assets | Whitespace Partners"
+        : "Performance Appraisal | Whitespace Partners";
+  }, [inCompensation, inItAssets]);
 
   useEffect(() => {
     if (!ready) return;
@@ -256,7 +263,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Render nothing while the session loads or a redirect is pending.
   if (!ready || !user || !allowed) return null;
 
-  const items = navItems(user, inCompensation);
+  const items = navItems(user, inCompensation, inItAssets);
   const department = DEPARTMENTS.find((d) => d.id === user.departmentId)?.name;
 
   return (
@@ -268,6 +275,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
             <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">
               <NavIcon path={ICONS.money} className="!h-3.5 !w-3.5" />
               Compensation
+            </div>
+          ) : inItAssets ? (
+            <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+              <NavIcon path={ICONS.computer} className="!h-3.5 !w-3.5" />
+              IT Assets
             </div>
           ) : (
             <div className="text-xs text-faint">Performance Appraisal{cycle ? ` · ${cycle.id}` : ""}</div>
@@ -318,7 +330,11 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
       <main
         className={`mx-auto px-4 py-6 lg:py-10 print:max-w-none print:p-0 ${
           // The compensation tables are wide: they get the whole screen.
-          inCompensation ? "compensation max-w-[1920px] sm:px-6" : "max-w-[1400px] sm:px-8"
+          inCompensation
+            ? "compensation max-w-[1920px] sm:px-6"
+            : inItAssets
+              ? "max-w-[1600px] sm:px-6"
+              : "max-w-[1400px] sm:px-8"
         }`}
       >
         {inCompensation && user.compensationSandbox && (

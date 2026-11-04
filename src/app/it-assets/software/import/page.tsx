@@ -89,7 +89,7 @@ export default function SoftwareImportPage() {
   return (
     <div className="space-y-5">
       <div>
-        <Link href="/admin/software" className="text-sm text-accent hover:underline">
+        <Link href="/it-assets/software" className="text-sm text-accent hover:underline">
           ← Software / License
         </Link>
         <h1 className="page-title mt-1">นำเข้า License จาก Excel</h1>
@@ -128,7 +128,7 @@ export default function SoftwareImportPage() {
         {done && (
           <p role="status" className="text-sm font-medium text-emerald-700">
             {done} ·{" "}
-            <Link href="/admin/software" className="underline">
+            <Link href="/it-assets/software" className="underline">
               ดูรายการ License
             </Link>
           </p>

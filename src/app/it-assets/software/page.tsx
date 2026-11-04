@@ -196,7 +196,7 @@ export default function SoftwarePage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <Link href="/admin/software/import" className="btn-secondary py-1.5 text-sm">
+          <Link href="/it-assets/software/import" className="btn-secondary py-1.5 text-sm">
             Import Excel
           </Link>
           <button
@@ -243,7 +243,7 @@ export default function SoftwarePage() {
       {licenses.length === 0 ? (
         <div className="card p-8 text-center text-sm text-muted">
           ยังไม่มีรายการ ·{" "}
-          <Link href="/admin/software/import" className="text-accent underline">
+          <Link href="/it-assets/software/import" className="text-accent underline">
             Import จาก Excel
           </Link>{" "}
           หรือกด + เพิ่ม License
