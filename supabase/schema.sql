@@ -395,3 +395,54 @@ begin
   end if;
 end
 $seed$;
+
+-- IT Assets, phase 1: software licenses and renewals (admin only). See supabase/software.local.sql.
+-- One line of the license list: one purchase (lot) of a program or service, e.g. 24 seats of
+-- AutoCAD LT on one contract, or one domain. `name` groups the lots of the same program.
+create table if not exists public.software_licenses (
+  id              uuid primary key default gen_random_uuid(),
+  name            text not null check (length(trim(name)) > 0),
+  -- What tells this lot apart: domain name, contract or order number, edition.
+  detail          text not null default '',
+  category        text not null default '',
+  license_type    text not null default 'subscription' check (license_type in ('subscription', 'perpetual')),
+  -- monthly, 1y, 2y, 3y (a contract of that many years) or perpetual.
+  billing_cycle   text not null default '1y' check (billing_cycle in ('monthly', '1y', '2y', '3y', 'perpetual')),
+  -- Monthly charges: the day of the month they are taken.
+  renew_day       smallint check (renew_day between 1 and 31),
+  start_date      date,
+  expire_date     date,
+  seats           integer check (seats >= 0),
+  unit_price      numeric(12, 2) check (unit_price >= 0),
+  -- Baht per year, also for contracts of several years.
+  price_per_year  numeric(12, 2) check (price_per_year >= 0),
+  payment_method  text not null default '' check (payment_method in ('', 'invoice', 'card', 'other')),
+  -- Which card, e.g. "Mastercard ••1234"; never the full number.
+  card_label      text not null default '',
+  vendor          text not null default '',
+  vendor_contact  text not null default '',
+  status          text not null default 'active' check (status in ('active', 'cancelled')),
+  remark          text not null default '',
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now(),
+  updated_by      uuid references public.employees (id) on delete set null
+);
+create index if not exists software_licenses_name_idx on public.software_licenses (name);
+
+-- Each renewal keeps the term it replaced, so the cost of every year stays on record.
+create table if not exists public.software_license_renewals (
+  id             bigint generated always as identity primary key,
+  license_id     uuid not null references public.software_licenses (id) on delete cascade,
+  start_date     date,
+  expire_date    date,
+  price_per_year numeric(12, 2),
+  seats          integer,
+  note           text not null default '',
+  renewed_at     timestamptz not null default now(),
+  renewed_by     uuid references public.employees (id) on delete set null
+);
+create index if not exists software_license_renewals_license_idx
+  on public.software_license_renewals (license_id, renewed_at desc);
+
+alter table public.software_licenses         enable row level security;
+alter table public.software_license_renewals enable row level security;

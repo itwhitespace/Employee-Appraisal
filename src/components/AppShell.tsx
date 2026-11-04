@@ -154,6 +154,7 @@ const ICONS = {
   history: "M10 3.5a6.5 6.5 0 1 1-6.1 4.3M3.5 4v4h4M10 6.5V10l2.5 1.5",
   raise: "M3.5 14.5l4.5-4.5 3 3 5.5-5.5M12 7.5h4.5V12",
   info: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM10 9.5v4M10 6.5h.01",
+  computer: "M3 4.5h14v9H3zM7 16.5h6M10 13.5v3",
   money: "M3 5.5h14v9H3zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.5 8v4M14.5 8v4",
 };
 
@@ -182,7 +183,21 @@ function navItems(user: User, inCompensation: boolean): (NavItem | NavGroup)[] {
   // The rules of the appraisal, last in admin's menu.
   const info: NavItem[] =
     user.role === "admin" ? [{ href: "/admin/info", label: "Info", icon: ICONS.info, tone: "slate" }] : [];
-  return [...roleItems(user), ...compensation, ...info];
+  // IT Assets, for admin and IT.
+  const itAssets: NavGroup[] =
+    user.role === "admin"
+      ? [
+          {
+            label: "IT Assets",
+            icon: ICONS.computer,
+            tone: "indigo",
+            children: [
+              { href: "/admin/software", label: "Software / License", icon: ICONS.list, tone: "indigo" },
+            ],
+          },
+        ]
+      : [];
+  return [...roleItems(user), ...compensation, ...itAssets, ...info];
 }
 
 function roleItems(user: User): (NavItem | NavGroup)[] {

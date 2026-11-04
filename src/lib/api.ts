@@ -20,6 +20,7 @@ import type {
   Scales,
   User,
 } from "./types";
+import type { LicenseInput, LicenseRenewal, SoftwareLicense } from "./software";
 
 /** Browser-side client for the app's own API routes. */
 
@@ -130,6 +131,27 @@ export const api = {
   /** Saves an import: new people, job titles and teams, then salaries. See the route for the body. */
   importSalaries: (payload: SalaryImport) =>
     request<CompensationOverview>("/api/compensation/salaries/import", "POST", payload),
+
+  /** IT Assets: software licenses (admin only). */
+  licenses: () => request<{ licenses: SoftwareLicense[] }>("/api/software"),
+  addLicense: (license: LicenseInput) =>
+    request<{ licenses: SoftwareLicense[] }>("/api/software", "POST", { license }),
+  importLicenses: (licenses: LicenseInput[]) =>
+    request<{ created: number; licenses: SoftwareLicense[] }>("/api/software", "POST", { licenses }),
+  saveLicense: (id: string, license: LicenseInput) =>
+    request<{ licenses: SoftwareLicense[] }>(`/api/software/${id}`, "PUT", { license }),
+  deleteLicense: (id: string) => request<{ licenses: SoftwareLicense[] }>(`/api/software/${id}`, "DELETE"),
+  renewals: (id: string) => request<{ renewals: LicenseRenewal[] }>(`/api/software/${id}`),
+  renewLicense: (
+    id: string,
+    term: {
+      startDate: string | null;
+      expireDate: string | null;
+      pricePerYear: number | null;
+      seats: number | null;
+      note: string;
+    },
+  ) => request<{ licenses: SoftwareLicense[] }>(`/api/software/${id}/renew`, "POST", term),
 
   bonus: () => request<BonusData>("/api/compensation/bonus"),
   saveBonus: (plan: BonusPlan) => request<BonusData>("/api/compensation/bonus", "PUT", plan),
