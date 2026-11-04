@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 import { api, errorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import {
+  BUDGET_GROUPS,
   CATEGORIES,
   CYCLE_NAMES,
   EMPTY_LICENSE,
   nextTerm,
   PAYMENT_NAMES,
   type BillingCycle,
+  type BudgetGroup,
   type LicenseInput,
   type LicenseRenewal,
   type PaymentMethod,
@@ -138,6 +140,19 @@ export function LicenseDialog({
             >
               {CATEGORIES.map((c) => (
                 <option key={c}>{c}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="นับในงบ IT ส่วน">
+            <select
+              className="field"
+              value={form.budgetGroup}
+              onChange={(e) => set({ budgetGroup: e.target.value as BudgetGroup })}
+            >
+              {(Object.keys(BUDGET_GROUPS) as BudgetGroup[]).map((g) => (
+                <option key={g} value={g}>
+                  {BUDGET_GROUPS[g]}
+                </option>
               ))}
             </select>
           </Field>

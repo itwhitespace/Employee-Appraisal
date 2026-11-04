@@ -85,7 +85,11 @@ const NEW_TAB = "M8.5 4.5h-4v11h11v-4M11.5 3.5h5v5M16.5 3.5l-7 7";
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const active = isActive(pathname, item.href);
-  const activeColor = pathname.startsWith("/compensation") ? "bg-teal-600" : "bg-accent";
+  const activeColor = pathname.startsWith("/compensation")
+    ? "bg-teal-600"
+    : pathname.startsWith("/it-assets")
+      ? "bg-indigo-600"
+      : "bg-accent";
   return (
     <Link
       href={item.href}
@@ -168,7 +172,8 @@ const COMPENSATION_ITEMS: NavItem[] = [
 ];
 
 const IT_ASSET_ITEMS: NavItem[] = [
-  { href: "/it-assets/software", label: "Software / License", icon: ICONS.list, tone: "indigo" },
+  { href: "/it-assets/dashboard", label: "Dashboard", icon: ICONS.dashboard, tone: "indigo" },
+  { href: "/it-assets/software", label: "Software / License", icon: ICONS.list, tone: "sky" },
 ];
 
 function navItems(user: User, inCompensation: boolean, inItAssets: boolean): (NavItem | NavGroup)[] {
@@ -333,7 +338,7 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           inCompensation
             ? "compensation max-w-[1920px] sm:px-6"
             : inItAssets
-              ? "max-w-[1600px] sm:px-6"
+              ? "it-assets max-w-[1600px] sm:px-6"
               : "max-w-[1400px] sm:px-8"
         }`}
       >

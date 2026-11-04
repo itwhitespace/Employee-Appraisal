@@ -1,4 +1,4 @@
-import type { BillingCycle, LicenseInput } from "./software";
+import { budgetGroupOf, type BillingCycle, type LicenseInput } from "./software";
 
 /**
  * Reads the "License Overview" sheet of the IT software inventory (.xlsx) in the browser.
@@ -192,6 +192,7 @@ export async function readLicenseWorkbook(file: File): Promise<{ sheet: string; 
               ? ""
               : textOf(read("contact")).slice(0, 200),
             status: "active",
+            budgetGroup: budgetGroupOf(categoryOf(name)),
             remark: PASSWORD.test(remark) ? "" : remark.slice(0, 500),
           },
         });

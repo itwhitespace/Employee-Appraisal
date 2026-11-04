@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { LicenseDialog, RenewDialog } from "@/components/LicenseDialog";
+import { baht, Category, Chip } from "@/components/LicenseParts";
 import { api, errorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import {
@@ -12,26 +13,9 @@ import {
   daysLeft,
   PAYMENT_NAMES,
   productKey,
-  standingOf,
   todayIso,
   type SoftwareLicense,
 } from "@/lib/software";
-
-const baht = (n: number | null) => (n === null ? "–" : Math.round(n).toLocaleString("en-US"));
-
-function Chip({ license }: { license: SoftwareLicense }) {
-  const s = standingOf(license);
-  return <span className={`chip whitespace-nowrap ${s.tone}`}>{s.label}</span>;
-}
-
-function Category({ name }: { name: string }) {
-  return (
-    <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-xs">
-      <i className={`h-2 w-2 rounded-full ${CATEGORY_DOT[name] ?? "bg-slate-400"}`} />
-      {name}
-    </span>
-  );
-}
 
 /** Today's licenses as a workbook. */
 async function exportLicenses(licenses: SoftwareLicense[]) {
@@ -110,26 +94,8 @@ export default function SoftwarePage() {
       .catch((e) => setError(errorMessage(e)));
   }, []);
 
-  const active = useMemo(() => (licenses ?? []).filter((l) => l.status === "active"), [licenses]);
-
   if (error) return <div className="card p-8 text-center text-red-500">{error}</div>;
   if (!licenses) return <div className="card p-8 text-center text-muted">กำลังโหลด…</div>;
-
-  const dueWithin = (days: number) =>
-    active.filter((l) => {
-      const d = daysLeft(l);
-      return d !== null && d >= 0 && d <= days;
-    });
-  const expired = active.filter((l) => (daysLeft(l) ?? 0) < 0);
-  const noPrice = active.filter((l) => l.pricePerYear === null && l.billingCycle !== "perpetual");
-  const total = active.reduce((sum, l) => sum + (l.pricePerYear ?? 0), 0);
-  const byCategory = CATEGORIES.map((c) => ({
-    name: c,
-    total: active.filter((l) => l.category === c).reduce((sum, l) => sum + (l.pricePerYear ?? 0), 0),
-  })).filter((c) => c.total > 0);
-  const top = Math.max(1, ...byCategory.map((c) => c.total));
-  const soon = [...expired, ...dueWithin(90)].sort((a, b) => (daysLeft(a) ?? 0) - (daysLeft(b) ?? 0));
-  const products = new Set(active.map((l) => productKey(l.name))).size;
 
   const words = search.trim().toLowerCase();
   const shown = licenses.filter(
@@ -147,18 +113,24 @@ export default function SoftwarePage() {
   }
   const names = [...new Set(licenses.map((l) => l.name))].sort();
 
+  // A program's own row is a coloured band with the category's colour down its left edge;
+  // the lots under it stay white and indented.
+  const bar = (l: SoftwareLicense) => (
+    <i className={`absolute inset-y-0 left-0 w-1.5 ${CATEGORY_DOT[l.category] ?? "bg-slate-400"}`} />
+  );
   const row = (l: SoftwareLicense, inGroup: boolean, index: number) => (
     <tr
       key={l.id}
-      className={`${inGroup ? "bg-slate-50/70" : ""} ${l.status === "cancelled" ? "text-muted" : ""}`}
+      className={`${inGroup ? "bg-white text-slate-600" : "program"} ${l.status === "cancelled" ? "text-muted" : ""}`}
     >
-      <td className={inGroup ? "pl-9" : ""}>
+      <td className={inGroup ? "pl-10" : "relative pl-5"}>
+        {!inGroup && bar(l)}
         <button type="button" className="text-left hover:underline" onClick={() => setEditing(l)}>
-          <span className={inGroup ? "text-[12.5px]" : "font-medium"}>
+          <span className={inGroup ? "text-[12.5px]" : "font-semibold text-indigo-950"}>
             {inGroup ? `↳ ${l.detail || `ล็อตที่ ${index + 1}`}` : l.name}
           </span>
         </button>
-        {!inGroup && l.detail && <div className="text-[11px] text-faint">{l.detail}</div>}
+        {!inGroup && l.detail && <div className="text-[11px] text-indigo-900/60">{l.detail}</div>}
       </td>
       <td>{inGroup ? null : <Category name={l.category} />}</td>
       <td className="text-right tabular-nums">{l.seats ?? "–"}</td>
@@ -213,33 +185,6 @@ export default function SoftwarePage() {
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <div className="card px-5 py-4">
-          <div className="text-xs text-muted">License ที่ใช้งาน</div>
-          <div className="text-3xl font-semibold tabular-nums">{active.length}</div>
-          <div className="text-xs text-faint">{products} โปรแกรม / บริการ</div>
-        </div>
-        <div className="card px-5 py-4">
-          <div className="text-xs text-muted">ค่าใช้จ่ายต่อปี</div>
-          <div className="text-3xl font-semibold tabular-nums">฿{baht(total)}</div>
-          <div className="text-xs text-faint">ไม่รวมรายการที่ยังไม่มีราคา</div>
-        </div>
-        <div
-          className={`card px-5 py-4 ${dueWithin(30).length + expired.length ? "ring-2 ring-red-200" : ""}`}
-        >
-          <div className="text-xs text-red-600">ครบกำหนดใน 30 วัน</div>
-          <div className="text-3xl font-semibold tabular-nums text-red-600">{dueWithin(30).length}</div>
-          <div className="text-xs text-faint">
-            ภายใน 90 วัน {dueWithin(90).length} · เลยกำหนดแล้ว {expired.length}
-          </div>
-        </div>
-        <div className="card px-5 py-4">
-          <div className="text-xs text-amber-700">ข้อมูลไม่ครบ</div>
-          <div className="text-3xl font-semibold tabular-nums text-amber-600">{noPrice.length}</div>
-          <div className="text-xs text-faint">ยังไม่มีราคา</div>
-        </div>
-      </div>
-
       {licenses.length === 0 ? (
         <div className="card p-8 text-center text-sm text-muted">
           ยังไม่มีรายการ ·{" "}
@@ -250,56 +195,8 @@ export default function SoftwarePage() {
         </div>
       ) : (
         <>
-          <div className="grid gap-3 lg:grid-cols-5">
-            <section className="card px-5 py-4 lg:col-span-3">
-              <h2 className="mb-2 text-sm font-semibold">ใกล้ครบกำหนด (90 วัน) และเลยกำหนด</h2>
-              {soon.length === 0 && <p className="text-sm text-muted">ไม่มีรายการ</p>}
-              {soon.map((l) => (
-                <div
-                  key={l.id}
-                  className="flex items-center justify-between gap-3 border-t border-line py-1.5 text-[13px]"
-                >
-                  <span className="min-w-0 truncate">
-                    {l.name}
-                    <span className="text-faint">
-                      {l.detail && ` · ${l.detail}`} · {l.seats ?? "–"} seat
-                    </span>
-                  </span>
-                  <span className="flex shrink-0 items-center gap-3">
-                    <span className="tabular-nums text-muted">{formatDate(l.expireDate)}</span>
-                    <Chip license={l} />
-                    <button
-                      type="button"
-                      className="rounded-md border border-line px-2 py-0.5 text-xs hover:bg-canvas"
-                      onClick={() => setRenewing(l)}
-                    >
-                      ต่ออายุ
-                    </button>
-                  </span>
-                </div>
-              ))}
-            </section>
-            <section className="card px-5 py-4 lg:col-span-2">
-              <h2 className="mb-3 text-sm font-semibold">ค่าใช้จ่ายต่อปีตามกลุ่ม</h2>
-              {byCategory.map((c) => (
-                <div key={c.name} className="mb-2.5">
-                  <div className="flex justify-between text-[12.5px]">
-                    <span>{c.name}</span>
-                    <span className="font-medium tabular-nums">฿{baht(c.total)}</span>
-                  </div>
-                  <div className="mt-1 h-2 rounded-full bg-canvas">
-                    <div
-                      className={`h-2 rounded-full ${CATEGORY_DOT[c.name]}`}
-                      style={{ width: `${Math.max(2, (c.total / top) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </section>
-          </div>
-
           <section className="card overflow-hidden">
-            <div className="flex flex-wrap items-center gap-2 px-5 py-3">
+            <div className="flex flex-wrap items-center gap-2 bg-gradient-to-r from-indigo-50 via-sky-50 to-white px-5 py-3">
               <select
                 className="field !w-auto"
                 aria-label="กลุ่ม"
@@ -354,12 +251,11 @@ export default function SoftwarePage() {
                       .filter((l) => daysLeft(l) !== null)
                       .sort((a, b) => (daysLeft(a) ?? 0) - (daysLeft(b) ?? 0))[0];
                     return [
-                      <tr key={`group-${head.id}`}>
-                        <td>
-                          <span className="font-semibold">{head.name}</span>{" "}
-                          <span className="chip ml-1 bg-indigo-50 text-indigo-700">
-                            {group.length} รายการ
-                          </span>
+                      <tr key={`group-${head.id}`} className="program">
+                        <td className="relative pl-5">
+                          {bar(head)}
+                          <span className="font-semibold text-indigo-950">{head.name}</span>{" "}
+                          <span className="chip ml-1 bg-indigo-600 text-white">{group.length} รายการ</span>
                         </td>
                         <td>
                           <Category name={head.category} />

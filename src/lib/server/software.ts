@@ -2,6 +2,7 @@ import "server-only";
 import {
   CATEGORIES,
   type BillingCycle,
+  type BudgetGroup,
   type LicenseInput,
   type LicenseRenewal,
   type LicenseStatus,
@@ -33,6 +34,7 @@ interface LicenseRow {
   vendor_contact: string;
   status: LicenseStatus;
   remark: string;
+  budget_group?: BudgetGroup;
   updated_at: string;
 }
 
@@ -57,6 +59,7 @@ const toLicense = (row: LicenseRow): SoftwareLicense => ({
   vendorContact: row.vendor_contact,
   status: row.status,
   remark: row.remark,
+  budgetGroup: row.budget_group ?? "back-office",
   updatedAt: row.updated_at,
 });
 
@@ -78,6 +81,7 @@ const toRow = (input: LicenseInput) => ({
   vendor_contact: input.vendorContact,
   status: input.status,
   remark: input.remark,
+  budget_group: input.budgetGroup,
 });
 
 function check<T>(result: { data: T; error: { message: string } | null }): T {
@@ -140,6 +144,7 @@ export function parseLicenseInput(body: Record<string, unknown>): LicenseInput {
     vendorContact: text(body.vendorContact, 200),
     status: oneOf<LicenseStatus>(body.status, ["active", "cancelled"], "active"),
     remark: text(body.remark, 500),
+    budgetGroup: oneOf<BudgetGroup>(body.budgetGroup, ["back-office", "designer"], "back-office"),
   };
   if (input.startDate && input.expireDate && input.expireDate < input.startDate) {
     throw new HttpError(400, "วันหมดอายุต้องไม่ก่อนวันเริ่ม");

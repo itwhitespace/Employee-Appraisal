@@ -43,6 +43,13 @@ body {
   }
 
   /* Compensation pages: compact teal tables and outlined inputs, set apart from the appraisal. */
+  /* IT Assets: dark indigo table headings; a program's row is a band above its lots. */
+  .it-assets .sheet th {
+    @apply border-indigo-900 bg-indigo-900 font-semibold text-white;
+  }
+  .it-assets .sheet tr.program td {
+    @apply border-indigo-200 bg-indigo-100/80;
+  }
   .compensation .sheet {
     @apply text-[12.5px];
   }

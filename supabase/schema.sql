@@ -446,3 +446,31 @@ create index if not exists software_license_renewals_license_idx
 
 alter table public.software_licenses         enable row level security;
 alter table public.software_license_renewals enable row level security;
+
+-- IT budget on the IT Assets dashboard. See supabase/it-budget.local.sql.
+-- Which part of the budget a license is counted in, as in the IT Budget workbook.
+alter table public.software_licenses
+  add column if not exists budget_group text not null default 'back-office';
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conname = 'software_licenses_budget_group_check') then
+    alter table public.software_licenses
+      add constraint software_licenses_budget_group_check check (budget_group in ('back-office', 'designer'));
+  end if;
+end $$;
+
+-- Hardware lines of the budget, per fiscal year (October to September). `fiscal_year` is the
+-- year it starts, e.g. 2026 = Oct 2026 – Sep 2027. `amounts` holds baht per month, e.g.
+-- {"2026-10": 24500}.
+create table if not exists public.it_budget_hardware (
+  id          uuid primary key default gen_random_uuid(),
+  fiscal_year smallint not null check (fiscal_year between 2000 and 2100),
+  position    integer not null default 0,
+  item        text not null check (length(trim(item)) > 0),
+  detail      text not null default '',
+  amounts     jsonb not null default '{}'::jsonb,
+  updated_at  timestamptz not null default now(),
+  updated_by  uuid references public.employees (id) on delete set null
+);
+create index if not exists it_budget_hardware_year_idx on public.it_budget_hardware (fiscal_year, position);
+alter table public.it_budget_hardware enable row level security;

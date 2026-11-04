@@ -20,7 +20,7 @@ import type {
   Scales,
   User,
 } from "./types";
-import type { LicenseInput, LicenseRenewal, SoftwareLicense } from "./software";
+import type { HardwareLine, LicenseInput, LicenseRenewal, SoftwareLicense } from "./software";
 
 /** Browser-side client for the app's own API routes. */
 
@@ -132,6 +132,10 @@ export const api = {
   importSalaries: (payload: SalaryImport) =>
     request<CompensationOverview>("/api/compensation/salaries/import", "POST", payload),
 
+  /** IT budget: hardware lines of a fiscal year (2026 = Oct 2026 – Sep 2027). */
+  hardwareBudget: (year: number) => request<{ hardware: HardwareLine[] }>(`/api/it-budget?year=${year}`),
+  saveHardwareBudget: (year: number, hardware: Omit<HardwareLine, "id">[]) =>
+    request<{ hardware: HardwareLine[] }>("/api/it-budget", "PUT", { year, hardware }),
   /** IT Assets: software licenses (admin only). */
   licenses: () => request<{ licenses: SoftwareLicense[] }>("/api/software"),
   addLicense: (license: LicenseInput) =>
