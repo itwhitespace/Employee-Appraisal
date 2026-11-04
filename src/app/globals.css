@@ -50,6 +50,16 @@ body {
   .it-assets .sheet tr.program td {
     @apply border-indigo-200 bg-indigo-100/80;
   }
+  /* IT Budget: tight cells so twelve months fit, and a bright heading like the cards above. */
+  .it-assets .sheet.budget :where(th, td) {
+    @apply px-1.5 py-2;
+  }
+  .it-assets .sheet.budget thead tr {
+    @apply bg-gradient-to-r from-indigo-600 via-violet-500 to-sky-500;
+  }
+  .it-assets .sheet.budget th {
+    @apply border-transparent bg-transparent;
+  }
   .compensation .sheet {
     @apply text-[12.5px];
   }

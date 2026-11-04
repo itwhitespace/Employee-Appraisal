@@ -122,20 +122,20 @@ export default function ItDashboardPage() {
   };
 
   const groupRows = (title: string, rows: BudgetRow[], total: number[]) => [
-    <tr key={`${title}-head`} className="bg-indigo-50/60">
-      <td colSpan={16} className="font-semibold text-indigo-900">
+    <tr key={`${title}-head`} className="bg-indigo-200">
+      <td colSpan={16} className="border-l-4 border-l-indigo-600 font-bold text-indigo-950">
         {title}
       </td>
     </tr>,
     ...rows.map((r) => (
       <tr key={r.key}>
         <td className="font-medium">{r.item}</td>
-        <td className="text-xs text-muted">{r.detail}</td>
+        <td className="break-words text-[11px] text-muted">{r.detail}</td>
         {r.months.map((v, i) => (
           <Money key={i} value={v} />
         ))}
         <Money value={sum(r.months)} strong />
-        <td className="text-[11px] text-muted">{r.endDates}</td>
+        <td className="break-words text-[10.5px] leading-snug text-muted">{r.endDates}</td>
       </tr>
     )),
     <tr key={`${title}-total`} className="bg-slate-50">
@@ -191,11 +191,21 @@ export default function ItDashboardPage() {
           </div>
         </header>
         <div className="overflow-x-auto border-t border-line">
-          <table className="sheet min-w-[1800px] text-[12px]">
+          {/* Fixed widths so the whole year fits the screen without scrolling. */}
+          <table className="sheet budget min-w-[1080px] table-fixed text-[11.5px]">
+            <colgroup>
+              <col className="w-[11%]" />
+              <col className="w-[11%]" />
+              {months.map((m) => (
+                <col key={m} className="w-[5%]" />
+              ))}
+              <col className="w-[7%]" />
+              <col className="w-[11%]" />
+            </colgroup>
             <thead>
               <tr>
-                <th className="w-48">Item</th>
-                <th className="w-44">Detail</th>
+                <th>Item</th>
+                <th>Detail</th>
                 {months.map((m) => (
                   <th key={m} className="text-right">
                     {monthLabel(m)}
@@ -233,7 +243,7 @@ export default function ItDashboardPage() {
                 <tr key={index}>
                   <td>
                     <input
-                      className="field !py-1 text-[12px]"
+                      className="field !px-1.5 !py-1 text-[11.5px]"
                       placeholder="รายการ เช่น Notebook"
                       aria-label={`รายการ Hardware แถว ${index + 1}`}
                       value={h.item}
@@ -242,7 +252,7 @@ export default function ItDashboardPage() {
                   </td>
                   <td>
                     <input
-                      className="field !py-1 text-[12px]"
+                      className="field !px-1.5 !py-1 text-[11.5px]"
                       placeholder="รายละเอียด"
                       aria-label={`รายละเอียด Hardware แถว ${index + 1}`}
                       value={h.detail}
@@ -250,9 +260,9 @@ export default function ItDashboardPage() {
                     />
                   </td>
                   {months.map((m) => (
-                    <td key={m} className="min-w-[88px]">
+                    <td key={m}>
                       <input
-                        className="field !px-1.5 !py-1 text-right text-[12px] tabular-nums"
+                        className="field !px-1 !py-1 text-right text-[11.5px] tabular-nums"
                         inputMode="decimal"
                         aria-label={`${h.item || "Hardware"} ${monthLabel(m)}`}
                         value={h.amounts[m] ?? ""}
