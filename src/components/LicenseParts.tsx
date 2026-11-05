@@ -4,7 +4,6 @@ import { formatDate } from "@/lib/format";
 import {
   CATEGORIES,
   CATEGORY_DOT,
-  CATEGORY_TINT,
   daysLeft,
   productKey,
   standingOf,
@@ -23,11 +22,10 @@ export function Chip({ license }: { license: SoftwareLicense }) {
 export function Category({ name }: { name: string }) {
   return (
     <span
-      className={`inline-flex items-center gap-1.5 whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${
-        CATEGORY_TINT[name] ?? "bg-slate-100 text-slate-700"
+      className={`inline-flex items-center whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-semibold text-white shadow-sm ${
+        CATEGORY_DOT[name] ?? "bg-slate-400"
       }`}
     >
-      <i className={`h-2 w-2 rounded-full ${CATEGORY_DOT[name] ?? "bg-slate-400"}`} />
       {name}
     </span>
   );

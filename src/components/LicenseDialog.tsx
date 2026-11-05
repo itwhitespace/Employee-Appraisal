@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { api, errorMessage } from "@/lib/api";
 import { formatDate } from "@/lib/format";
 import {
@@ -21,6 +22,17 @@ import {
 const baht = (n: number | null) =>
   n === null ? "–" : n.toLocaleString("en-US", { maximumFractionDigits: 2 });
 const numberOrNull = (text: string) => (text.trim() === "" ? null : Number(text.replace(/,/g, "")));
+
+/**
+ * Baht a year from the price per seat and the payment cycle: a monthly price twelve times, any other
+ * price as it is (multi-year licenses are priced per year). Without a unit price the stored figure stays.
+ */
+function yearlyPrice(form: LicenseInput): number | null {
+  if (form.billingCycle === "perpetual") return null;
+  if (form.unitPrice === null || Number.isNaN(form.unitPrice)) return form.pricePerYear;
+  const total = form.unitPrice * (form.seats ?? 1) * (form.billingCycle === "monthly" ? 12 : 1);
+  return Math.round(total * 100) / 100;
+}
 
 function Field({ label, children, wide }: { label: string; children: React.ReactNode; wide?: boolean }) {
   return (
@@ -48,6 +60,7 @@ export function LicenseDialog({
   onClose: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const confirm = useConfirm();
   const [form, setForm] = useState<LicenseInput>(() => {
     if (!editing) return EMPTY_LICENSE;
     const { id: _id, updatedAt: _at, ...rest } = editing;
@@ -75,9 +88,20 @@ export function LicenseDialog({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!form.name.trim()) return setError("กรุณากรอกชื่อโปรแกรม / บริการ");
+    const input = { ...form, pricePerYear: yearlyPrice(form) };
+    const priceChange =
+      editing && editing.pricePerYear !== input.pricePerYear
+        ? ` · บาท/ปี ${baht(editing.pricePerYear)} → ${baht(input.pricePerYear)}`
+        : "";
+    const sure = await confirm({
+      title: editing ? "บันทึกการแก้ไข License?" : "เพิ่ม License นี้?",
+      message: `${form.name}${form.detail ? ` · ${form.detail}` : ""}${priceChange}`,
+      confirmLabel: "บันทึก",
+    });
+    if (!sure) return;
     setBusy(true);
     try {
-      const result = editing ? await api.saveLicense(editing.id, form) : await api.addLicense(form);
+      const result = editing ? await api.saveLicense(editing.id, input) : await api.addLicense(input);
       onSaved(result.licenses);
       dialog.current?.close();
     } catch (e) {
@@ -112,7 +136,7 @@ export function LicenseDialog({
             {editing ? "แก้ไข License" : "เพิ่ม License"}
           </h2>
           <p className="text-xs text-muted">
-            ราคาเป็นบาทต่อปี · ไม่ต้องใส่รหัสผ่านหรือ License key ในหน้านี้
+            บาท/ปี คำนวณจากราคาต่อหน่วย × Seat ตามรอบการจ่าย · ไม่ต้องใส่รหัสผ่านหรือ License key ในหน้านี้
           </p>
         </header>
         <div className="grid max-h-[70vh] gap-4 overflow-y-auto px-6 py-5 sm:grid-cols-2">
@@ -185,25 +209,14 @@ export function LicenseDialog({
               ))}
             </select>
           </Field>
-          {form.billingCycle === "monthly" ? (
-            <Field label="ตัดเงินทุกวันที่">
-              <input
-                className="field"
-                inputMode="numeric"
-                value={form.renewDay ?? ""}
-                onChange={(e) => set({ renewDay: numberOrNull(e.target.value) })}
-              />
-            </Field>
-          ) : (
-            <Field label="จำนวน Seat">
-              <input
-                className="field tabular-nums"
-                inputMode="numeric"
-                value={form.seats ?? ""}
-                onChange={(e) => set({ seats: numberOrNull(e.target.value) })}
-              />
-            </Field>
-          )}
+          <Field label="จำนวน Seat">
+            <input
+              className="field tabular-nums"
+              inputMode="numeric"
+              value={form.seats ?? ""}
+              onChange={(e) => set({ seats: numberOrNull(e.target.value) })}
+            />
+          </Field>
           <Field label="วันเริ่ม">
             <input
               type="date"
@@ -221,27 +234,29 @@ export function LicenseDialog({
               onChange={(e) => set({ expireDate: e.target.value || null })}
             />
           </Field>
-          <Field label="ราคาต่อหน่วย (บาท)">
+          <Field
+            label={`ราคาต่อหน่วย (บาท / Seat ${form.billingCycle === "monthly" ? "ต่อเดือน" : "ต่อปี"})`}
+          >
             <input
               className="field tabular-nums"
               inputMode="decimal"
+              disabled={perpetual}
               value={form.unitPrice ?? ""}
               onChange={(e) => set({ unitPrice: numberOrNull(e.target.value) })}
             />
           </Field>
-          <Field label="ราคาต่อปี (บาท)">
-            <input
-              className="field tabular-nums"
-              inputMode="decimal"
-              placeholder={
-                form.unitPrice !== null && form.seats
-                  ? `เช่น ${baht(form.unitPrice * form.seats)}`
-                  : undefined
-              }
-              value={form.pricePerYear ?? ""}
-              onChange={(e) => set({ pricePerYear: numberOrNull(e.target.value) })}
-            />
-          </Field>
+          <div className="block">
+            <span className="mb-1.5 block text-sm font-medium">บาท/ปี (คำนวณให้)</span>
+            <div className="rounded-lg bg-indigo-50 px-2.5 py-1.5 text-[13px] font-semibold tabular-nums text-indigo-900">
+              {perpetual ? "ซื้อขาด ไม่นับรายปี" : baht(yearlyPrice(form))}
+              {!perpetual && form.unitPrice !== null && (
+                <span className="ml-2 text-xs font-normal text-indigo-700/70">
+                  {baht(form.unitPrice)} × {form.seats ?? 1} seat
+                  {form.billingCycle === "monthly" ? " × 12 เดือน" : ""}
+                </span>
+              )}
+            </div>
+          </div>
           <Field label="วิธีจ่าย">
             <select
               className="field"
@@ -264,15 +279,8 @@ export function LicenseDialog({
               onChange={(e) => set({ cardLabel: e.target.value })}
             />
           </Field>
-          <Field label="ผู้ขาย">
+          <Field label="ผู้ขาย" wide>
             <input className="field" value={form.vendor} onChange={(e) => set({ vendor: e.target.value })} />
-          </Field>
-          <Field label="ผู้ติดต่อ / เบอร์">
-            <input
-              className="field"
-              value={form.vendorContact}
-              onChange={(e) => set({ vendorContact: e.target.value })}
-            />
           </Field>
           <Field label="หมายเหตุ" wide>
             <textarea

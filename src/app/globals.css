@@ -48,7 +48,14 @@ body {
     @apply border-indigo-900 bg-indigo-900 font-semibold text-white;
   }
   .it-assets .sheet tr.program td {
-    @apply border-indigo-200 bg-indigo-100/80;
+    @apply border-indigo-300 bg-indigo-200;
+  }
+  /* Total rows of the IT Budget: the zeros stay readable on the coloured bands. */
+  .it-assets .sheet.budget tr.total td {
+    @apply font-bold;
+  }
+  .it-assets .sheet.budget tr.strong td.text-faint {
+    @apply text-white/60;
   }
   /* IT Budget: tight cells so twelve months fit, and a bright heading like the cards above. */
   .it-assets .sheet.budget :where(th, td) {

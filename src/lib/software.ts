@@ -69,15 +69,6 @@ export const CATEGORY_DOT: Record<string, string> = {
   "อื่น ๆ": "bg-slate-400",
 };
 
-/** The same colours as a light pill, for the category label in the tables. */
-export const CATEGORY_TINT: Record<string, string> = {
-  โปรแกรมออกแบบ: "bg-indigo-100 text-indigo-800",
-  งานสำนักงาน: "bg-sky-100 text-sky-800",
-  "ความปลอดภัย / เครือข่าย": "bg-amber-100 text-amber-800",
-  "เว็บไซต์ / การตลาด": "bg-rose-100 text-rose-800",
-  "อื่น ๆ": "bg-slate-100 text-slate-700",
-};
-
 export const CYCLE_NAMES: Record<BillingCycle, string> = {
   monthly: "รายเดือน",
   "1y": "รายปี",
@@ -155,7 +146,7 @@ export function standingOf(license: SoftwareLicense, today = todayIso()) {
   if (license.status === "cancelled") return { label: "ยกเลิก", tone: "bg-slate-100 text-slate-500" };
   if (license.billingCycle === "perpetual") return { label: "ซื้อขาด", tone: "bg-slate-100 text-slate-600" };
   if (license.billingCycle === "monthly" && !license.expireDate) {
-    return { label: `ตัดทุกวันที่ ${license.renewDay ?? "–"}`, tone: "bg-slate-100 text-slate-600" };
+    return { label: "รายเดือน", tone: "bg-sky-100 text-sky-700" };
   }
   const days = daysLeft(license, today);
   if (days === null) return { label: "ไม่มีวันหมด", tone: "bg-slate-100 text-slate-600" };

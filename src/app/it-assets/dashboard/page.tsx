@@ -138,7 +138,7 @@ export default function ItDashboardPage() {
         <td className="break-words text-[10.5px] leading-snug text-muted">{r.endDates}</td>
       </tr>
     )),
-    <tr key={`${title}-total`} className="bg-slate-50">
+    <tr key={`${title}-total`} className="total bg-violet-200 text-violet-950">
       <td colSpan={2} className="text-right font-semibold">
         TOTAL {title}
       </td>
@@ -223,7 +223,7 @@ export default function ItDashboardPage() {
               </tr>
               {groupRows(BUDGET_GROUPS["back-office"], backOffice, backTotal)}
               {groupRows(BUDGET_GROUPS.designer, designer, designTotal)}
-              <tr className="bg-indigo-100">
+              <tr className="total strong bg-gradient-to-r from-indigo-600 to-violet-600 text-white">
                 <td colSpan={2} className="text-right font-bold">
                   TOTAL SOFTWARE
                 </td>
@@ -317,7 +317,7 @@ export default function ItDashboardPage() {
                   </div>
                 </td>
               </tr>
-              <tr className="bg-teal-50">
+              <tr className="total strong bg-gradient-to-r from-teal-600 to-emerald-500 text-white">
                 <td colSpan={2} className="text-right font-bold">
                   TOTAL HARDWARE
                 </td>
