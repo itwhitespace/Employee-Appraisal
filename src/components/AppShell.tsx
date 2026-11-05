@@ -174,6 +174,7 @@ const COMPENSATION_ITEMS: NavItem[] = [
 const IT_ASSET_ITEMS: NavItem[] = [
   { href: "/it-assets/dashboard", label: "Dashboard", icon: ICONS.dashboard, tone: "indigo" },
   { href: "/it-assets/software", label: "Software / License", icon: ICONS.list, tone: "sky" },
+  { href: "/it-assets/hardware", label: "Hardware / คอมพิวเตอร์", icon: ICONS.computer, tone: "emerald" },
 ];
 
 function navItems(user: User, inCompensation: boolean, inItAssets: boolean): (NavItem | NavGroup)[] {

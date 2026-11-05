@@ -474,3 +474,136 @@ create table if not exists public.it_budget_hardware (
 );
 create index if not exists it_budget_hardware_year_idx on public.it_budget_hardware (fiscal_year, position);
 alter table public.it_budget_hardware enable row level security;
+
+-- IT Assets, phase 2: the computer register, filled by the agent (install.cmd) and by IT.
+-- See supabase/devices.local.sql. Never stores passwords, product keys or recovery keys.
+create table if not exists public.devices (
+  id                 uuid primary key default gen_random_uuid(),
+
+  -- ── Register (typed in / imported) ─────────────────────────────────────────────────────
+  -- e.g. WS-131150C7. Empty for a computer the agent enrolled before IT registered it.
+  asset_number       text unique check (asset_number is null or length(trim(asset_number)) > 0),
+  device_type        text not null default '' check (device_type in ('', 'workstation', 'notebook', 'macbook', 'other')),
+  -- Who the computer is given to. Until it is matched to an employee, the name / email from
+  -- the workbook are kept as they were written.
+  holder_id          uuid references public.employees (id) on delete set null,
+  holder_name        text not null default '',
+  holder_email       text not null default '',
+  purchase_date      date,
+  -- Bill / order number of the purchase, e.g. a JIB bill number.
+  purchase_doc       text not null default '',
+  purchase_price     numeric(12, 2) check (purchase_price >= 0),
+  vendor             text not null default '',
+  warranty_expire    date,
+  status             text not null default 'active' check (status in ('active', 'spare', 'repair', 'retired')),
+  remark             text not null default '',
+
+  -- ── 1. Identity ────────────────────────────────────────────────────────────────────────
+  computer_name      text not null default '',
+  serial_number      text not null default '',
+  manufacturer       text not null default '',
+  model              text not null default '',
+  -- What the agent reads from the machine: desktop or laptop.
+  chassis            text not null default '' check (chassis in ('', 'desktop', 'laptop')),
+  -- The motherboard UUID, to tell computers apart when names repeat.
+  hardware_uuid      text unique,
+
+  -- ── 2. Hardware ────────────────────────────────────────────────────────────────────────
+  cpu                text not null default '',
+  cpu_cores          smallint check (cpu_cores > 0),
+  -- As written or reported ("16 DDR5 5200"), and the size in GB for filters and totals.
+  ram_text           text not null default '',
+  ram_gb             numeric(6, 1) check (ram_gb >= 0),
+  -- [{"model": "Samsung SSD 980", "type": "SSD", "sizeGb": 500, "freeGb": 120}, ...]
+  disks              jsonb not null default '[]'::jsonb,
+  disk_text          text not null default '',
+  disk_total_gb      numeric(8, 1) check (disk_total_gb >= 0),
+  disk_free_gb       numeric(8, 1) check (disk_free_gb >= 0),
+  gpu                text not null default '',
+  gpu_memory_gb      numeric(5, 1) check (gpu_memory_gb >= 0),
+  -- [{"name": "Dell P2422H", "serial": "..."}, ...]
+  monitors           jsonb not null default '[]'::jsonb,
+  -- Laptops: present capacity as a percentage of the design capacity.
+  battery_health     smallint check (battery_health between 0 and 150),
+  mainboard          text not null default '',
+  bios_version       text not null default '',
+  bios_date          date,
+  power_supply       text not null default '',
+
+  -- ── 3. Operating system ────────────────────────────────────────────────────────────────
+  os_name            text not null default '',
+  os_version         text not null default '',
+  os_install_date    date,
+  -- Whether Windows is activated; the key itself is never sent.
+  os_activated       boolean,
+  last_update_at     timestamptz,
+  last_boot_at       timestamptz,
+
+  -- ── 4. Network ─────────────────────────────────────────────────────────────────────────
+  ip_address         text not null default '',
+  mac_address        text not null default '',
+  -- [{"name": "Wi-Fi", "mac": "...", "ip": "...", "type": "wifi"}, ...]
+  network            jsonb not null default '[]'::jsonb,
+  connection         text not null default '' check (connection in ('', 'lan', 'wifi', 'other')),
+
+  -- ── 5. User (matched to employees through device_logins) ───────────────────────────────
+  login_user         text not null default '',
+  last_login_user    text not null default '',
+
+  -- ── 7. Security ────────────────────────────────────────────────────────────────────────
+  antivirus          text not null default '',
+  antivirus_enabled  boolean,
+  antivirus_updated_at timestamptz,
+  firewall_enabled   boolean,
+  -- BitLocker / FileVault on the system disk; the recovery key is never sent.
+  disk_encrypted     boolean,
+
+  -- ── 8. Agent and status ────────────────────────────────────────────────────────────────
+  -- none = registered by hand, no agent yet; pending = enrolled, waiting for IT to approve;
+  -- approved = its reports are accepted; blocked = its token is refused.
+  agent_status       text not null default 'none' check (agent_status in ('none', 'pending', 'approved', 'blocked')),
+  -- SHA-256 of the device's own token; the token itself stays on the computer.
+  agent_token_hash   text unique,
+  agent_version      text not null default '',
+  enrolled_at        timestamptz,
+  -- Online when this is within the last 15 minutes.
+  last_seen_at       timestamptz,
+  -- When the full inventory (sections 1–4, 7) and the software list were last sent.
+  inventory_at       timestamptz,
+  software_at        timestamptz,
+  -- Anything else a newer agent sends, kept until it gets a column of its own.
+  agent_extra        jsonb not null default '{}'::jsonb,
+
+  created_at         timestamptz not null default now(),
+  updated_at         timestamptz not null default now(),
+  updated_by         uuid references public.employees (id) on delete set null
+);
+create index if not exists devices_holder_idx on public.devices (holder_id);
+create index if not exists devices_serial_idx on public.devices (serial_number);
+create index if not exists devices_computer_name_idx on public.devices (computer_name);
+
+-- ── 6. Installed programs: the latest list of each computer, replaced once a day. ──────────
+create table if not exists public.device_software (
+  id           bigint generated always as identity primary key,
+  device_id    uuid not null references public.devices (id) on delete cascade,
+  name         text not null,
+  version      text not null default '',
+  publisher    text not null default '',
+  install_date date
+);
+create index if not exists device_software_device_idx on public.device_software (device_id);
+create index if not exists device_software_name_idx on public.device_software (lower(name));
+
+-- ── 5. Which employee a sign-in name belongs to (WS\somchai, somchai on a Mac, …). ──────────
+-- Filled in later, when the matching screen is built; one person may have several names.
+create table if not exists public.device_logins (
+  login_name   text primary key check (login_name = lower(login_name)),
+  employee_id  uuid references public.employees (id) on delete cascade,
+  confirmed_at timestamptz,
+  confirmed_by uuid references public.employees (id) on delete set null
+);
+create index if not exists device_logins_employee_idx on public.device_logins (employee_id);
+
+alter table public.devices         enable row level security;
+alter table public.device_software enable row level security;
+alter table public.device_logins   enable row level security;

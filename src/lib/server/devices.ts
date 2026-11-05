@@ -1,0 +1,572 @@
+import "server-only";
+import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
+import {
+  loginKey,
+  typeOf,
+  type AgentStatus,
+  type Device,
+  type DeviceHolder,
+  type DeviceInput,
+  type DeviceProgram,
+  type DeviceStatus,
+  type DeviceType,
+} from "../devices";
+import { HttpError } from "./errors";
+import { db } from "./supabase";
+
+/**
+ * The computer register (IT Assets): `devices`, `device_software` and `device_logins`.
+ * Computers enrol and report through /api/agent/*, with the enrolment key (DEVICE_ENROLL_KEY)
+ * once and then their own token, of which only the SHA-256 is stored.
+ */
+
+type Row = Record<string, unknown> & { id: string };
+
+function check<T>(result: { data: T; error: { message: string; code?: string } | null }): T {
+  if (result.error) {
+    if (result.error.code === "23505" && /asset_number/.test(result.error.message)) {
+      throw new HttpError(400, "เลขครุภัณฑ์นี้มีเครื่องอื่นใช้อยู่แล้ว");
+    }
+    throw new Error(result.error.message);
+  }
+  return result.data;
+}
+
+const num = (value: unknown) => (value === null || value === undefined ? null : Number(value));
+const str = (value: unknown) => (typeof value === "string" ? value : "");
+const list = <T>(value: unknown): T[] => (Array.isArray(value) ? (value as T[]) : []);
+
+const toDevice = (r: Row): Device => ({
+  id: r.id,
+  assetNumber: (r.asset_number as string | null) ?? null,
+  deviceType: str(r.device_type) as DeviceType,
+  holderId: (r.holder_id as string | null) ?? null,
+  holderName: str(r.holder_name),
+  purchaseDate: (r.purchase_date as string | null) ?? null,
+  purchaseDoc: str(r.purchase_doc),
+  purchasePrice: num(r.purchase_price),
+  vendor: str(r.vendor),
+  warrantyExpire: (r.warranty_expire as string | null) ?? null,
+  status: str(r.status) as DeviceStatus,
+  remark: str(r.remark),
+  computerName: str(r.computer_name),
+  serialNumber: str(r.serial_number),
+  manufacturer: str(r.manufacturer),
+  model: str(r.model),
+  chassis: str(r.chassis) as Device["chassis"],
+  cpu: str(r.cpu),
+  cpuCores: num(r.cpu_cores),
+  ramText: str(r.ram_text),
+  ramGb: num(r.ram_gb),
+  disks: list(r.disks),
+  diskText: str(r.disk_text),
+  diskTotalGb: num(r.disk_total_gb),
+  diskFreeGb: num(r.disk_free_gb),
+  gpu: str(r.gpu),
+  gpuMemoryGb: num(r.gpu_memory_gb),
+  monitors: list(r.monitors),
+  batteryHealth: num(r.battery_health),
+  mainboard: str(r.mainboard),
+  biosVersion: str(r.bios_version),
+  biosDate: (r.bios_date as string | null) ?? null,
+  osName: str(r.os_name),
+  osVersion: str(r.os_version),
+  osInstallDate: (r.os_install_date as string | null) ?? null,
+  osActivated: (r.os_activated as boolean | null) ?? null,
+  lastUpdateAt: (r.last_update_at as string | null) ?? null,
+  lastBootAt: (r.last_boot_at as string | null) ?? null,
+  ipAddress: str(r.ip_address),
+  macAddress: str(r.mac_address),
+  network: list(r.network),
+  connection: str(r.connection),
+  loginUser: str(r.login_user),
+  lastLoginUser: str(r.last_login_user),
+  antivirus: str(r.antivirus),
+  antivirusEnabled: (r.antivirus_enabled as boolean | null) ?? null,
+  antivirusUpdatedAt: (r.antivirus_updated_at as string | null) ?? null,
+  firewallEnabled: (r.firewall_enabled as boolean | null) ?? null,
+  diskEncrypted: (r.disk_encrypted as boolean | null) ?? null,
+  agentStatus: str(r.agent_status) as AgentStatus,
+  agentVersion: str(r.agent_version),
+  enrolledAt: (r.enrolled_at as string | null) ?? null,
+  lastSeenAt: (r.last_seen_at as string | null) ?? null,
+  inventoryAt: (r.inventory_at as string | null) ?? null,
+  softwareAt: (r.software_at as string | null) ?? null,
+  createdAt: str(r.created_at),
+  updatedAt: str(r.updated_at),
+});
+
+// Everything but the token hash and the extra JSON.
+const COLUMNS =
+  "id, asset_number, device_type, holder_id, holder_name, purchase_date, purchase_doc, purchase_price, vendor, " +
+  "warranty_expire, status, remark, computer_name, serial_number, manufacturer, model, chassis, cpu, cpu_cores, " +
+  "ram_text, ram_gb, disks, disk_text, disk_total_gb, disk_free_gb, gpu, gpu_memory_gb, monitors, battery_health, " +
+  "mainboard, bios_version, bios_date, os_name, os_version, os_install_date, os_activated, last_update_at, " +
+  "last_boot_at, ip_address, mac_address, network, connection, login_user, last_login_user, antivirus, " +
+  "antivirus_enabled, antivirus_updated_at, firewall_enabled, disk_encrypted, agent_status, agent_version, " +
+  "enrolled_at, last_seen_at, inventory_at, software_at, created_at, updated_at";
+
+// ---------------------------------------------------------------- checking what arrives
+
+const text = (value: unknown, max: number) =>
+  typeof value === "string"
+    ? value
+        .replace(/[\u0000-\u001f]/g, " ")
+        .trim()
+        .slice(0, max)
+    : "";
+function number(value: unknown, min: number, max: number): number | null {
+  if (value === null || value === undefined || value === "") return null;
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) && n >= min && n <= max ? Math.round(n * 10) / 10 : null;
+}
+const bool = (value: unknown) => (typeof value === "boolean" ? value : null);
+function day(value: unknown): string | null {
+  return typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value) && !Number.isNaN(Date.parse(value))
+    ? value
+    : null;
+}
+function moment(value: unknown): string | null {
+  if (typeof value !== "string" || value.length > 40) return null;
+  const time = Date.parse(value);
+  return Number.isNaN(time) ? null : new Date(time).toISOString();
+}
+const oneOf = <T extends string>(value: unknown, allowed: readonly T[], fallback: T): T =>
+  allowed.includes(value as T) ? (value as T) : fallback;
+
+/** What a computer sends: only the fields it sent, as columns (a heartbeat sends a few). */
+function reportColumns(body: Record<string, unknown>): Record<string, unknown> {
+  const columns: Record<string, unknown> = {};
+  const put = (key: string, column: string, value: unknown) => {
+    if (key in body) columns[column] = value;
+  };
+  put("computerName", "computer_name", text(body.computerName, 64));
+  put("serialNumber", "serial_number", text(body.serialNumber, 64));
+  put("manufacturer", "manufacturer", text(body.manufacturer, 80));
+  put("model", "model", text(body.model, 120));
+  put("chassis", "chassis", oneOf(body.chassis, ["", "desktop", "laptop"], ""));
+  put("cpu", "cpu", text(body.cpu, 160));
+  put("cpuCores", "cpu_cores", number(body.cpuCores, 1, 512));
+  put("ramText", "ram_text", text(body.ramText, 80));
+  put("ramGb", "ram_gb", number(body.ramGb, 0, 99999));
+  put(
+    "disks",
+    "disks",
+    list<Record<string, unknown>>(body.disks)
+      .slice(0, 16)
+      .map((d) => ({
+        model: text(d?.model, 80),
+        type: text(d?.type, 10),
+        sizeGb: number(d?.sizeGb, 0, 1e6),
+      })),
+  );
+  put("diskText", "disk_text", text(body.diskText, 160));
+  put("diskTotalGb", "disk_total_gb", number(body.diskTotalGb, 0, 1e6));
+  put("diskFreeGb", "disk_free_gb", number(body.diskFreeGb, 0, 1e6));
+  put("gpu", "gpu", text(body.gpu, 200));
+  put("gpuMemoryGb", "gpu_memory_gb", number(body.gpuMemoryGb, 0, 9999));
+  put(
+    "monitors",
+    "monitors",
+    list<Record<string, unknown>>(body.monitors)
+      .slice(0, 8)
+      .map((m) => ({ name: text(m?.name, 60), maker: text(m?.maker, 20), serial: text(m?.serial, 40) })),
+  );
+  put("batteryHealth", "battery_health", number(body.batteryHealth, 0, 150));
+  put("mainboard", "mainboard", text(body.mainboard, 120));
+  put("biosVersion", "bios_version", text(body.biosVersion, 60));
+  put("biosDate", "bios_date", day(body.biosDate));
+  put("osName", "os_name", text(body.osName, 80));
+  put("osVersion", "os_version", text(body.osVersion, 80));
+  put("osInstallDate", "os_install_date", day(body.osInstallDate));
+  put("osActivated", "os_activated", bool(body.osActivated));
+  put("lastUpdateAt", "last_update_at", moment(body.lastUpdateAt));
+  put("lastBootAt", "last_boot_at", moment(body.lastBootAt));
+  put("ipAddress", "ip_address", text(body.ipAddress, 45));
+  put("macAddress", "mac_address", text(body.macAddress, 32));
+  put(
+    "network",
+    "network",
+    list<Record<string, unknown>>(body.network)
+      .slice(0, 16)
+      .map((n) => ({
+        name: text(n?.name, 120),
+        mac: text(n?.mac, 32),
+        ip: text(n?.ip, 45),
+        type: text(n?.type, 10),
+        up: bool(n?.up) ?? undefined,
+      })),
+  );
+  put("connection", "connection", oneOf(body.connection, ["", "lan", "wifi", "other"], "other"));
+  put("loginUser", "login_user", text(body.loginUser, 120));
+  put("lastLoginUser", "last_login_user", text(body.lastLoginUser, 120));
+  put("antivirus", "antivirus", text(body.antivirus, 120));
+  put("antivirusEnabled", "antivirus_enabled", bool(body.antivirusEnabled));
+  put("antivirusUpdatedAt", "antivirus_updated_at", moment(body.antivirusUpdatedAt));
+  put("firewallEnabled", "firewall_enabled", bool(body.firewallEnabled));
+  put("diskEncrypted", "disk_encrypted", bool(body.diskEncrypted));
+  put("agentVersion", "agent_version", text(body.agentVersion, 20));
+  return columns;
+}
+
+function programsOf(body: Record<string, unknown>): DeviceProgram[] | null {
+  if (!Array.isArray(body.software)) return null;
+  return (body.software as Record<string, unknown>[])
+    .slice(0, 3000)
+    .map((p) => ({
+      name: text(p?.name, 200),
+      version: text(p?.version, 60),
+      publisher: text(p?.publisher, 120),
+      installDate: day(p?.installDate),
+    }))
+    .filter((p) => p.name);
+}
+
+async function savePrograms(deviceId: string, programs: DeviceProgram[]) {
+  check(await db().from("device_software").delete().eq("device_id", deviceId));
+  for (let i = 0; i < programs.length; i += 500) {
+    check(
+      await db()
+        .from("device_software")
+        .insert(
+          programs.slice(i, i + 500).map((p) => ({
+            device_id: deviceId,
+            name: p.name,
+            version: p.version,
+            publisher: p.publisher,
+            install_date: p.installDate,
+          })),
+        ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------- the agent
+
+const sha256 = (value: string) => createHash("sha256").update(value).digest("hex");
+
+/** The enrolment key in install.cmd; null when DEVICE_ENROLL_KEY is not set in Vercel. */
+export function enrollKey(): string | null {
+  const key = process.env.DEVICE_ENROLL_KEY?.trim();
+  return key && key.length >= 16 ? key : null;
+}
+
+function enrollKeyMatches(given: unknown): boolean {
+  const key = enrollKey();
+  if (!key) throw new HttpError(503, "ยังไม่ได้ตั้งค่า DEVICE_ENROLL_KEY");
+  if (typeof given !== "string") return false;
+  return timingSafeEqual(Buffer.from(sha256(given)), Buffer.from(sha256(key)));
+}
+
+// Board UUIDs and serials that many computers share (custom-built PCs).
+const JUNK_UUID = /^(0{8}-|f{8}-|03000200-0400-0500-0006-000700080009)/i;
+const JUNK_SERIAL =
+  /^(to be filled|default string|system serial|not specified|none|n\/?a|0+|1234567890|x+)$/i;
+
+const macsOf = (network: unknown) =>
+  new Set(
+    list<{ mac?: string }>(network)
+      .map((n) => (n.mac ?? "").toLowerCase())
+      .filter(Boolean),
+  );
+
+/**
+ * First report of a computer. It is matched to the computer it was before (a reinstall: the same
+ * board UUID and network card) or to one IT added by hand (the same serial); otherwise it is new.
+ * It waits for IT unless it was approved before. Returns the computer's token.
+ */
+export async function enrollDevice(
+  body: Record<string, unknown>,
+): Promise<{ token: string; status: AgentStatus }> {
+  if (!enrollKeyMatches(body.enrollKey)) throw new HttpError(401, "รหัสลงทะเบียนไม่ถูกต้อง");
+  const columns = reportColumns(body);
+  if (!columns.computer_name) throw new HttpError(400, "ไม่มีชื่อเครื่อง");
+  const uuid = text(body.hardwareUuid, 64);
+  const serial = String(columns.serial_number ?? "");
+  const macs = macsOf(columns.network);
+
+  let match: Row | null = null;
+  let uuidTaken = false;
+  if (uuid && !JUNK_UUID.test(uuid)) {
+    const same = check(
+      await db().from("devices").select("id, agent_status, network").eq("hardware_uuid", uuid).maybeSingle(),
+    ) as Row | null;
+    if (same) {
+      const known = macsOf(same.network);
+      if (known.size === 0 || macs.size === 0 || [...macs].some((m) => known.has(m))) match = same;
+      else uuidTaken = true;
+    }
+  } else {
+    uuidTaken = true;
+  }
+  if (!match && serial.length >= 4 && !JUNK_SERIAL.test(serial)) {
+    const rows = check(
+      await db()
+        .from("devices")
+        .select("id, agent_status, network")
+        .eq("serial_number", serial)
+        .eq("agent_status", "none")
+        .limit(2),
+    ) as Row[];
+    if (rows.length === 1) match = rows[0];
+  }
+  if (match?.agent_status === "blocked") throw new HttpError(403, "เครื่องนี้ถูกบล็อกในทะเบียน");
+
+  const token = randomBytes(32).toString("base64url");
+  const now = new Date().toISOString();
+  const status: AgentStatus = match?.agent_status === "approved" ? "approved" : "pending";
+  const fields = {
+    ...columns,
+    agent_status: status,
+    agent_token_hash: sha256(token),
+    enrolled_at: now,
+    last_seen_at: now,
+    inventory_at: now,
+    updated_at: now,
+  };
+  let id: string;
+  if (match) {
+    id = match.id;
+    check(
+      await db()
+        .from("devices")
+        .update({ ...fields, ...(uuidTaken ? {} : { hardware_uuid: uuid }) })
+        .eq("id", id),
+    );
+  } else {
+    const created = check(
+      await db()
+        .from("devices")
+        .insert({ ...fields, hardware_uuid: uuidTaken ? null : uuid })
+        .select("id")
+        .single(),
+    ) as { id: string };
+    id = created.id;
+  }
+  const programs = programsOf(body);
+  if (programs) {
+    await savePrograms(id, programs);
+    check(await db().from("devices").update({ software_at: now }).eq("id", id));
+  }
+  return { token, status };
+}
+
+/** A later report: a heartbeat, or the full inventory, with or without the program list. */
+export async function reportDevice(
+  authorization: string | null,
+  body: Record<string, unknown>,
+): Promise<{ status: AgentStatus }> {
+  const token = authorization?.match(/^Bearer\s+([A-Za-z0-9_-]{20,100})$/)?.[1];
+  if (!token) throw new HttpError(401, "ไม่มี token");
+  const device = check(
+    await db().from("devices").select("id, agent_status").eq("agent_token_hash", sha256(token)).maybeSingle(),
+  ) as Row | null;
+  if (!device) throw new HttpError(401, "token ไม่ถูกต้อง");
+  if (device.agent_status === "blocked") throw new HttpError(403, "เครื่องนี้ถูกบล็อกในทะเบียน");
+
+  const now = new Date().toISOString();
+  const columns = reportColumns(body);
+  const programs = programsOf(body);
+  check(
+    await db()
+      .from("devices")
+      .update({
+        ...columns,
+        last_seen_at: now,
+        ...("computer_name" in columns ? { inventory_at: now } : {}),
+        ...(programs ? { software_at: now } : {}),
+      })
+      .eq("id", device.id),
+  );
+  if (programs) await savePrograms(device.id, programs);
+  return { status: device.agent_status as AgentStatus };
+}
+
+// ---------------------------------------------------------------- the register (IT)
+
+export async function listDevices(): Promise<Device[]> {
+  const rows = check(await db().from("devices").select(COLUMNS).order("computer_name")) as unknown as Row[];
+  return rows.map(toDevice);
+}
+
+/** Employees to give computers to, with the sign-in names known to be theirs. */
+export async function listHolders(): Promise<DeviceHolder[]> {
+  const people = check(
+    await db().from("employees").select("id, code, name, nickname, team").order("code"),
+  ) as { id: string; code: string; name: string; nickname: string; team: string }[];
+  const logins = check(await db().from("device_logins").select("login_name, employee_id")) as {
+    login_name: string;
+    employee_id: string | null;
+  }[];
+  return people.map((p) => ({
+    ...p,
+    logins: logins.filter((l) => l.employee_id === p.id).map((l) => l.login_name),
+  }));
+}
+
+export async function listPrograms(id: string): Promise<DeviceProgram[]> {
+  const rows = check(
+    await db()
+      .from("device_software")
+      .select("name, version, publisher, install_date")
+      .eq("device_id", id)
+      .order("name"),
+  ) as { name: string; version: string; publisher: string; install_date: string | null }[];
+  return rows.map((r) => ({
+    name: r.name,
+    version: r.version,
+    publisher: r.publisher,
+    installDate: r.install_date,
+  }));
+}
+
+/** Passwords and keys do not belong in the register. */
+const SECRET = /pass\s*(word)?\s*[:=]|รหัสผ่าน\s*[:=]|\b[A-Z0-9]{5}(-[A-Z0-9]{5}){4}\b/i;
+
+export function parseDeviceInput(body: Record<string, unknown>): DeviceInput {
+  const price = body.purchasePrice;
+  const purchasePrice =
+    price === null || price === undefined || price === ""
+      ? null
+      : number(typeof price === "string" ? price.replace(/,/g, "") : price, 0, 1e9);
+  if (price !== null && price !== undefined && price !== "" && purchasePrice === null) {
+    throw new HttpError(400, "ราคาไม่ถูกต้อง");
+  }
+  const input: DeviceInput = {
+    assetNumber: text(body.assetNumber, 40),
+    deviceType: oneOf<DeviceType>(body.deviceType, ["", "workstation", "notebook", "macbook", "other"], ""),
+    holderId: typeof body.holderId === "string" && body.holderId ? body.holderId : null,
+    holderName: text(body.holderName, 120),
+    purchaseDate: day(body.purchaseDate),
+    purchaseDoc: text(body.purchaseDoc, 120),
+    purchasePrice,
+    vendor: text(body.vendor, 120),
+    warrantyExpire: day(body.warrantyExpire),
+    status: oneOf<DeviceStatus>(body.status, ["active", "spare", "repair", "retired"], "active"),
+    remark: text(body.remark, 500),
+    computerName: text(body.computerName, 64),
+    serialNumber: text(body.serialNumber, 64),
+    manufacturer: text(body.manufacturer, 80),
+    model: text(body.model, 120),
+    cpu: text(body.cpu, 160),
+    ramText: text(body.ramText, 80),
+    diskText: text(body.diskText, 160),
+    gpu: text(body.gpu, 200),
+    osName: text(body.osName, 80),
+  };
+  if ([input.remark, input.purchaseDoc, input.holderName].some((t) => SECRET.test(t))) {
+    throw new HttpError(400, "อย่าเก็บรหัสผ่านหรือ Product Key ในทะเบียน ให้เก็บใน Password Manager แทน");
+  }
+  return input;
+}
+
+function registerColumns(input: DeviceInput) {
+  return {
+    asset_number: input.assetNumber || null,
+    device_type: input.deviceType,
+    holder_id: input.holderId,
+    holder_name: input.holderId ? "" : input.holderName,
+    purchase_date: input.purchaseDate,
+    purchase_doc: input.purchaseDoc,
+    purchase_price: input.purchasePrice,
+    vendor: input.vendor,
+    warranty_expire: input.warrantyExpire,
+    status: input.status,
+    remark: input.remark,
+  };
+}
+
+const specColumns = (input: DeviceInput) => ({
+  computer_name: input.computerName,
+  serial_number: input.serialNumber,
+  manufacturer: input.manufacturer,
+  model: input.model,
+  cpu: input.cpu,
+  ram_text: input.ramText,
+  disk_text: input.diskText,
+  gpu: input.gpu,
+  os_name: input.osName,
+});
+
+/** A computer without the agent. */
+export async function createDevice(input: DeviceInput, actorId: string): Promise<void> {
+  if (!input.computerName && !input.assetNumber)
+    throw new HttpError(400, "กรุณากรอกชื่อเครื่องหรือเลขครุภัณฑ์");
+  check(
+    await db()
+      .from("devices")
+      .insert({
+        ...registerColumns(input),
+        ...specColumns(input),
+        agent_status: "none",
+        updated_by: actorId,
+      }),
+  );
+}
+
+async function getDevice(id: string): Promise<Device> {
+  const row = check(
+    await db().from("devices").select(COLUMNS).eq("id", id).maybeSingle(),
+  ) as unknown as Row | null;
+  if (!row) throw new HttpError(404, "ไม่พบเครื่องนี้ กรุณาโหลดหน้าใหม่");
+  return toDevice(row);
+}
+
+// Sign-in names that are not one person's.
+const SHARED_LOGIN = /^(administrator|admin|user|owner|guest|default|it|support|ws-it|staff)$/;
+
+/**
+ * Saves the register part (the specification too for a computer without the agent). `approve`
+ * accepts a computer that is waiting. Giving it to someone records its signed-in user as theirs.
+ */
+export async function updateDevice(
+  id: string,
+  input: DeviceInput,
+  actorId: string,
+  approve: boolean,
+): Promise<void> {
+  const device = await getDevice(id);
+  const now = new Date().toISOString();
+  check(
+    await db()
+      .from("devices")
+      .update({
+        ...registerColumns({ ...input, deviceType: input.deviceType || typeOf(device) }),
+        ...(device.agentStatus === "none" ? specColumns(input) : {}),
+        ...(approve && device.agentStatus === "pending" ? { agent_status: "approved" } : {}),
+        updated_by: actorId,
+        updated_at: now,
+      })
+      .eq("id", id),
+  );
+  const login = loginKey(device.loginUser || device.lastLoginUser);
+  if (input.holderId && input.holderId !== device.holderId && login && !SHARED_LOGIN.test(login)) {
+    check(
+      await db()
+        .from("device_logins")
+        .upsert({ login_name: login, employee_id: input.holderId, confirmed_at: now, confirmed_by: actorId }),
+    );
+  }
+}
+
+/** Blocks a computer (its reports are refused) or lets it report again. */
+export async function setAgentStatus(
+  id: string,
+  status: "approved" | "blocked",
+  actorId: string,
+): Promise<void> {
+  const device = await getDevice(id);
+  if (device.agentStatus === "none") throw new HttpError(400, "เครื่องนี้ไม่ได้ติดตั้ง agent");
+  check(
+    await db()
+      .from("devices")
+      .update({ agent_status: status, updated_by: actorId, updated_at: new Date().toISOString() })
+      .eq("id", id),
+  );
+}
+
+/** Removes the computer and its program list; if its agent reports again, it enrols as new. */
+export async function deleteDevice(id: string): Promise<void> {
+  await getDevice(id);
+  check(await db().from("devices").delete().eq("id", id));
+}

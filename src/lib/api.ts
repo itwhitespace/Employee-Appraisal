@@ -21,6 +21,7 @@ import type {
   User,
 } from "./types";
 import type { HardwareLine, LicenseInput, LicenseRenewal, SoftwareLicense } from "./software";
+import type { Device, DeviceHolder, DeviceInput, DeviceProgram } from "./devices";
 
 /** Browser-side client for the app's own API routes. */
 
@@ -156,6 +157,17 @@ export const api = {
       note: string;
     },
   ) => request<{ licenses: SoftwareLicense[] }>(`/api/software/${id}/renew`, "POST", term),
+
+  /** IT Assets: the computer register (admin only). */
+  devices: () =>
+    request<{ devices: Device[]; holders: DeviceHolder[]; installerReady: boolean }>("/api/devices"),
+  addDevice: (device: DeviceInput) => request<{ devices: Device[] }>("/api/devices", "POST", { device }),
+  saveDevice: (id: string, device: DeviceInput, approve = false) =>
+    request<{ devices: Device[] }>(`/api/devices/${id}`, "PUT", { device, approve }),
+  setDeviceAgent: (id: string, agentStatus: "blocked" | "approved") =>
+    request<{ devices: Device[] }>(`/api/devices/${id}`, "PATCH", { agentStatus }),
+  deleteDevice: (id: string) => request<{ devices: Device[] }>(`/api/devices/${id}`, "DELETE"),
+  devicePrograms: (id: string) => request<{ programs: DeviceProgram[] }>(`/api/devices/${id}`),
 
   bonus: () => request<BonusData>("/api/compensation/bonus"),
   saveBonus: (plan: BonusPlan) => request<BonusData>("/api/compensation/bonus", "PUT", plan),
