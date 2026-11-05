@@ -24,10 +24,30 @@ function VolumeBox({ volume, wide }: { volume: VolumeInfo; wide?: boolean }) {
       : share !== null && share < 0.2
         ? "text-amber-700 font-medium"
         : "text-muted";
+  const bar = (
+    <div className="h-1.5 bg-slate-200">
+      <div className={`h-full ${tone}`} style={{ width: `${share === null ? 0 : (1 - share) * 100}%` }} />
+    </div>
+  );
+  // In the table: one line, so the row stays as low as the others; the rest in the tooltip.
+  if (!wide)
+    return (
+      <div
+        className="w-[128px] overflow-hidden rounded border border-line bg-white"
+        title={`${label ? `${label} (${drive})` : drive} · ว่าง ${gb(free)} GB${
+          share !== null ? ` (${Math.round(share * 100)}%)` : ""
+        }${total ? ` จาก ${Math.round(total)} GB` : ""}`}
+      >
+        {bar}
+        <div className="whitespace-nowrap px-1.5 py-0.5 text-[11px] leading-tight tabular-nums">
+          <span className="font-semibold text-ink">{drive}</span>{" "}
+          <span className={text}>ว่าง {gb(free)}</span>
+          {total ? <span className="text-faint"> / {Math.round(total)} GB</span> : " GB"}
+        </div>
+      </div>
+    );
   return (
-    <div
-      className={`overflow-hidden rounded-md border border-line bg-white text-left ${wide ? "w-[150px]" : "w-[112px]"}`}
-    >
+    <div className="w-[150px] overflow-hidden rounded-md border border-line bg-white text-left">
       <div className="h-1.5 bg-slate-200">
         <div className={`h-full ${tone}`} style={{ width: `${share === null ? 0 : (1 - share) * 100}%` }} />
       </div>

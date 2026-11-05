@@ -237,13 +237,14 @@ export default function HardwarePage() {
                 <th>ฮาร์ดดิสก์ / พื้นที่ว่าง</th>
                 <th>OS</th>
                 <th>IP</th>
+                <th>Agent</th>
                 {tab === "pending" && <th />}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={tab === "pending" ? 10 : 9} className="py-10 text-center text-muted">
+                  <td colSpan={tab === "pending" ? 11 : 10} className="py-10 text-center text-muted">
                     {tab === "pending"
                       ? "ไม่มีเครื่องรออนุมัติ · ดาวน์โหลด install.cmd แล้วรันที่เครื่อง client (Run as administrator)"
                       : devices.length === 0
@@ -278,23 +279,6 @@ export default function HardwarePage() {
                             {live ? "Online" : "Offline"}
                           </span>
                           <div className="text-[11px] text-faint">{seenAgo(d.lastSeenAt, now)}</div>
-                          {d.agentVersion && (
-                            <div
-                              className={`mt-0.5 text-[11px] ${
-                                isOlderVersion(d.agentVersion, agentVersion)
-                                  ? "font-semibold text-amber-700"
-                                  : "text-faint"
-                              }`}
-                              title={
-                                isOlderVersion(d.agentVersion, agentVersion)
-                                  ? `รุ่นล่าสุดคือ ${agentVersion}`
-                                  : "agent รุ่นล่าสุด"
-                              }
-                            >
-                              agent {d.agentVersion}
-                              {isOlderVersion(d.agentVersion, agentVersion) && " · ต้องอัปเดต"}
-                            </div>
-                          )}
                         </>
                       )}
                     </td>
@@ -359,6 +343,24 @@ export default function HardwarePage() {
                       )}
                     </td>
                     <td className="whitespace-nowrap tabular-nums text-muted">{d.ipAddress || "–"}</td>
+                    <td className="whitespace-nowrap text-[11px]">
+                      {!d.agentVersion ? (
+                        <span className="text-faint">–</span>
+                      ) : isOlderVersion(d.agentVersion, agentVersion) ? (
+                        <span
+                          className="font-semibold text-amber-700"
+                          title={`รุ่นล่าสุดคือ ${agentVersion}: ดาวน์โหลด install_agent แล้วรันซ้ำ`}
+                        >
+                          {d.agentVersion}
+                          <br />
+                          <span className="font-normal">ต้องอัปเดต</span>
+                        </span>
+                      ) : (
+                        <span className="text-muted" title="agent รุ่นล่าสุด">
+                          {d.agentVersion}
+                        </span>
+                      )}
+                    </td>
                     {tab === "pending" && (
                       <td className="whitespace-nowrap text-right">
                         <span className="btn-primary !px-2.5 !py-1 text-xs">อนุมัติ / Assign</span>
