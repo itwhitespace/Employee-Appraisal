@@ -14,17 +14,17 @@ export function DiskBar({ device, wide }: { device: Device; wide?: boolean }) {
   const text = share < 0.1 ? "text-red-600 font-semibold" : share < 0.2 ? "text-amber-700" : "text-ink";
   return (
     <div
-      className={wide ? "w-full max-w-[260px]" : "ml-auto w-[130px]"}
+      className={wide ? "w-full max-w-[260px]" : "ml-auto w-[160px]"}
       title={`ว่าง ${Math.round(share * 100)}%`}
     >
       <div className="h-2 overflow-hidden rounded-full bg-slate-200">
         <div className={`h-full rounded-full ${tone}`} style={{ width: `${(1 - share) * 100}%` }} />
       </div>
-      <div className="mt-0.5 flex justify-between gap-2 text-[11px] tabular-nums">
-        <span className={text}>ว่าง {free < 10 ? free.toFixed(1) : Math.round(free)} GB</span>
-        <span className="text-faint">
-          {Math.round(share * 100)}% · จาก {Math.round(total)}
+      <div className="mt-0.5 whitespace-nowrap text-[11px] tabular-nums">
+        <span className={text}>
+          ว่าง {free < 10 ? free.toFixed(1) : Math.round(free)} GB {Math.round(share * 100)}%
         </span>
+        <span className="text-faint"> · จาก {Math.round(total)} GB</span>
       </div>
     </div>
   );

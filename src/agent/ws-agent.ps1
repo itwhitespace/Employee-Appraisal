@@ -12,7 +12,7 @@
 param([switch]$DryRun, [string]$ConfigDir)
 
 $ErrorActionPreference = 'Stop'
-$AgentVersion = '1.0.1'
+$AgentVersion = '1.0.2'
 $Dir = if ($ConfigDir) { $ConfigDir } else { Join-Path $env:ProgramData 'WS-Agent' }
 $ConfigFile = Join-Path $Dir 'config.json'
 $TokenFile = Join-Path $Dir 'token'
@@ -315,16 +315,19 @@ try {
     $report['enrollKey'] = $Config.enrollKey
     $answer = Send '/api/agent/enroll' @{} $report
     Set-Content -Path $TokenFile -Value $answer.token -Encoding ASCII -NoNewline
-    $State = @{ inventoryAt = $now.ToString('o'); softwareAt = $now.ToString('o') }
+    $State = @{ inventoryAt = $now.ToString('o'); softwareAt = $now.ToString('o'); version = $AgentVersion }
     Write-Log "Enrolled with the IT Assets register ($($answer.status))."
   } else {
-    $full = ($now - $lastInventory) -ge $InventoryEvery
-    $withSoftware = ($now - $lastSoftware) -ge $SoftwareEvery
+    # A new agent version sends everything at once, so its changes show without waiting.
+    $upgraded = -not $State -or $State.version -ne $AgentVersion
+    $full = $upgraded -or ($now - $lastInventory) -ge $InventoryEvery
+    $withSoftware = $upgraded -or ($now - $lastSoftware) -ge $SoftwareEvery
     $report = Collect $full $withSoftware
     $answer = Send '/api/agent/report' @{ Authorization = "Bearer $token" } $report
     $State = @{
       inventoryAt = $(if ($full) { $now.ToString('o') } else { $lastInventory.ToString('o') })
       softwareAt  = $(if ($withSoftware) { $now.ToString('o') } else { $lastSoftware.ToString('o') })
+      version     = $AgentVersion
     }
     Write-Log ("Reported ({0}{1}): {2}." -f $(if ($full) { 'full' } else { 'heartbeat' }), $(if ($withSoftware) { ' + programs' } else { '' }), $answer.status)
   }

@@ -1,6 +1,7 @@
 import "server-only";
 import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
+  disksText,
   loginKey,
   typeOf,
   type AgentStatus,
@@ -162,13 +163,7 @@ function reportColumns(body: Record<string, unknown>): Record<string, unknown> {
     }))
     .filter((d) => !/usb/i.test(`${d.type} ${d.model}`));
   put("disks", "disks", disks);
-  put(
-    "diskText",
-    "disk_text",
-    "disks" in body
-      ? disks.map((d) => `${d.type} ${d.sizeGb ?? "?"} GB`.trim()).join(" + ")
-      : text(body.diskText, 160),
-  );
+  put("diskText", "disk_text", "disks" in body ? disksText(disks) : text(body.diskText, 160));
   put("diskTotalGb", "disk_total_gb", number(body.diskTotalGb, 0, 1e6));
   put("diskFreeGb", "disk_free_gb", number(body.diskFreeGb, 0, 1e6));
   put("gpu", "gpu", text(body.gpu, 200));

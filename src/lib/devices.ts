@@ -243,3 +243,30 @@ export function guessHolder(login: string, holders: DeviceHolder[]): DeviceHolde
   const hits = holders.filter((h) => words(h).some((w) => key.includes(w)));
   return hits.length === 1 ? hits[0] : null;
 }
+
+// Sizes disks are sold as (GB, 1 GB = 1,000,000,000 bytes).
+const DISK_SIZES = [
+  32, 60, 64, 120, 128, 160, 240, 250, 256, 320, 480, 500, 512, 640, 750, 960, 1000, 1024, 1500, 2000, 2048,
+  3000, 4000, 4096, 5000, 6000, 8000, 10000, 12000, 14000, 16000, 18000, 20000,
+];
+
+/**
+ * The size a disk is sold as: Windows counts 1 GB as 1024³ bytes, so a 500 GB disk shows as 466.
+ * "500 GB", "1 TB", "2 TB".
+ */
+export function diskSize(sizeGb: number | null): string {
+  if (sizeGb === null || sizeGb <= 0) return "?";
+  const sold = sizeGb * 1.073741824;
+  const gap = (n: number) => Math.abs(sold - n) / n;
+  const near = DISK_SIZES.reduce((a, b) => (gap(b) < gap(a) ? b : a));
+  const gb = gap(near) <= 0.04 ? near : Math.round(sold);
+  if (gb >= 1000) {
+    const tb = gb % 1024 === 0 ? gb / 1024 : gb / 1000;
+    return `${Number.isInteger(tb) ? tb : tb.toFixed(1)} TB`;
+  }
+  return `${gb} GB`;
+}
+
+/** "SSD 500 GB + HDD 1 TB" */
+export const disksText = (disks: DiskInfo[]) =>
+  disks.map((d) => `${d.type} ${diskSize(d.sizeGb)}`.trim()).join(" + ");

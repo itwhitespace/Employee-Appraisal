@@ -7,6 +7,7 @@ import { api, errorMessage } from "@/lib/api";
 import {
   DEVICE_STATUS,
   DEVICE_TYPES,
+  diskSize,
   EMPTY_DEVICE,
   guessHolder,
   isOnline,
@@ -312,7 +313,7 @@ export function DeviceDialog({
                     "Disk",
                     device.disks.length
                       ? device.disks
-                          .map((d) => `${d.type} ${d.sizeGb ?? "?"} GB ${d.model}`.trim())
+                          .map((d) => `${d.type} ${diskSize(d.sizeGb)} · ${d.model}`.trim())
                           .join(" + ")
                       : device.diskText,
                   ],
