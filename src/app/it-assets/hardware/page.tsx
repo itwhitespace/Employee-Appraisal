@@ -234,16 +234,16 @@ export default function HardwarePage() {
                 <th>ยี่ห้อ / รุ่น</th>
                 <th>CPU</th>
                 <th className="text-right">RAM</th>
-                <th className="text-right">พื้นที่ว่าง</th>
+                <th>ฮาร์ดดิสก์ / พื้นที่ว่าง</th>
                 <th>OS</th>
                 <th>IP</th>
-                <th />
+                {tab === "pending" && <th />}
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="py-10 text-center text-muted">
+                  <td colSpan={tab === "pending" ? 10 : 9} className="py-10 text-center text-muted">
                     {tab === "pending"
                       ? "ไม่มีเครื่องรออนุมัติ · ดาวน์โหลด install.cmd แล้วรันที่เครื่อง client (Run as administrator)"
                       : devices.length === 0
@@ -259,7 +259,11 @@ export default function HardwarePage() {
                 const live = d.agentStatus !== "none" && isOnline(d, now);
                 const Icon = typeOf(d) === "workstation" ? Monitor : Laptop;
                 return (
-                  <tr key={d.id} className="cursor-pointer hover:bg-emerald-50/60" onClick={() => setOpen(d)}>
+                  <tr
+                    key={d.id}
+                    className="cursor-pointer transition-colors hover:bg-emerald-100"
+                    onClick={() => setOpen(d)}
+                  >
                     <td className="whitespace-nowrap">
                       {d.agentStatus === "none" ? (
                         <span className="text-xs text-faint">ไม่มี agent</span>
@@ -345,7 +349,7 @@ export default function HardwarePage() {
                     <td className="whitespace-nowrap text-right tabular-nums">
                       {d.ramGb !== null ? `${d.ramGb} GB` : d.ramText || "–"}
                     </td>
-                    <td className="whitespace-nowrap text-right">
+                    <td>
                       <DiskBar device={d} />
                     </td>
                     <td className="whitespace-nowrap">
@@ -355,13 +359,11 @@ export default function HardwarePage() {
                       )}
                     </td>
                     <td className="whitespace-nowrap tabular-nums text-muted">{d.ipAddress || "–"}</td>
-                    <td className="whitespace-nowrap text-right">
-                      {d.agentStatus === "pending" ? (
+                    {tab === "pending" && (
+                      <td className="whitespace-nowrap text-right">
                         <span className="btn-primary !px-2.5 !py-1 text-xs">อนุมัติ / Assign</span>
-                      ) : (
-                        <span className="btn-text !px-1.5 text-xs">รายละเอียด</span>
-                      )}
-                    </td>
+                      </td>
+                    )}
                   </tr>
                 );
               })}

@@ -1,41 +1,50 @@
 import type { Device, VolumeInfo } from "@/lib/devices";
 
+const gb = (n: number) => (n < 10 ? n.toFixed(1) : String(Math.round(n)));
+
 /**
- * The space of one drive as a bar, like the drive bar in Windows Explorer: the filled part is the
- * space in use, green normally, amber when under 20 % is free and red under 10 %.
+ * One drive as a small box, like Disk Management: the bar on top fills with the space in use,
+ * green normally, amber when under 20 % is free and red under 10 %.
  */
-function VolumeBar({ volume, wide }: { volume: VolumeInfo; wide?: boolean }) {
+function VolumeBox({ volume, wide }: { volume: VolumeInfo; wide?: boolean }) {
   const { drive, label, freeGb: free, totalGb: total } = volume;
   if (free === null) return null;
-  const name = <span className="mr-1 font-semibold text-muted">{drive}</span>;
-  if (!total)
-    return (
-      <div className="text-[11px] tabular-nums">
-        {name}ว่าง {Math.round(free)} GB
-      </div>
-    );
-  const share = Math.min(1, Math.max(0, free / total));
-  const tone = share < 0.1 ? "bg-red-500" : share < 0.2 ? "bg-amber-500" : "bg-emerald-500";
-  const text = share < 0.1 ? "text-red-600 font-semibold" : share < 0.2 ? "text-amber-700" : "text-ink";
+  const share = total ? Math.min(1, Math.max(0, free / total)) : null;
+  const tone =
+    share === null
+      ? "bg-slate-300"
+      : share < 0.1
+        ? "bg-red-500"
+        : share < 0.2
+          ? "bg-amber-500"
+          : "bg-emerald-500";
+  const text =
+    share !== null && share < 0.1
+      ? "text-red-600 font-semibold"
+      : share !== null && share < 0.2
+        ? "text-amber-700 font-medium"
+        : "text-muted";
   return (
-    <div className={wide ? "w-full max-w-[300px]" : "w-[175px]"} title={label ? `${drive} ${label}` : drive}>
-      <div className="flex items-center">
-        {name}
-        <div className="h-2 flex-1 overflow-hidden rounded-full bg-slate-200">
-          <div className={`h-full rounded-full ${tone}`} style={{ width: `${(1 - share) * 100}%` }} />
-        </div>
+    <div
+      className={`overflow-hidden rounded-md border border-line bg-white text-left ${wide ? "w-[150px]" : "w-[112px]"}`}
+    >
+      <div className="h-1.5 bg-slate-200">
+        <div className={`h-full ${tone}`} style={{ width: `${share === null ? 0 : (1 - share) * 100}%` }} />
       </div>
-      <div className="mt-0.5 whitespace-nowrap pl-5 text-[11px] tabular-nums">
-        <span className={text}>
-          ว่าง {free < 10 ? free.toFixed(1) : Math.round(free)} GB {Math.round(share * 100)}%
-        </span>
-        <span className="text-faint"> · จาก {Math.round(total)} GB</span>
+      <div className="px-1.5 py-1 text-[11px] leading-tight tabular-nums">
+        <div className="truncate font-semibold text-ink" title={label ? `${label} (${drive})` : drive}>
+          {label ? `${label} (${drive})` : drive}
+          {total ? <span className="font-normal text-faint"> {Math.round(total)} GB</span> : null}
+        </div>
+        <div className={text}>
+          ว่าง {gb(free)} GB{share !== null && ` · ${Math.round(share * 100)}%`}
+        </div>
       </div>
     </div>
   );
 }
 
-/** Every drive of the computer, C: on top; computers on an older agent show the system drive only. */
+/** Every drive of the computer side by side, C: first; an older agent sends the system drive only. */
 export function DiskBar({ device, wide }: { device: Device; wide?: boolean }) {
   const volumes: VolumeInfo[] = device.volumes.length
     ? device.volumes
@@ -44,9 +53,9 @@ export function DiskBar({ device, wide }: { device: Device; wide?: boolean }) {
       : [{ drive: "C:", label: "", freeGb: device.diskFreeGb, totalGb: device.diskTotalGb }];
   if (!volumes.length) return <span className="text-faint">–</span>;
   return (
-    <div className={`space-y-1.5 ${wide ? "" : "ml-auto w-fit"}`}>
+    <div className={`flex gap-1.5 ${wide ? "flex-wrap" : ""}`}>
       {volumes.map((v) => (
-        <VolumeBar key={v.drive} volume={v} wide={wide} />
+        <VolumeBox key={v.drive} volume={v} wide={wide} />
       ))}
     </div>
   );

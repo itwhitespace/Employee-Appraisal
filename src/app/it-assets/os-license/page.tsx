@@ -308,7 +308,11 @@ export default function OsLicensePage() {
                 </tr>
               )}
               {rows.map(({ d, holder, findings }) => (
-                <tr key={d.id} className="cursor-pointer hover:bg-violet-50/60" onClick={() => setOpen(d)}>
+                <tr
+                  key={d.id}
+                  className="cursor-pointer transition-colors hover:bg-violet-100"
+                  onClick={() => setOpen(d)}
+                >
                   <td>
                     <div className="flex items-center gap-2">
                       <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700">
