@@ -9,6 +9,7 @@ import {
   DEVICE_STATUS,
   DEVICE_TYPES,
   guessHolder,
+  isOlderVersion,
   isOnline,
   ONLINE_MINUTES,
   seenAgo,
@@ -33,6 +34,7 @@ export default function HardwarePage() {
   const [devices, setDevices] = useState<Device[] | null>(null);
   const [holders, setHolders] = useState<DeviceHolder[]>([]);
   const [installerReady, setInstallerReady] = useState(true);
+  const [agentVersion, setAgentVersion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("register");
   const [type, setType] = useState("all");
@@ -51,6 +53,7 @@ export default function HardwarePage() {
           setDevices(r.devices);
           setHolders(r.holders);
           setInstallerReady(r.installerReady);
+          setAgentVersion(r.agentVersion);
           setNow(Date.now());
         })
         .catch((e) => alive && setError(errorMessage(e)));
@@ -72,6 +75,7 @@ export default function HardwarePage() {
   const register = devices.filter((d) => d.agentStatus === "approved" || d.agentStatus === "none");
   const withAgent = register.filter((d) => d.agentStatus === "approved");
   const online = withAgent.filter((d) => isOnline(d, now)).length;
+  const outdated = withAgent.filter((d) => isOlderVersion(d.agentVersion, agentVersion));
   const holderOf = (d: Device) => holders.find((h) => h.id === d.holderId);
 
   const words = search.trim().toLowerCase();
@@ -121,13 +125,13 @@ export default function HardwarePage() {
             }`}
             aria-disabled={!installerReady}
           >
-            <Download className="h-4 w-4" /> install.cmd
+            <Download className="h-4 w-4" /> install_agent {agentVersion}.cmd
           </a>
           <a
             href="/api/devices/installer?file=uninstall"
             className="btn-secondary inline-flex items-center gap-1.5 py-1.5 text-sm"
           >
-            <Download className="h-4 w-4" /> uninstall.cmd
+            <Download className="h-4 w-4" /> uninstall_agent.cmd
           </a>
           <button
             type="button"
@@ -138,6 +142,14 @@ export default function HardwarePage() {
           </button>
         </div>
       </div>
+
+      {outdated.length > 0 && (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+          มี {outdated.length} เครื่องที่ยังใช้ agent รุ่นเก่า (
+          {outdated.map((d) => d.computerName).join(", ")}): ดาวน์โหลด install_agent {agentVersion}.cmd
+          แล้วรันซ้ำที่เครื่องนั้น (Run as administrator) ข้อมูลและผู้ถือครองเดิมยังอยู่ครบ
+        </div>
+      )}
 
       {!installerReady && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
@@ -222,7 +234,7 @@ export default function HardwarePage() {
                 <th>ยี่ห้อ / รุ่น</th>
                 <th>CPU</th>
                 <th className="text-right">RAM</th>
-                <th className="text-right">Disk ว่าง (C:)</th>
+                <th className="text-right">พื้นที่ว่าง</th>
                 <th>OS</th>
                 <th>IP</th>
                 <th />
@@ -262,6 +274,23 @@ export default function HardwarePage() {
                             {live ? "Online" : "Offline"}
                           </span>
                           <div className="text-[11px] text-faint">{seenAgo(d.lastSeenAt, now)}</div>
+                          {d.agentVersion && (
+                            <div
+                              className={`mt-0.5 text-[11px] ${
+                                isOlderVersion(d.agentVersion, agentVersion)
+                                  ? "font-semibold text-amber-700"
+                                  : "text-faint"
+                              }`}
+                              title={
+                                isOlderVersion(d.agentVersion, agentVersion)
+                                  ? `รุ่นล่าสุดคือ ${agentVersion}`
+                                  : "agent รุ่นล่าสุด"
+                              }
+                            >
+                              agent {d.agentVersion}
+                              {isOlderVersion(d.agentVersion, agentVersion) && " · ต้องอัปเดต"}
+                            </div>
+                          )}
                         </>
                       )}
                     </td>

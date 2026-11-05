@@ -7,6 +7,7 @@ import {
   parseHandover,
 } from "@/lib/server/devices";
 import { handle, readJson, requireUser } from "@/lib/server/http";
+import { AGENT_VERSION } from "@/lib/server/installer";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,7 @@ export async function GET() {
   return handle(async () => {
     await requireUser(["admin"]);
     const [devices, holders] = await Promise.all([listDevices(), listHolders()]);
-    return { devices, holders, installerReady: enrollKey() !== null };
+    return { devices, holders, installerReady: enrollKey() !== null, agentVersion: AGENT_VERSION };
   });
 }
 

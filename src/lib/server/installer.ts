@@ -2,6 +2,9 @@ import "server-only";
 import agentScript from "@/agent/ws-agent.ps1";
 import { HttpError } from "./errors";
 
+/** The agent's version, from the line `$AgentVersion = '1.0.3'` of the script. */
+export const AGENT_VERSION = /\$AgentVersion\s*=\s*'([\d.]+)'/.exec(agentScript)?.[1] ?? "0";
+
 /**
  * install.cmd / uninstall.cmd for Windows, made when IT downloads them. install.cmd carries the
  * agent (base64, decoded by certutil), this site's address and the enrolment key; it puts them in

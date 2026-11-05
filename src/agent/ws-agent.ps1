@@ -12,7 +12,7 @@
 param([switch]$DryRun, [string]$ConfigDir)
 
 $ErrorActionPreference = 'Stop'
-$AgentVersion = '1.0.2'
+$AgentVersion = '1.0.3'
 $Dir = if ($ConfigDir) { $ConfigDir } else { Join-Path $env:ProgramData 'WS-Agent' }
 $ConfigFile = Join-Path $Dir 'config.json'
 $TokenFile = Join-Path $Dir 'token'
@@ -153,21 +153,58 @@ function Get-Hardware {
   }
 }
 
+# Every drive on a disk partition (C:, D:, ...), for the space of each. Drives that only look local,
+# like Google Drive's G:, have no partition and are left out.
+function Get-Volumes {
+  $onDisk = @(Try-Get { Get-CimInstance Win32_LogicalDiskToPartition | ForEach-Object { $_.Dependent.DeviceID } })
+  @(Get-CimInstance Win32_LogicalDisk -Filter 'DriveType=3' |
+      Where-Object { $_.Size -and ($(if ($onDisk.Count) { $onDisk -contains $_.DeviceID } else { $_.FileSystem -match 'NTFS|ReFS' })) } |
+      Sort-Object DeviceID | ForEach-Object {
+      [ordered]@{ drive = $_.DeviceID; label = Clean $_.VolumeName; totalGb = Gb $_.Size; freeGb = Gb $_.FreeSpace }
+    })
+}
+
 function Get-OsInfo {
   $os = Get-CimInstance Win32_OperatingSystem
   $nt = Try-Get { Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion' }
   $release = if ($nt.DisplayVersion) { $nt.DisplayVersion } else { $nt.ReleaseId }
-  # Activated or not; the key is not read.
-  $activated = Try-Get {
-    $lic = Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND LicenseStatus=1" -Property LicenseStatus
-    @($lic).Count -gt 0
+  # The licence: only the last 5 characters of the key (Windows itself keeps no more than that
+  # readable here), its channel and whether it is activated. The full key is never read.
+  $lic = Try-Get {
+    @(Get-CimInstance SoftwareLicensingProduct -Filter "ApplicationID='55c92734-d682-4d71-983e-d6ec3f16059f' AND PartialProductKey IS NOT NULL") |
+      Sort-Object { if ($_.LicenseStatus -eq 1) { 0 } else { 1 } } | Select-Object -First 1
   }
+  $activated = if ($lic) { [int]$lic.LicenseStatus -eq 1 } else { $null }
+  $channel = ''
+  if ($lic) {
+    $raw = "$($lic.ProductKeyChannel) $($lic.Description)"
+    $channel = if ($raw -match 'OEM') { 'OEM' }
+      elseif ($raw -match 'KMS|GVLK') { 'Volume:KMS' }
+      elseif ($raw -match 'MAK') { 'Volume:MAK' }
+      elseif ($raw -match 'Retail') { 'Retail' }
+      elseif ($raw -match 'Volume') { 'Volume' }
+      else { Clean $lic.ProductKeyChannel }
+  }
+  # A key in the firmware (most branded PCs): only whether there is one and whether it is the one
+  # in use; the key is compared here and not sent.
+  $biosKey = $null; $biosMatch = $null
+  try {
+    $oa3 = "$((Get-CimInstance SoftwareLicensingService).OA3xOriginalProductKey)".Trim()
+    $biosKey = $oa3.Length -gt 0
+    if ($biosKey -and $lic -and $lic.PartialProductKey) { $biosMatch = $oa3.EndsWith("$($lic.PartialProductKey)") }
+  } catch { }
+  $oa3 = $null
   $lastUpdate = Try-Get { (Get-HotFix | Where-Object { $_.InstalledOn } | Sort-Object InstalledOn -Descending | Select-Object -First 1).InstalledOn }
   [ordered]@{
     osName        = Clean $os.Caption
     osVersion     = Clean ("$release (build $($os.BuildNumber).$($nt.UBR))" -replace '^\s*\(', '(')
     osInstallDate = Day $os.InstallDate
     osActivated   = $activated
+    osPartialKey  = $(if ($lic -and $lic.PartialProductKey) { "$($lic.PartialProductKey)" } else { '' })
+    osLicenseChannel = $channel
+    osLicenseStatus = $(if ($lic) { [int]$lic.LicenseStatus } else { $null })
+    osBiosKey     = $biosKey
+    osBiosKeyMatch = $biosMatch
     lastUpdateAt  = Iso $lastUpdate
     lastBootAt    = Iso $os.LastBootUpTime
   }
@@ -283,8 +320,16 @@ function Collect([bool]$Full, [bool]$WithSoftware) {
     # Heartbeat: who is signed in, the address, free space, last start.
     $os = Try-Get { Get-CimInstance Win32_OperatingSystem }
     $sys = Try-Get { Get-CimInstance Win32_LogicalDisk -Filter "DeviceID='$env:SystemDrive'" }
-    $parts += [ordered]@{ lastBootAt = Iso $os.LastBootUpTime; diskFreeGb = $(if ($sys) { Gb $sys.FreeSpace } else { $null }) }
+    # The board's UUID too, so a disk moved or cloned into another computer is noticed at once.
+    $product = Try-Get { Get-CimInstance Win32_ComputerSystemProduct }
+    $parts += [ordered]@{
+      lastBootAt   = Iso $os.LastBootUpTime
+      diskFreeGb   = $(if ($sys) { Gb $sys.FreeSpace } else { $null })
+      hardwareUuid = $(if ($product) { Clean $product.UUID } else { '' })
+    }
   }
+  $volumes = Try-Get { Get-Volumes }
+  if ($null -ne $volumes) { $parts += [ordered]@{ volumes = @($volumes) } }
   foreach ($part in $parts) { if ($part) { foreach ($k in $part.Keys) { $report[$k] = $part[$k] } } }
   if ($WithSoftware) { $report['software'] = Get-Software }
   return $report

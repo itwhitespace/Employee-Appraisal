@@ -6,8 +6,11 @@ import { DiskBar } from "@/components/DiskBar";
 import { api, errorMessage } from "@/lib/api";
 import {
   DEVICE_STATUS,
+  channelLabel,
   DEVICE_TYPES,
   diskSize,
+  LICENSE_CHANNELS,
+  maskedKey,
   EMPTY_DEVICE,
   guessHolder,
   isOnline,
@@ -317,7 +320,14 @@ export function DeviceDialog({
                           .join(" + ")
                       : device.diskText,
                   ],
-                  ["พื้นที่ว่าง (C:)", device.diskFreeGb === null ? "" : <DiskBar device={device} wide />],
+                  [
+                    "พื้นที่ว่าง",
+                    device.diskFreeGb === null && !device.volumes.length ? (
+                      ""
+                    ) : (
+                      <DiskBar device={device} wide />
+                    ),
+                  ],
                   [
                     "การ์ดจอ",
                     device.gpu && `${device.gpu}${device.gpuMemoryGb ? ` · ${device.gpuMemoryGb} GB` : ""}`,
@@ -338,6 +348,36 @@ export function DeviceDialog({
                 rows={[
                   ["OS", [device.osName, device.osVersion].filter(Boolean).join(" ")],
                   ["Activated", yesNo(device.osActivated, "Activated", "ยังไม่ Activate")],
+                  [
+                    "License",
+                    device.osLicenseChannel && (
+                      <>
+                        {channelLabel(device.osLicenseChannel)}
+                        {LICENSE_CHANNELS[device.osLicenseChannel] && (
+                          <span className="text-muted">
+                            {" "}
+                            · {LICENSE_CHANNELS[device.osLicenseChannel].note}
+                          </span>
+                        )}
+                      </>
+                    ),
+                  ],
+                  [
+                    "Product Key",
+                    device.osPartialKey && (
+                      <span className="font-mono text-[12px]">{maskedKey(device.osPartialKey)}</span>
+                    ),
+                  ],
+                  [
+                    "Key ใน BIOS",
+                    device.osBiosKey === null
+                      ? ""
+                      : !device.osBiosKey
+                        ? "ไม่มี"
+                        : device.osBiosKeyMatch
+                          ? "มี · ตรงกับที่ใช้อยู่"
+                          : "มี · แต่ใช้ key อื่นอยู่",
+                  ],
                   ["ติดตั้งเมื่อ", device.osInstallDate ? formatDate(device.osInstallDate) : ""],
                   ["อัปเดตล่าสุด", device.lastUpdateAt ? formatDate(device.lastUpdateAt) : ""],
                   ["เปิดเครื่องล่าสุด", device.lastBootAt ? formatDateTime(device.lastBootAt) : ""],

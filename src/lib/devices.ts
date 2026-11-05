@@ -13,6 +13,13 @@ export interface DiskInfo {
   type: string;
   sizeGb: number | null;
 }
+/** A drive on the disks: C:, D:, … */
+export interface VolumeInfo {
+  drive: string;
+  label: string;
+  totalGb: number | null;
+  freeGb: number | null;
+}
 export interface MonitorInfo {
   name: string;
   maker: string;
@@ -55,6 +62,7 @@ export interface Device {
   diskText: string;
   diskTotalGb: number | null;
   diskFreeGb: number | null;
+  volumes: VolumeInfo[];
   gpu: string;
   gpuMemoryGb: number | null;
   monitors: MonitorInfo[];
@@ -67,6 +75,16 @@ export interface Device {
   osVersion: string;
   osInstallDate: string | null;
   osActivated: boolean | null;
+  /** Only the last 5 characters of the Windows key. */
+  osPartialKey: string;
+  /** "OEM", "Retail", "Volume:MAK", "Volume:KMS", … */
+  osLicenseChannel: string;
+  /** Windows' licence status: 0 unlicensed, 1 licensed, 2–6 grace periods / notification. */
+  osLicenseStatus: number | null;
+  /** The computer has a Windows key in its firmware. */
+  osBiosKey: boolean | null;
+  /** The key in use is that firmware key. */
+  osBiosKeyMatch: boolean | null;
   lastUpdateAt: string | null;
   lastBootAt: string | null;
   // 4. Network
@@ -270,3 +288,46 @@ export function diskSize(sizeGb: number | null): string {
 /** "SSD 500 GB + HDD 1 TB" */
 export const disksText = (disks: DiskInfo[]) =>
   disks.map((d) => `${d.type} ${diskSize(d.sizeGb)}`.trim()).join(" + ");
+
+/** "XXXXX-XXXXX-XXXXX-XXXXX-3V66T": all that is kept of a Windows key. */
+export const maskedKey = (partial: string) => (partial ? `XXXXX-XXXXX-XXXXX-XXXXX-${partial}` : "");
+
+/** What each licence channel means, for the audit. */
+export const LICENSE_CHANNELS: Record<string, { label: string; note: string }> = {
+  OEM: { label: "OEM", note: "มากับเครื่อง ใช้ได้กับเครื่องนี้เท่านั้น" },
+  Retail: { label: "Retail", note: "ซื้อแยก ย้ายเครื่องได้ ควรมีใบเสร็จ / กล่อง" },
+  "Volume:MAK": { label: "Volume (MAK)", note: "License องค์กร ใช้ key เดียวได้หลายเครื่องตามสิทธิ์" },
+  "Volume:KMS": { label: "Volume (KMS)", note: "ต้องมี KMS server ขององค์กร ถ้าไม่มีให้ตรวจสอบ" },
+  Volume: { label: "Volume", note: "License องค์กร" },
+};
+
+export const channelLabel = (channel: string) => LICENSE_CHANNELS[channel]?.label ?? channel;
+
+/** Windows' licence status, 0–6. */
+export function licenseStatusText(status: number | null): string {
+  switch (status) {
+    case null:
+      return "";
+    case 0:
+      return "ไม่มี License";
+    case 1:
+      return "Activated";
+    case 5:
+      return "แจ้งเตือน (ไม่ Activate)";
+    default:
+      return "อยู่ในช่วงผ่อนผัน (Grace)";
+  }
+}
+
+/** "1.0.2" is older than "1.0.3"; an empty version (never reported) is not counted. */
+export function isOlderVersion(version: string, latest: string): boolean {
+  if (!version || !latest) return false;
+  const a = version.split(".").map(Number);
+  const b = latest.split(".").map(Number);
+  for (let i = 0; i < Math.max(a.length, b.length); i++) {
+    const x = a[i] ?? 0;
+    const y = b[i] ?? 0;
+    if (x !== y) return x < y;
+  }
+  return false;
+}

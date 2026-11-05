@@ -159,6 +159,7 @@ const ICONS = {
   raise: "M3.5 14.5l4.5-4.5 3 3 5.5-5.5M12 7.5h4.5V12",
   info: "M10 17a7 7 0 1 0 0-14 7 7 0 0 0 0 14ZM10 9.5v4M10 6.5h.01",
   computer: "M3 4.5h14v9H3zM7 16.5h6M10 13.5v3",
+  key: "M9 11l7-7M14 6l2 2M12 8l1.5 1.5M6.5 17a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7Z",
   money: "M3 5.5h14v9H3zM10 12a2 2 0 1 0 0-4 2 2 0 0 0 0 4ZM5.5 8v4M14.5 8v4",
 };
 
@@ -175,6 +176,7 @@ const IT_ASSET_ITEMS: NavItem[] = [
   { href: "/it-assets/dashboard", label: "Dashboard", icon: ICONS.dashboard, tone: "indigo" },
   { href: "/it-assets/software", label: "Software / License", icon: ICONS.list, tone: "sky" },
   { href: "/it-assets/hardware", label: "Hardware / คอมพิวเตอร์", icon: ICONS.computer, tone: "emerald" },
+  { href: "/it-assets/os-license", label: "OS License / Audit", icon: ICONS.key, tone: "violet" },
 ];
 
 function navItems(user: User, inCompensation: boolean, inItAssets: boolean): (NavItem | NavGroup)[] {

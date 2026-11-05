@@ -627,3 +627,17 @@ create index if not exists device_holder_history_device_idx
   on public.device_holder_history (device_id, start_date desc);
 
 alter table public.device_holder_history enable row level security;
+
+-- ── Every drive's space and the Windows licence (only the last 5 characters of the key). ──
+alter table public.devices
+  add column if not exists volumes            jsonb    not null default '[]'::jsonb,
+  add column if not exists os_partial_key     text     not null default ''
+    check (os_partial_key ~ '^[A-Za-z0-9]{0,5}$'),
+  add column if not exists os_license_channel text     not null default '',
+  add column if not exists os_license_status  smallint,
+  add column if not exists os_bios_key        boolean,
+  add column if not exists os_bios_key_match  boolean;
+
+comment on column public.devices.os_partial_key is 'Last 5 characters of the Windows key only (never the whole key)';
+comment on column public.devices.os_bios_key is 'The computer has a Windows key in its firmware (OEM); the key itself is not read out';
+comment on column public.devices.os_bios_key_match is 'The installed key is the firmware key';

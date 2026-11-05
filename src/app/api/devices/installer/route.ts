@@ -1,6 +1,6 @@
 import { enrollKey } from "@/lib/server/devices";
 import { errorResponse, HttpError, requireUser } from "@/lib/server/http";
-import { installCmd, uninstallCmd } from "@/lib/server/installer";
+import { AGENT_VERSION, installCmd, uninstallCmd } from "@/lib/server/installer";
 
 export const dynamic = "force-dynamic";
 
@@ -26,7 +26,10 @@ export async function GET(request: Request) {
     return new Response(body, {
       headers: {
         "Content-Type": "application/octet-stream",
-        "Content-Disposition": `attachment; filename="${file}.cmd"`,
+        // install_agent_1_0_3.cmd: which agent version the file installs.
+        "Content-Disposition": `attachment; filename="${
+          file === "install" ? `install_agent_${AGENT_VERSION.replace(/\./g, "_")}` : "uninstall_agent"
+        }.cmd"`,
         "Cache-Control": "no-store",
       },
     });

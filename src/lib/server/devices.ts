@@ -66,6 +66,7 @@ const toDevice = (r: Row): Device => ({
   diskText: str(r.disk_text),
   diskTotalGb: num(r.disk_total_gb),
   diskFreeGb: num(r.disk_free_gb),
+  volumes: list(r.volumes),
   gpu: str(r.gpu),
   gpuMemoryGb: num(r.gpu_memory_gb),
   monitors: list(r.monitors),
@@ -77,6 +78,11 @@ const toDevice = (r: Row): Device => ({
   osVersion: str(r.os_version),
   osInstallDate: (r.os_install_date as string | null) ?? null,
   osActivated: (r.os_activated as boolean | null) ?? null,
+  osPartialKey: str(r.os_partial_key),
+  osLicenseChannel: str(r.os_license_channel),
+  osLicenseStatus: num(r.os_license_status),
+  osBiosKey: (r.os_bios_key as boolean | null) ?? null,
+  osBiosKeyMatch: (r.os_bios_key_match as boolean | null) ?? null,
   lastUpdateAt: (r.last_update_at as string | null) ?? null,
   lastBootAt: (r.last_boot_at as string | null) ?? null,
   ipAddress: str(r.ip_address),
@@ -104,8 +110,9 @@ const toDevice = (r: Row): Device => ({
 const COLUMNS =
   "id, asset_number, device_type, holder_id, holder_name, purchase_date, purchase_doc, purchase_price, vendor, " +
   "warranty_expire, status, remark, computer_name, serial_number, manufacturer, model, chassis, cpu, cpu_cores, " +
-  "ram_text, ram_gb, disks, disk_text, disk_total_gb, disk_free_gb, gpu, gpu_memory_gb, monitors, battery_health, " +
-  "mainboard, bios_version, bios_date, os_name, os_version, os_install_date, os_activated, last_update_at, " +
+  "ram_text, ram_gb, disks, disk_text, disk_total_gb, disk_free_gb, volumes, gpu, gpu_memory_gb, monitors, battery_health, " +
+  "mainboard, bios_version, bios_date, os_name, os_version, os_install_date, os_activated, os_partial_key, " +
+  "os_license_channel, os_license_status, os_bios_key, os_bios_key_match, last_update_at, " +
   "last_boot_at, ip_address, mac_address, network, connection, login_user, last_login_user, antivirus, " +
   "antivirus_enabled, antivirus_updated_at, firewall_enabled, disk_encrypted, agent_status, agent_version, " +
   "enrolled_at, last_seen_at, inventory_at, software_at, created_at, updated_at";
@@ -166,6 +173,19 @@ function reportColumns(body: Record<string, unknown>): Record<string, unknown> {
   put("diskText", "disk_text", "disks" in body ? disksText(disks) : text(body.diskText, 160));
   put("diskTotalGb", "disk_total_gb", number(body.diskTotalGb, 0, 1e6));
   put("diskFreeGb", "disk_free_gb", number(body.diskFreeGb, 0, 1e6));
+  put(
+    "volumes",
+    "volumes",
+    list<Record<string, unknown>>(body.volumes)
+      .slice(0, 26)
+      .map((v) => ({
+        drive: text(v?.drive, 4),
+        label: text(v?.label, 40),
+        totalGb: number(v?.totalGb, 0, 1e6),
+        freeGb: number(v?.freeGb, 0, 1e6),
+      }))
+      .filter((v) => /^[A-Z]:$/i.test(v.drive)),
+  );
   put("gpu", "gpu", text(body.gpu, 200));
   put("gpuMemoryGb", "gpu_memory_gb", number(body.gpuMemoryGb, 0, 9999));
   put(
@@ -183,6 +203,18 @@ function reportColumns(body: Record<string, unknown>): Record<string, unknown> {
   put("osVersion", "os_version", text(body.osVersion, 80));
   put("osInstallDate", "os_install_date", day(body.osInstallDate));
   put("osActivated", "os_activated", bool(body.osActivated));
+  // Never more than the last 5 characters of a key, whatever is sent.
+  put(
+    "osPartialKey",
+    "os_partial_key",
+    typeof body.osPartialKey === "string" && /^[A-Za-z0-9]{5}$/.test(body.osPartialKey)
+      ? body.osPartialKey.toUpperCase()
+      : "",
+  );
+  put("osLicenseChannel", "os_license_channel", text(body.osLicenseChannel, 40));
+  put("osLicenseStatus", "os_license_status", number(body.osLicenseStatus, 0, 9));
+  put("osBiosKey", "os_bios_key", bool(body.osBiosKey));
+  put("osBiosKeyMatch", "os_bios_key_match", bool(body.osBiosKeyMatch));
   put("lastUpdateAt", "last_update_at", moment(body.lastUpdateAt));
   put("lastBootAt", "last_boot_at", moment(body.lastBootAt));
   put("ipAddress", "ip_address", text(body.ipAddress, 45));
@@ -362,10 +394,21 @@ export async function reportDevice(
   const token = authorization?.match(/^Bearer\s+([A-Za-z0-9_-]{20,100})$/)?.[1];
   if (!token) throw new HttpError(401, "ไม่มี token");
   const device = check(
-    await db().from("devices").select("id, agent_status").eq("agent_token_hash", sha256(token)).maybeSingle(),
+    await db()
+      .from("devices")
+      .select("id, agent_status, hardware_uuid")
+      .eq("agent_token_hash", sha256(token))
+      .maybeSingle(),
   ) as Row | null;
   if (!device) throw new HttpError(401, "token ไม่ถูกต้อง");
   if (device.agent_status === "blocked") throw new HttpError(403, "เครื่องนี้ถูกบล็อกในทะเบียน");
+  // Another computer with this computer's token (a cloned disk, or the SSD moved to a new
+  // computer): refused, so it enrols as a computer of its own and this one's data stays its own.
+  const uuid = text(body.hardwareUuid, 64);
+  const known = typeof device.hardware_uuid === "string" ? device.hardware_uuid : "";
+  if (uuid && known && !JUNK_UUID.test(uuid) && uuid.toLowerCase() !== known.toLowerCase()) {
+    throw new HttpError(401, "token นี้เป็นของเครื่องอื่น: ลงทะเบียนใหม่");
+  }
 
   const now = new Date().toISOString();
   const columns = reportColumns(body);
