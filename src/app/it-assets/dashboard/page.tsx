@@ -190,8 +190,9 @@ export default function ItDashboardPage() {
             </select>
           </div>
         </header>
-        <div className="overflow-x-auto border-t border-line">
-          {/* Fixed widths so the whole year fits the screen without scrolling. */}
+        {/* The rows scroll inside the card under the month heading, which stays put. */}
+        <div className="max-h-[calc(100vh-11rem)] overflow-auto border-t border-line">
+          {/* Fixed widths so the whole year fits the screen without scrolling sideways. */}
           <table className="sheet budget min-w-[1080px] table-fixed text-[11.5px]">
             <colgroup>
               <col className="w-[11%]" />
