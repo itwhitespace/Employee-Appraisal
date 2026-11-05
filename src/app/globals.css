@@ -48,7 +48,24 @@ body {
     @apply border-indigo-900 bg-indigo-900 font-semibold text-white;
   }
   .it-assets .sheet tr.program td {
-    @apply border-indigo-300 bg-indigo-200;
+    @apply border-indigo-100 bg-indigo-50/80 transition-colors;
+  }
+  .it-assets .sheet tr.program.cursor-pointer:hover td {
+    @apply bg-indigo-100/70;
+  }
+  /* The lots inside an open program: a light heading, not the dark one of the main tables. */
+  .it-assets .sheet.lots th {
+    @apply border-indigo-100 bg-indigo-50 text-indigo-800;
+  }
+  /* A program's lots slide in when it opens. */
+  .it-assets .sheet tr.lot {
+    animation: lot-in 0.2s ease-out;
+  }
+  @keyframes lot-in {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
   }
   /* Total rows of the IT Budget: the zeros stay readable on the coloured bands. */
   .it-assets .sheet.budget tr.total td {
