@@ -95,6 +95,7 @@ export default function HardwarePage() {
       holder?.name,
       holder?.nickname,
       holder?.code,
+      holder?.team,
     ]
       .join(" ")
       .toLowerCase()
@@ -224,13 +225,15 @@ export default function HardwarePage() {
           <span className="text-xs text-muted">{rows.length} เครื่อง</span>
         </div>
 
-        <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
-          <table className="sheet min-w-[1100px] text-[12.5px]">
+        <div className="w-fit max-w-full overflow-x-auto rounded-2xl bg-white shadow-sm">
+          {/* As wide as its content (not the page), with tighter cells. */}
+          <table className="sheet !w-auto text-[12.5px] [&_td]:!px-2.5 [&_td]:whitespace-nowrap [&_th]:!px-2.5 [&_th]:whitespace-nowrap">
             <thead>
               <tr className="[&>th]:bg-gradient-to-r [&>th]:from-emerald-600 [&>th]:to-teal-500">
-                <th className="w-[110px]">สถานะ</th>
+                <th>สถานะ</th>
                 <th>เครื่อง</th>
                 <th>ผู้ถือครอง</th>
+                <th>Studio / ทีม</th>
                 <th>ยี่ห้อ / รุ่น</th>
                 <th>CPU</th>
                 <th className="text-right">RAM</th>
@@ -244,7 +247,7 @@ export default function HardwarePage() {
             <tbody>
               {rows.length === 0 && (
                 <tr>
-                  <td colSpan={tab === "pending" ? 11 : 10} className="py-10 text-center text-muted">
+                  <td colSpan={tab === "pending" ? 12 : 11} className="py-10 text-center text-muted">
                     {tab === "pending"
                       ? "ไม่มีเครื่องรออนุมัติ · ดาวน์โหลด install.cmd แล้วรันที่เครื่อง client (Run as administrator)"
                       : devices.length === 0
@@ -320,6 +323,7 @@ export default function HardwarePage() {
                         </div>
                       )}
                     </td>
+                    <td>{holder?.team || <span className="text-faint">–</span>}</td>
                     <td>
                       <div>{d.manufacturer || "–"}</div>
                       <div className="text-[11px] text-muted">{d.model}</div>
