@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { DiskBar } from "@/components/DiskBar";
 import { api, errorMessage } from "@/lib/api";
 import {
   DEVICE_STATUS,
@@ -13,15 +14,28 @@ import {
   typeOf,
   type Device,
   type DeviceHolder,
+  type DeviceHolding,
   type DeviceInput,
   type DeviceProgram,
   type DeviceStatus,
   type DeviceType,
 } from "@/lib/devices";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateCE, formatDateTime } from "@/lib/format";
+
+const todayISO = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+
+/** "1 ปี 3 เดือน" between two days (to today when still held). */
+function heldFor(start: string, end: string | null): string {
+  const a = new Date(start);
+  const b = end ? new Date(end) : new Date();
+  let months = (b.getFullYear() - a.getFullYear()) * 12 + b.getMonth() - a.getMonth();
+  if (b.getDate() < a.getDate()) months -= 1;
+  if (months < 1) return `${Math.max(0, Math.round((b.getTime() - a.getTime()) / 864e5))} วัน`;
+  const years = Math.floor(months / 12);
+  return [years && `${years} ปี`, months % 12 && `${months % 12} เดือน`].filter(Boolean).join(" ");
+}
 
 const numberOrNull = (text: string) => (text.trim() === "" ? null : Number(text.replace(/,/g, "")));
-const gb = (n: number | null, digits = 0) => (n === null ? "–" : `${n.toFixed(digits)} GB`);
 const yesNo = (value: boolean | null, yes = "เปิด", no = "ปิด") =>
   value === null ? (
     <span className="text-faint">–</span>
@@ -108,6 +122,8 @@ export function DeviceDialog({
   const confirm = useConfirm();
   const [form, setForm] = useState<DeviceInput>(() => inputOf(device));
   const [programs, setPrograms] = useState<DeviceProgram[] | null>(null);
+  const [history, setHistory] = useState<DeviceHolding[] | null>(device ? null : []);
+  const [handover, setHandover] = useState({ date: todayISO(), note: "" });
   const [showPrograms, setShowPrograms] = useState(false);
   const [programSearch, setProgramSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -127,13 +143,24 @@ export function DeviceDialog({
   }, []);
 
   useEffect(() => {
-    if (showPrograms && device && programs === null) {
-      api
-        .devicePrograms(device.id)
-        .then((r) => setPrograms(r.programs))
-        .catch(() => setPrograms([]));
-    }
-  }, [showPrograms, device, programs]);
+    if (!device) return;
+    api
+      .deviceDetail(device.id)
+      .then((r) => {
+        setHistory(r.history);
+        setPrograms(r.programs);
+      })
+      .catch(() => {
+        setHistory([]);
+        setPrograms([]);
+      });
+  }, [device]);
+
+  // A new holder (or none): the history gets a line from the handover day.
+  const holderChanged = device
+    ? form.holderId !== device.holderId ||
+      (!form.holderId && form.holderName.trim() !== device.holderName.trim())
+    : !!form.holderId || !!form.holderName.trim();
 
   const close = () => {
     dialog.current?.close();
@@ -156,15 +183,18 @@ export function DeviceDialog({
     const holder = holders.find((h) => h.id === form.holderId);
     const sure = await confirm({
       title: !device ? "เพิ่มเครื่องนี้?" : approve ? "อนุมัติเครื่องนี้เข้าทะเบียน?" : "บันทึกการแก้ไข?",
-      message: holder
-        ? `ผู้ถือครอง: ${holderLabel(holder)}`
-        : form.holderName
-          ? `ผู้ถือครอง: ${form.holderName}`
-          : "ยังไม่ได้ระบุผู้ถือครอง",
+      message:
+        (holder
+          ? `ผู้ถือครอง: ${holderLabel(holder)}`
+          : form.holderName
+            ? `ผู้ถือครอง: ${form.holderName}`
+            : "ยังไม่ได้ระบุผู้ถือครอง") +
+        (holderChanged ? ` · บันทึกประวัติตั้งแต่ ${formatDate(handover.date || todayISO())}` : ""),
       confirmLabel: approve ? "อนุมัติ" : "บันทึก",
     });
     if (!sure) return;
-    await run(() => (device ? api.saveDevice(device.id, form, approve) : api.addDevice(form)));
+    const given = holderChanged ? handover : undefined;
+    await run(() => (device ? api.saveDevice(device.id, form, approve, given) : api.addDevice(form, given)));
   }
 
   async function block() {
@@ -179,6 +209,22 @@ export function DeviceDialog({
       tone: blocking ? "danger" : "default",
     });
     if (sure) await run(() => api.setDeviceAgent(device.id, blocking ? "blocked" : "approved"));
+  }
+
+  async function removeHolding(h: DeviceHolding) {
+    if (!device) return;
+    const sure = await confirm({
+      title: `ลบประวัติของ ${h.holderName || "รายการนี้"}?`,
+      message: "ใช้กรณีบันทึกผิดเท่านั้น ผู้ถือครองปัจจุบันของเครื่องจะไม่เปลี่ยน",
+      confirmLabel: "ลบ",
+      tone: "danger",
+    });
+    if (!sure) return;
+    try {
+      setHistory((await api.deleteDeviceHolding(device.id, h.id)).history);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
   }
 
   async function remove() {
@@ -248,7 +294,7 @@ export function DeviceDialog({
                   ],
                   [
                     "BIOS",
-                    [device.biosVersion, device.biosDate && formatDate(device.biosDate)]
+                    [device.biosVersion, device.biosDate && formatDateCE(device.biosDate)]
                       .filter(Boolean)
                       .join(" · "),
                   ],
@@ -270,16 +316,7 @@ export function DeviceDialog({
                           .join(" + ")
                       : device.diskText,
                   ],
-                  [
-                    "พื้นที่ว่าง (C:)",
-                    device.diskFreeGb === null
-                      ? ""
-                      : `${gb(device.diskFreeGb, 1)} จาก ${gb(device.diskTotalGb)}${
-                          device.diskTotalGb
-                            ? ` (${Math.round((100 * device.diskFreeGb) / device.diskTotalGb)}%)`
-                            : ""
-                        }`,
-                  ],
+                  ["พื้นที่ว่าง (C:)", device.diskFreeGb === null ? "" : <DiskBar device={device} wide />],
                   [
                     "การ์ดจอ",
                     device.gpu && `${device.gpu}${device.gpuMemoryGb ? ` · ${device.gpuMemoryGb} GB` : ""}`,
@@ -545,6 +582,33 @@ export function DeviceDialog({
               />
             </Field>
           )}
+          {holderChanged && (
+            <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+              <p className="text-xs font-medium text-emerald-800">
+                เปลี่ยนผู้ถือครอง: จะบันทึกลงประวัติเครื่อง
+                {history?.some((h) => !h.endDate) ? " และปิดรายการของคนเดิม" : ""}
+              </p>
+              <div className="grid grid-cols-[140px_minmax(0,1fr)] gap-2">
+                <Field label="วันที่ส่งมอบ">
+                  <input
+                    type="date"
+                    className="field bg-white"
+                    value={handover.date}
+                    max={todayISO()}
+                    onChange={(e) => setHandover((h) => ({ ...h, date: e.target.value }))}
+                  />
+                </Field>
+                <Field label="หมายเหตุ">
+                  <input
+                    className="field bg-white"
+                    placeholder="เช่น คนเดิมลาออก / ย้ายทีม"
+                    value={handover.note}
+                    onChange={(e) => setHandover((h) => ({ ...h, note: e.target.value }))}
+                  />
+                </Field>
+              </div>
+            </div>
+          )}
           <div className="grid grid-cols-2 gap-3">
             <Field label="เลขครุภัณฑ์">
               <input
@@ -628,6 +692,72 @@ export function DeviceDialog({
             />
           </Field>
         </div>
+
+        {/* ---------------------------------------------- who has held it */}
+        {device && (
+          <section className="lg:col-span-2">
+            <h3 className="mb-2 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+              ประวัติผู้ถือครอง
+            </h3>
+            {history === null ? (
+              <p className="px-2 text-xs text-muted">กำลังโหลด…</p>
+            ) : history.length === 0 ? (
+              <p className="px-2 text-xs text-muted">
+                ยังไม่มีประวัติ: จะเริ่มบันทึกเมื่อเลือกผู้ถือครองแล้วกดบันทึก
+              </p>
+            ) : (
+              <div className="overflow-x-auto rounded-lg border border-line">
+                <table className="sheet text-xs">
+                  <thead>
+                    <tr>
+                      <th>ผู้ถือครอง</th>
+                      <th>แผนก</th>
+                      <th>Studio / ทีม</th>
+                      <th>ตั้งแต่</th>
+                      <th>ถึง</th>
+                      <th>ระยะเวลา</th>
+                      <th>หมายเหตุ</th>
+                      <th />
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {history.map((h) => (
+                      <tr key={h.id} className={h.endDate ? "" : "bg-emerald-50/50"}>
+                        <td>
+                          {h.holderCode && <span className="text-muted">{h.holderCode} · </span>}
+                          {h.holderName || "–"}
+                        </td>
+                        <td>{h.department || "–"}</td>
+                        <td>{h.team || "–"}</td>
+                        <td className="whitespace-nowrap tabular-nums">{formatDate(h.startDate)}</td>
+                        <td className="whitespace-nowrap tabular-nums">
+                          {h.endDate ? (
+                            formatDate(h.endDate)
+                          ) : (
+                            <span className="chip bg-emerald-100 text-emerald-800">ปัจจุบัน</span>
+                          )}
+                        </td>
+                        <td className="whitespace-nowrap tabular-nums">{heldFor(h.startDate, h.endDate)}</td>
+                        <td className="text-muted">{h.note || "–"}</td>
+                        <td className="text-right">
+                          <button
+                            type="button"
+                            className="btn-text !px-1 text-xs text-red-600"
+                            disabled={busy}
+                            onClick={() => removeHolding(h)}
+                            title="ลบรายการนี้ (กรณีบันทึกผิด)"
+                          >
+                            ลบ
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        )}
       </div>
 
       {error && <p className="px-6 pb-2 text-sm text-red-500">{error}</p>}

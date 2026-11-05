@@ -12,7 +12,7 @@
 param([switch]$DryRun, [string]$ConfigDir)
 
 $ErrorActionPreference = 'Stop'
-$AgentVersion = '1.0.0'
+$AgentVersion = '1.0.1'
 $Dir = if ($ConfigDir) { $ConfigDir } else { Join-Path $env:ProgramData 'WS-Agent' }
 $ConfigFile = Join-Path $Dir 'config.json'
 $TokenFile = Join-Path $Dir 'token'
@@ -103,7 +103,9 @@ function Get-Hardware {
   # Physical disks with their type, and the space of the local drives.
   $media = @{ 3 = 'HDD'; 4 = 'SSD' }
   $disks = @(Try-Get {
-      Get-CimInstance -Namespace root\Microsoft\Windows\Storage -ClassName MSFT_PhysicalDisk | ForEach-Object {
+      # BusType 7 = USB, 12 = SD card: flash drives plugged in now are not part of the computer.
+      Get-CimInstance -Namespace root\Microsoft\Windows\Storage -ClassName MSFT_PhysicalDisk |
+        Where-Object { @(7, 12) -notcontains [int]$_.BusType } | ForEach-Object {
         $type = $media[[int]$_.MediaType]
         if ([int]$_.BusType -eq 17) { $type = 'NVMe' }
         [ordered]@{ model = Clean $_.FriendlyName; type = $(if ($type) { $type } else { '' }); sizeGb = Gb $_.Size 0 }

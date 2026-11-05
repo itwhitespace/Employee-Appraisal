@@ -1,8 +1,11 @@
 import {
   deleteDevice,
+  deleteHolding,
   listDevices,
+  listHoldings,
   listPrograms,
   parseDeviceInput,
+  parseHandover,
   setAgentStatus,
   updateDevice,
 } from "@/lib/server/devices";
@@ -14,22 +17,32 @@ interface Context {
   params: { id: string };
 }
 
-/** The programs installed on one computer, from its last list. */
+/** One computer's holders over time, and the programs from its last list. */
 export async function GET(_request: Request, { params }: Context) {
   return handle(async () => {
     await requireUser(["admin"]);
-    return { programs: await listPrograms(params.id) };
+    const [history, programs] = await Promise.all([listHoldings(params.id), listPrograms(params.id)]);
+    return { history, programs };
   });
 }
 
-/** Body: `{ device, approve? }`: the register part; `approve` accepts a computer that is waiting. */
+/**
+ * Body: `{ device, approve?, handover? }`: the register part; `approve` accepts a computer that is
+ * waiting; `handover` = `{ date, note }` for the history when the holder changes.
+ */
 export async function PUT(request: Request, { params }: Context) {
   return handle(async () => {
     const user = await requireUser(["admin"]);
     const body = await readJson(request);
     const raw =
       body.device && typeof body.device === "object" ? (body.device as Record<string, unknown>) : {};
-    await updateDevice(params.id, parseDeviceInput(raw), user.id, body.approve === true);
+    await updateDevice(
+      params.id,
+      parseDeviceInput(raw),
+      user.id,
+      body.approve === true,
+      parseHandover(body.handover),
+    );
     return { devices: await listDevices() };
   });
 }
@@ -47,9 +60,15 @@ export async function PATCH(request: Request, { params }: Context) {
   });
 }
 
-export async function DELETE(_request: Request, { params }: Context) {
+/** `?history=<id>` removes one line of the holder history; otherwise the whole computer. */
+export async function DELETE(request: Request, { params }: Context) {
   return handle(async () => {
     await requireUser(["admin"]);
+    const holding = new URL(request.url).searchParams.get("history");
+    if (holding) {
+      await deleteHolding(params.id, holding);
+      return { history: await listHoldings(params.id) };
+    }
     await deleteDevice(params.id);
     return { devices: await listDevices() };
   });

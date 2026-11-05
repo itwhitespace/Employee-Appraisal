@@ -607,3 +607,23 @@ create index if not exists device_logins_employee_idx on public.device_logins (e
 alter table public.devices         enable row level security;
 alter table public.device_software enable row level security;
 alter table public.device_logins   enable row level security;
+
+-- ── Who has held each computer, and when (copied at the time of each change). ──────────────
+create table if not exists public.device_holder_history (
+  id          uuid primary key default gen_random_uuid(),
+  device_id   uuid not null references public.devices (id) on delete cascade,
+  holder_id   uuid references public.employees (id) on delete set null,
+  holder_code text not null default '',
+  holder_name text not null default '',
+  department  text not null default '',
+  team        text not null default '',
+  start_date  date not null,
+  end_date    date,
+  note        text not null default '',
+  created_at  timestamptz not null default now(),
+  created_by  uuid references public.employees (id) on delete set null
+);
+create index if not exists device_holder_history_device_idx
+  on public.device_holder_history (device_id, start_date desc);
+
+alter table public.device_holder_history enable row level security;

@@ -21,7 +21,14 @@ import type {
   User,
 } from "./types";
 import type { HardwareLine, LicenseInput, LicenseRenewal, SoftwareLicense } from "./software";
-import type { Device, DeviceHolder, DeviceInput, DeviceProgram } from "./devices";
+import type {
+  Device,
+  DeviceHandover,
+  DeviceHolder,
+  DeviceHolding,
+  DeviceInput,
+  DeviceProgram,
+} from "./devices";
 
 /** Browser-side client for the app's own API routes. */
 
@@ -161,13 +168,20 @@ export const api = {
   /** IT Assets: the computer register (admin only). */
   devices: () =>
     request<{ devices: Device[]; holders: DeviceHolder[]; installerReady: boolean }>("/api/devices"),
-  addDevice: (device: DeviceInput) => request<{ devices: Device[] }>("/api/devices", "POST", { device }),
-  saveDevice: (id: string, device: DeviceInput, approve = false) =>
-    request<{ devices: Device[] }>(`/api/devices/${id}`, "PUT", { device, approve }),
+  addDevice: (device: DeviceInput, handover?: DeviceHandover) =>
+    request<{ devices: Device[] }>("/api/devices", "POST", { device, handover }),
+  saveDevice: (id: string, device: DeviceInput, approve = false, handover?: DeviceHandover) =>
+    request<{ devices: Device[] }>(`/api/devices/${id}`, "PUT", { device, approve, handover }),
   setDeviceAgent: (id: string, agentStatus: "blocked" | "approved") =>
     request<{ devices: Device[] }>(`/api/devices/${id}`, "PATCH", { agentStatus }),
   deleteDevice: (id: string) => request<{ devices: Device[] }>(`/api/devices/${id}`, "DELETE"),
-  devicePrograms: (id: string) => request<{ programs: DeviceProgram[] }>(`/api/devices/${id}`),
+  deviceDetail: (id: string) =>
+    request<{ history: DeviceHolding[]; programs: DeviceProgram[] }>(`/api/devices/${id}`),
+  deleteDeviceHolding: (id: string, holdingId: string) =>
+    request<{ history: DeviceHolding[] }>(
+      `/api/devices/${id}?history=${encodeURIComponent(holdingId)}`,
+      "DELETE",
+    ),
 
   bonus: () => request<BonusData>("/api/compensation/bonus"),
   saveBonus: (plan: BonusPlan) => request<BonusData>("/api/compensation/bonus", "PUT", plan),

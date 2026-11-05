@@ -53,3 +53,10 @@ export function displayName(person: { name: string; nickname?: string }): string
 export function newId(prefix: string): string {
   return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 7)}`;
 }
+
+/** "28/06/2018": day/month/year in the Western (C.E.) calendar, as Windows shows BIOS dates. */
+export function formatDateCE(iso: string | null): string {
+  if (!iso) return "–";
+  const [y, m, d] = iso.slice(0, 10).split("-");
+  return y && m && d ? `${d}/${m}/${y}` : "–";
+}

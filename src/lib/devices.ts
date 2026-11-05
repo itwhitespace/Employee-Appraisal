@@ -126,6 +126,26 @@ export interface DeviceProgram {
   installDate: string | null;
 }
 
+/** One person's time with a computer; name, department and studio as they were then. */
+export interface DeviceHolding {
+  id: string;
+  holderId: string | null;
+  holderCode: string;
+  holderName: string;
+  department: string;
+  team: string;
+  startDate: string;
+  /** null = still has it. */
+  endDate: string | null;
+  note: string;
+}
+
+/** When the holder changes: the day the computer was handed over, and why. */
+export interface DeviceHandover {
+  date: string | null;
+  note: string;
+}
+
 /** An employee to give a computer to: only what the register needs. */
 export interface DeviceHolder {
   id: string;

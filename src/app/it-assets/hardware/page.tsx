@@ -2,6 +2,7 @@
 
 import { Download, Laptop, Monitor, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
+import { DiskBar } from "@/components/DiskBar";
 import { DeviceDialog, holderLabel } from "@/components/DeviceDialog";
 import { api, errorMessage } from "@/lib/api";
 import {
@@ -25,26 +26,6 @@ function Tile({ label, value, tone, note }: { label: string; value: number; tone
       <div className="mt-1 text-2xl font-bold tabular-nums">{value}</div>
       {note && <div className="text-[11px] text-faint">{note}</div>}
     </div>
-  );
-}
-
-/** Free space of the system drive, red under 10 %, amber under 20 %. */
-function FreeSpace({ device }: { device: Device }) {
-  if (device.diskFreeGb === null) return <span className="text-faint">–</span>;
-  const share = device.diskTotalGb ? device.diskFreeGb / device.diskTotalGb : null;
-  const tone =
-    share === null
-      ? "text-ink"
-      : share < 0.1
-        ? "text-red-600 font-semibold"
-        : share < 0.2
-          ? "text-amber-600"
-          : "text-ink";
-  return (
-    <span className={`tabular-nums ${tone}`}>
-      {Math.round(device.diskFreeGb)} GB
-      {share !== null && <span className="text-faint"> · {Math.round(share * 100)}%</span>}
-    </span>
   );
 }
 
@@ -241,7 +222,7 @@ export default function HardwarePage() {
                 <th>ยี่ห้อ / รุ่น</th>
                 <th>CPU</th>
                 <th className="text-right">RAM</th>
-                <th className="text-right">Disk ว่าง</th>
+                <th className="text-right">Disk ว่าง (C:)</th>
                 <th>OS</th>
                 <th>IP</th>
                 <th />
@@ -336,7 +317,7 @@ export default function HardwarePage() {
                       {d.ramGb !== null ? `${d.ramGb} GB` : d.ramText || "–"}
                     </td>
                     <td className="whitespace-nowrap text-right">
-                      <FreeSpace device={d} />
+                      <DiskBar device={d} />
                     </td>
                     <td className="whitespace-nowrap">
                       {d.osName.replace(/^Microsoft\s+/, "") || "–"}

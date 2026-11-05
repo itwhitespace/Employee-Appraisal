@@ -5,12 +5,15 @@ import {
   typeOf,
   type AgentStatus,
   type Device,
+  type DeviceHandover,
   type DeviceHolder,
+  type DeviceHolding,
   type DeviceInput,
   type DeviceProgram,
   type DeviceStatus,
   type DeviceType,
 } from "../devices";
+import { DEPARTMENTS } from "../constants";
 import { HttpError } from "./errors";
 import { db } from "./supabase";
 
@@ -149,18 +152,23 @@ function reportColumns(body: Record<string, unknown>): Record<string, unknown> {
   put("cpuCores", "cpu_cores", number(body.cpuCores, 1, 512));
   put("ramText", "ram_text", text(body.ramText, 80));
   put("ramGb", "ram_gb", number(body.ramGb, 0, 99999));
+  // Agents before 1.0.1 also listed the USB drives plugged in at the time.
+  const disks = list<Record<string, unknown>>(body.disks)
+    .slice(0, 16)
+    .map((d) => ({
+      model: text(d?.model, 80),
+      type: text(d?.type, 10),
+      sizeGb: number(d?.sizeGb, 0, 1e6),
+    }))
+    .filter((d) => !/usb/i.test(`${d.type} ${d.model}`));
+  put("disks", "disks", disks);
   put(
-    "disks",
-    "disks",
-    list<Record<string, unknown>>(body.disks)
-      .slice(0, 16)
-      .map((d) => ({
-        model: text(d?.model, 80),
-        type: text(d?.type, 10),
-        sizeGb: number(d?.sizeGb, 0, 1e6),
-      })),
+    "diskText",
+    "disk_text",
+    "disks" in body
+      ? disks.map((d) => `${d.type} ${d.sizeGb ?? "?"} GB`.trim()).join(" + ")
+      : text(body.diskText, 160),
   );
-  put("diskText", "disk_text", text(body.diskText, 160));
   put("diskTotalGb", "disk_total_gb", number(body.diskTotalGb, 0, 1e6));
   put("diskFreeGb", "disk_free_gb", number(body.diskFreeGb, 0, 1e6));
   put("gpu", "gpu", text(body.gpu, 200));
@@ -489,10 +497,14 @@ const specColumns = (input: DeviceInput) => ({
 });
 
 /** A computer without the agent. */
-export async function createDevice(input: DeviceInput, actorId: string): Promise<void> {
+export async function createDevice(
+  input: DeviceInput,
+  actorId: string,
+  handover: DeviceHandover = { date: null, note: "" },
+): Promise<void> {
   if (!input.computerName && !input.assetNumber)
     throw new HttpError(400, "กรุณากรอกชื่อเครื่องหรือเลขครุภัณฑ์");
-  check(
+  const row = check(
     await db()
       .from("devices")
       .insert({
@@ -500,8 +512,11 @@ export async function createDevice(input: DeviceInput, actorId: string): Promise
         ...specColumns(input),
         agent_status: "none",
         updated_by: actorId,
-      }),
-  );
+      })
+      .select("id")
+      .single(),
+  ) as { id: string };
+  if (input.holderId || input.holderName.trim()) await recordHolder(row.id, input, handover, actorId);
 }
 
 async function getDevice(id: string): Promise<Device> {
@@ -510,6 +525,106 @@ async function getDevice(id: string): Promise<Device> {
   ) as unknown as Row | null;
   if (!row) throw new HttpError(404, "ไม่พบเครื่องนี้ กรุณาโหลดหน้าใหม่");
   return toDevice(row);
+}
+
+// ---------------------------------------------------------------- who has held it
+
+/** Until device-history.local.sql is run, the register works without the history. */
+const noHistoryTable = (error: { code?: string; message: string } | null) =>
+  !!error &&
+  (error.code === "42P01" || error.code === "PGRST205" || /device_holder_history/.test(error.message));
+
+const today = () => new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Bangkok" });
+
+export async function listHoldings(deviceId: string): Promise<DeviceHolding[]> {
+  const result = await db()
+    .from("device_holder_history")
+    .select("id, holder_id, holder_code, holder_name, department, team, start_date, end_date, note")
+    .eq("device_id", deviceId)
+    .order("start_date", { ascending: false })
+    .order("created_at", { ascending: false });
+  if (noHistoryTable(result.error)) return [];
+  return (check(result) as Row[]).map((r) => ({
+    id: r.id,
+    holderId: (r.holder_id as string | null) ?? null,
+    holderCode: str(r.holder_code),
+    holderName: str(r.holder_name),
+    department: str(r.department),
+    team: str(r.team),
+    startDate: str(r.start_date),
+    endDate: (r.end_date as string | null) ?? null,
+    note: str(r.note),
+  }));
+}
+
+export function parseHandover(value: unknown): DeviceHandover {
+  const body = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const note = text(body.note, 200);
+  if (SECRET.test(note)) throw new HttpError(400, "อย่าเก็บรหัสผ่านหรือ Product Key ในทะเบียน");
+  return { date: day(body.date), note };
+}
+
+/**
+ * The holder changed: the previous holder's row ends on the handover day and the new holder's row
+ * starts on it, with their name, department and studio as they are today.
+ */
+async function recordHolder(
+  deviceId: string,
+  holder: { holderId: string | null; holderName: string },
+  handover: DeviceHandover,
+  actorId: string,
+): Promise<void> {
+  const date = handover.date ?? today();
+  const closed = await db()
+    .from("device_holder_history")
+    .update({ end_date: date })
+    .eq("device_id", deviceId)
+    .is("end_date", null);
+  if (noHistoryTable(closed.error)) return;
+  check(closed);
+  if (!holder.holderId && !holder.holderName.trim()) return;
+
+  let person = { code: "", name: holder.holderName.trim(), department: "", team: "" };
+  if (holder.holderId) {
+    const e = check(
+      await db()
+        .from("employees")
+        .select("code, name, nickname, team, department_id")
+        .eq("id", holder.holderId)
+        .maybeSingle(),
+    ) as { code: string; name: string; nickname: string; team: string; department_id: string | null } | null;
+    if (!e) throw new HttpError(400, "ไม่พบพนักงานที่เลือก");
+    person = {
+      code: e.code,
+      name: `${e.name}${e.nickname ? ` (${e.nickname})` : ""}`,
+      department: DEPARTMENTS.find((d) => d.id === e.department_id)?.name ?? "",
+      team: e.team,
+    };
+  }
+  check(
+    await db().from("device_holder_history").insert({
+      device_id: deviceId,
+      holder_id: holder.holderId,
+      holder_code: person.code,
+      holder_name: person.name,
+      department: person.department,
+      team: person.team,
+      start_date: date,
+      note: handover.note,
+      created_by: actorId,
+    }),
+  );
+}
+
+/** Removes a line typed by mistake (the computer's current holder is not changed). */
+export async function deleteHolding(deviceId: string, holdingId: string): Promise<void> {
+  const result = await db()
+    .from("device_holder_history")
+    .delete()
+    .eq("id", holdingId)
+    .eq("device_id", deviceId);
+  if (noHistoryTable(result.error)) throw new HttpError(400, "ยังไม่ได้รัน device-history.local.sql");
+  check(result);
 }
 
 // Sign-in names that are not one person's.
@@ -524,6 +639,7 @@ export async function updateDevice(
   input: DeviceInput,
   actorId: string,
   approve: boolean,
+  handover: DeviceHandover = { date: null, note: "" },
 ): Promise<void> {
   const device = await getDevice(id);
   const now = new Date().toISOString();
@@ -539,6 +655,10 @@ export async function updateDevice(
       })
       .eq("id", id),
   );
+  const holderName = input.holderId ? "" : input.holderName.trim();
+  if (input.holderId !== device.holderId || (!input.holderId && holderName !== device.holderName.trim())) {
+    await recordHolder(id, { holderId: input.holderId, holderName }, handover, actorId);
+  }
   const login = loginKey(device.loginUser || device.lastLoginUser);
   if (input.holderId && input.holderId !== device.holderId && login && !SHARED_LOGIN.test(login)) {
     check(

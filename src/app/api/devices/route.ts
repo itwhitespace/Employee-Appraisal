@@ -1,4 +1,11 @@
-import { createDevice, enrollKey, listDevices, listHolders, parseDeviceInput } from "@/lib/server/devices";
+import {
+  createDevice,
+  enrollKey,
+  listDevices,
+  listHolders,
+  parseDeviceInput,
+  parseHandover,
+} from "@/lib/server/devices";
 import { handle, readJson, requireUser } from "@/lib/server/http";
 
 export const dynamic = "force-dynamic";
@@ -12,14 +19,14 @@ export async function GET() {
   });
 }
 
-/** Body: `{ device }`: a computer without the agent. */
+/** Body: `{ device, handover? }`: a computer without the agent. */
 export async function POST(request: Request) {
   return handle(async () => {
     const user = await requireUser(["admin"]);
     const body = await readJson(request);
     const raw =
       body.device && typeof body.device === "object" ? (body.device as Record<string, unknown>) : {};
-    await createDevice(parseDeviceInput(raw), user.id);
+    await createDevice(parseDeviceInput(raw), user.id, parseHandover(body.handover));
     return { devices: await listDevices() };
   });
 }
