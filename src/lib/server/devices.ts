@@ -3,6 +3,7 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   disksText,
   loginKey,
+  registerProblems,
   TRACKED_FIELDS,
   typeOf,
   type AgentStatus,
@@ -563,6 +564,11 @@ export function parseDeviceInput(body: Record<string, unknown>): DeviceInput {
     gpu: text(body.gpu, 200),
     osName: text(body.osName, 80),
   };
+  // Who has it and its asset number: required, as on the form.
+  const problems = registerProblems(input);
+  if (problems.holder || problems.assetNumber) {
+    throw new HttpError(400, [problems.holder, problems.assetNumber].filter(Boolean).join(" · "));
+  }
   if (input.documentUrl && !/^https:\/\/[^\s]+$/.test(input.documentUrl)) {
     throw new HttpError(400, "ลิงก์เอกสารต้องขึ้นต้นด้วย https:// (เช่น ลิงก์ Google Drive)");
   }

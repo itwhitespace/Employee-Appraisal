@@ -13,6 +13,7 @@ import {
   LICENSE_CHANNELS,
   TRACKED_FIELDS,
   maskedKey,
+  registerProblems,
   EMPTY_DEVICE,
   guessHolder,
   isOnline,
@@ -169,6 +170,10 @@ export function DeviceDialog({
       });
   }, [device]);
 
+  // Who has it and its asset number must be filled in before saving or approving.
+  const problems = registerProblems(form);
+  const missing = Object.keys(problems).length > 0;
+
   // A new holder (or none): the history gets a line from the handover day.
   const holderChanged = device
     ? form.holderId !== device.holderId ||
@@ -193,6 +198,7 @@ export function DeviceDialog({
   }
 
   async function save(approve: boolean) {
+    if (missing) return;
     const holder = holders.find((h) => h.id === form.holderId);
     const sure = await confirm({
       title: !device ? "เพิ่มเครื่องนี้?" : approve ? "อนุมัติเครื่องนี้เข้าทะเบียน?" : "บันทึกการแก้ไข?",
@@ -634,13 +640,16 @@ export function DeviceDialog({
             </p>
           )}
           {!form.holderId && (
-            <Field label="ชื่อผู้ใช้ / จุดใช้งาน (ถ้าไม่ใช่พนักงาน)">
+            <Field label="ชื่อผู้ใช้ / จุดใช้งาน (ถ้าไม่ใช่พนักงาน) *">
               <input
-                className="field bg-white"
+                className={`field bg-white ${problems.holder ? "!border-red-300 ring-2 ring-red-100" : ""}`}
                 placeholder="เช่น เครื่องส่วนกลาง Enscape"
                 value={form.holderName}
                 onChange={(e) => set({ holderName: e.target.value })}
               />
+              {problems.holder && (
+                <span className="mt-1 block text-[11px] text-red-600">{problems.holder}</span>
+              )}
             </Field>
           )}
           {holderChanged && (
@@ -671,13 +680,16 @@ export function DeviceDialog({
             </div>
           )}
           <div className="grid grid-cols-2 gap-3">
-            <Field label="เลขครุภัณฑ์">
+            <Field label="เลขครุภัณฑ์ *">
               <input
-                className="field bg-white"
+                className={`field bg-white ${problems.assetNumber ? "!border-red-300 ring-2 ring-red-100" : ""}`}
                 placeholder="WS-…"
                 value={form.assetNumber}
-                onChange={(e) => set({ assetNumber: e.target.value })}
+                onChange={(e) => set({ assetNumber: e.target.value.trim() })}
               />
+              {problems.assetNumber && (
+                <span className="mt-1 block text-[11px] text-red-600">{problems.assetNumber}</span>
+              )}
             </Field>
             <Field label="ประเภท">
               <select
@@ -987,15 +999,21 @@ export function DeviceDialog({
           </>
         )}
         <span className="flex-1" />
+        {missing && <span className="text-xs text-red-600">กรอกช่องที่มี * ให้ครบก่อนบันทึก</span>}
         <button type="button" className="btn-secondary" disabled={busy} onClick={close}>
           ปิด
         </button>
         {pending ? (
-          <button type="button" className="btn-primary" disabled={busy} onClick={() => save(true)}>
+          <button type="button" className="btn-primary" disabled={busy || missing} onClick={() => save(true)}>
             อนุมัติ + บันทึก
           </button>
         ) : (
-          <button type="button" className="btn-primary" disabled={busy} onClick={() => save(false)}>
+          <button
+            type="button"
+            className="btn-primary"
+            disabled={busy || missing}
+            onClick={() => save(false)}
+          >
             บันทึก
           </button>
         )}

@@ -378,3 +378,24 @@ export function isOlderVersion(version: string, latest: string): boolean {
   }
   return false;
 }
+
+/** Asset numbers like WS-131150C7: letters / digits, dashes only between them. */
+const ASSET_NUMBER = /^[A-Za-z0-9]+(-[A-Za-z0-9]+)*$/;
+
+/**
+ * What must be filled in before a computer is saved or approved: who has it (an employee, or the
+ * name of the place / person when not an employee) and its asset number. Empty = nothing missing.
+ */
+export function registerProblems(input: Pick<DeviceInput, "holderId" | "holderName" | "assetNumber">): {
+  holder?: string;
+  assetNumber?: string;
+} {
+  const problems: { holder?: string; assetNumber?: string } = {};
+  if (!input.holderId && !input.holderName.trim())
+    problems.holder = "เลือกพนักงาน หรือกรอกชื่อผู้ใช้ / จุดใช้งาน";
+  const asset = input.assetNumber.trim();
+  if (!asset) problems.assetNumber = "กรุณากรอกเลขครุภัณฑ์";
+  else if (!ASSET_NUMBER.test(asset) || asset.length < 4)
+    problems.assetNumber = "เลขครุภัณฑ์ไม่ครบ (เช่น WS-131150C7)";
+  return problems;
+}

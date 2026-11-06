@@ -57,8 +57,8 @@ export default function HardwarePage() {
           setDevices(r.devices);
           setHolders(r.holders);
           setInstallerReady(r.installerReady);
-          setAgentVersion(r.agentVersion);
-          setMacAgentVersion(r.macAgentVersion);
+          setAgentVersion(r.agentVersion ?? "");
+          setMacAgentVersion(r.macAgentVersion ?? "");
           setNow(Date.now());
         })
         .catch((e) => alive && setError(errorMessage(e)));
