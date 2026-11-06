@@ -659,3 +659,6 @@ alter table public.device_changes enable row level security;
 alter table public.devices
   add column if not exists document_url text not null default ''
     check (document_url = '' or document_url ~ '^https://');
+
+-- Studio / team of a shared computer (one with no employee holder), for grouping.
+alter table devices add column if not exists holder_team text not null default '';

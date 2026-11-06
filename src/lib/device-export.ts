@@ -69,7 +69,7 @@ export async function exportDevices(devices: Device[], holders: DeviceHolder[]) 
       h?.code ?? null,
       h ? `${h.name}${h.nickname ? ` (${h.nickname})` : ""}` : d.holderName || null,
       h?.department || null,
-      h?.team || null,
+      h?.team || d.holderTeam || null,
       d.computerName || null,
       type ? DEVICE_TYPES[type] : null,
       DEVICE_STATUS[d.status].label,

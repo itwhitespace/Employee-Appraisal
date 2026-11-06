@@ -51,6 +51,7 @@ const toDevice = (r: Row): Device => ({
   deviceType: str(r.device_type) as DeviceType,
   holderId: (r.holder_id as string | null) ?? null,
   holderName: str(r.holder_name),
+  holderTeam: str(r.holder_team),
   purchaseDate: (r.purchase_date as string | null) ?? null,
   purchaseDoc: str(r.purchase_doc),
   documentUrl: str(r.document_url),
@@ -114,7 +115,7 @@ const toDevice = (r: Row): Device => ({
 
 // Everything but the token hash and the extra JSON.
 const COLUMNS =
-  "id, asset_number, device_type, holder_id, holder_name, purchase_date, purchase_doc, document_url, purchase_price, " +
+  "id, asset_number, device_type, holder_id, holder_name, holder_team, purchase_date, purchase_doc, document_url, purchase_price, " +
   "vendor, " +
   "warranty_expire, status, remark, computer_name, serial_number, manufacturer, model, chassis, cpu, cpu_cores, " +
   "ram_text, ram_gb, disks, disk_text, disk_total_gb, disk_free_gb, volumes, gpu, gpu_memory_gb, monitors, battery_health, " +
@@ -546,6 +547,7 @@ export function parseDeviceInput(body: Record<string, unknown>): DeviceInput {
     deviceType: oneOf<DeviceType>(body.deviceType, ["", "workstation", "notebook", "macbook", "other"], ""),
     holderId: typeof body.holderId === "string" && body.holderId ? body.holderId : null,
     holderName: text(body.holderName, 120),
+    holderTeam: text(body.holderTeam, 60),
     purchaseDate: day(body.purchaseDate),
     purchaseDoc: text(body.purchaseDoc, 120),
     documentUrl: text(body.documentUrl, 500),
@@ -584,6 +586,7 @@ function registerColumns(input: DeviceInput) {
     device_type: input.deviceType,
     holder_id: input.holderId,
     holder_name: input.holderId ? "" : input.holderName,
+    holder_team: input.holderId ? "" : input.holderTeam,
     purchase_date: input.purchaseDate,
     purchase_doc: input.purchaseDoc,
     document_url: input.documentUrl,
@@ -681,7 +684,7 @@ export function parseHandover(value: unknown): DeviceHandover {
  */
 async function recordHolder(
   deviceId: string,
-  holder: { holderId: string | null; holderName: string },
+  holder: { holderId: string | null; holderName: string; holderTeam?: string },
   handover: DeviceHandover,
   actorId: string,
 ): Promise<void> {
@@ -695,7 +698,12 @@ async function recordHolder(
   check(closed);
   if (!holder.holderId && !holder.holderName.trim()) return;
 
-  let person = { code: "", name: holder.holderName.trim(), department: "", team: "" };
+  let person = {
+    code: "",
+    name: holder.holderName.trim(),
+    department: "",
+    team: holder.holderTeam?.trim() ?? "",
+  };
   if (holder.holderId) {
     const e = check(
       await db()
@@ -850,7 +858,12 @@ export async function updateDevice(
   );
   const holderName = input.holderId ? "" : input.holderName.trim();
   if (input.holderId !== device.holderId || (!input.holderId && holderName !== device.holderName.trim())) {
-    await recordHolder(id, { holderId: input.holderId, holderName }, handover, actorId);
+    await recordHolder(
+      id,
+      { holderId: input.holderId, holderName, holderTeam: input.holderTeam },
+      handover,
+      actorId,
+    );
   }
   const login = loginKey(device.loginUser || device.lastLoginUser);
   if (input.holderId && input.holderId !== device.holderId && login && !SHARED_LOGIN.test(login)) {

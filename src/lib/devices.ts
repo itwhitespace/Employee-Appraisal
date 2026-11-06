@@ -40,6 +40,8 @@ export interface Device {
   deviceType: DeviceType;
   holderId: string | null;
   holderName: string;
+  /** Studio / team of a shared computer (no employee holder), for grouping; "" when none. */
+  holderTeam: string;
   purchaseDate: string | null;
   purchaseDoc: string;
   /** A link to the documents (bill, warranty, …), e.g. a Google Drive folder; "" when none. */
@@ -120,6 +122,8 @@ export interface DeviceInput {
   deviceType: DeviceType;
   holderId: string | null;
   holderName: string;
+  /** Studio / team of a shared computer (no employee holder), for grouping; "" when none. */
+  holderTeam: string;
   purchaseDate: string | null;
   purchaseDoc: string;
   /** A link to the documents (bill, warranty, …), e.g. a Google Drive folder; "" when none. */
@@ -226,6 +230,7 @@ export const EMPTY_DEVICE: DeviceInput = {
   deviceType: "",
   holderId: null,
   holderName: "",
+  holderTeam: "",
   purchaseDate: null,
   purchaseDoc: "",
   documentUrl: "",

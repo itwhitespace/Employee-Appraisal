@@ -85,7 +85,13 @@ export default function HardwarePage() {
   const outdated = withAgent.filter((d) => isOlderVersion(d.agentVersion, latestFor(d)));
   const holderOf = (d: Device) => holders.find((h) => h.id === d.holderId);
 
-  const teamOf = (d: Device) => holderOf(d)?.team || "";
+  const teamOf = (d: Device) => holderOf(d)?.team || (d.holderId ? "" : d.holderTeam);
+  // Who already has a computer in use: they are not offered again for another one.
+  const taken = new Map(
+    devices
+      .filter((d) => d.holderId && d.status !== "retired" && d.agentStatus !== "blocked")
+      .map((d) => [d.holderId!, d.id]),
+  );
   const inTab = tab === "pending" ? pending : tab === "blocked" ? blocked : register;
   // Studio / team buttons: the teams of the computers in this tab, most computers first.
   const teamCounts = new Map<string, number>();
@@ -109,6 +115,7 @@ export default function HardwarePage() {
       d.loginUser,
       d.ipAddress,
       d.holderName,
+      d.holderTeam,
       holder?.name,
       holder?.nickname,
       holder?.code,
@@ -420,7 +427,7 @@ export default function HardwarePage() {
                           </div>
                         )}
                       </td>
-                      <td>{holder?.team || <span className="text-faint">–</span>}</td>
+                      <td>{teamOf(d) || <span className="text-faint">–</span>}</td>
                       <td>
                         <div>{d.manufacturer || "–"}</div>
                         <div className="text-[11px] text-muted">{d.model}</div>
@@ -479,6 +486,7 @@ export default function HardwarePage() {
         <DeviceDialog
           device={open === "new" ? null : open}
           holders={holders}
+          taken={taken}
           onSaved={setDevices}
           onClose={() => setOpen(null)}
         />

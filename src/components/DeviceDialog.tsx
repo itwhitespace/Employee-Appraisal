@@ -93,6 +93,7 @@ function inputOf(device: Device | null): DeviceInput {
     deviceType: device.deviceType || typeOf(device),
     holderId: device.holderId,
     holderName: device.holderName,
+    holderTeam: device.holderTeam,
     purchaseDate: device.purchaseDate,
     purchaseDoc: device.purchaseDoc,
     documentUrl: device.documentUrl,
@@ -119,12 +120,15 @@ function inputOf(device: Device | null): DeviceInput {
  */
 export function DeviceDialog({
   device,
-  holders,
+  holders: allHolders,
+  taken,
   onSaved,
   onClose,
 }: {
   device: Device | null;
   holders: DeviceHolder[];
+  /** Employee id → the computer they already hold; they are left out of the list for another one. */
+  taken?: Map<string, string>;
   onSaved: (devices: Device[]) => void;
   onClose: () => void;
 }) {
@@ -142,6 +146,13 @@ export function DeviceDialog({
   const [busy, setBusy] = useState(false);
   const [editingUrl, setEditingUrl] = useState(false);
   const set = (patch: Partial<DeviceInput>) => setForm((f) => ({ ...f, ...patch }));
+  // Employees with a computer already are not offered (this computer's own holder stays).
+  const holders = allHolders.filter((h) => !taken?.has(h.id) || taken.get(h.id) === device?.id);
+  const hidden = allHolders.length - holders.length;
+  // The studios / teams there are, for a shared computer.
+  const teams = [...new Set(allHolders.map((h) => h.team).filter(Boolean))].sort((a, b) =>
+    a.localeCompare(b, "th"),
+  );
 
   const manual = !device || device.agentStatus === "none";
   const pending = device?.agentStatus === "pending";
@@ -618,6 +629,11 @@ export function DeviceDialog({
                 </option>
               ))}
             </select>
+            {hidden > 0 && (
+              <span className="mt-1 block text-[11px] text-faint">
+                ซ่อน {hidden} คนที่มีเครื่องใช้งานอยู่แล้ว (เปลี่ยนเครื่อง: ย้ายเครื่องเดิมออกก่อน)
+              </span>
+            )}
           </Field>
           {login && (
             <p className="text-xs text-muted">
@@ -650,6 +666,25 @@ export function DeviceDialog({
               {problems.holder && (
                 <span className="mt-1 block text-[11px] text-red-600">{problems.holder}</span>
               )}
+            </Field>
+          )}
+          {!form.holderId && (
+            <Field label="Studio / ทีม (เครื่องส่วนกลาง)">
+              <select
+                className="field bg-white"
+                value={form.holderTeam}
+                onChange={(e) => set({ holderTeam: e.target.value })}
+              >
+                <option value="">— ไม่มีทีม / ส่วนกลาง —</option>
+                {[
+                  ...teams,
+                  ...(form.holderTeam && !teams.includes(form.holderTeam) ? [form.holderTeam] : []),
+                ].map((t) => (
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
+                ))}
+              </select>
             </Field>
           )}
           {holderChanged && (
