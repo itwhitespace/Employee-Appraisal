@@ -3,14 +3,18 @@ import { createHash, randomBytes, timingSafeEqual } from "node:crypto";
 import {
   disksText,
   loginKey,
+  TRACKED_FIELDS,
   typeOf,
   type AgentStatus,
   type Device,
+  type DeviceChange,
   type DeviceHandover,
   type DeviceHolder,
   type DeviceHolding,
+  type DeviceHoldingInput,
   type DeviceInput,
   type DeviceProgram,
+  type HoldingMatch,
   type DeviceStatus,
   type DeviceType,
 } from "../devices";
@@ -324,7 +328,11 @@ export async function enrollDevice(
   let uuidTaken = false;
   if (uuid && !JUNK_UUID.test(uuid)) {
     const same = check(
-      await db().from("devices").select("id, agent_status, network").eq("hardware_uuid", uuid).maybeSingle(),
+      await db()
+        .from("devices")
+        .select(`id, agent_status, network, ${TRACKED_COLUMNS}`)
+        .eq("hardware_uuid", uuid)
+        .maybeSingle(),
     ) as Row | null;
     if (same) {
       const known = macsOf(same.network);
@@ -362,6 +370,7 @@ export async function enrollDevice(
   let id: string;
   if (match) {
     id = match.id;
+    if (match.agent_status !== "none") await recordChanges(match, columns);
     check(
       await db()
         .from("devices")
@@ -396,7 +405,7 @@ export async function reportDevice(
   const device = check(
     await db()
       .from("devices")
-      .select("id, agent_status, hardware_uuid")
+      .select(`id, agent_status, hardware_uuid, ${TRACKED_COLUMNS}`)
       .eq("agent_token_hash", sha256(token))
       .maybeSingle(),
   ) as Row | null;
@@ -413,6 +422,7 @@ export async function reportDevice(
   const now = new Date().toISOString();
   const columns = reportColumns(body);
   const programs = programsOf(body);
+  await recordChanges(device, columns);
   check(
     await db()
       .from("devices")
@@ -428,6 +438,47 @@ export async function reportDevice(
   return { status: device.agent_status as AgentStatus };
 }
 
+// ---------------------------------------------------------------- what changed
+
+const TRACKED_COLUMNS = Object.keys(TRACKED_FIELDS).join(", ");
+
+/** Until device-changes.local.sql is run, reports are saved without the change log. */
+const noChangesTable = (error: { code?: string; message: string } | null) =>
+  !!error && (error.code === "42P01" || error.code === "PGRST205" || /device_changes/.test(error.message));
+
+/** Keeps a line for each tracked field the new report has different (not for a first value). */
+async function recordChanges(before: Row, columns: Record<string, unknown>): Promise<void> {
+  const lines = Object.keys(TRACKED_FIELDS)
+    .filter((field) => field in columns)
+    .map((field) => ({
+      field,
+      old: String(before[field] ?? "").trim(),
+      now: String(columns[field] ?? "").trim(),
+    }))
+    .filter((c) => c.old && c.now && c.old !== c.now)
+    .map((c) => ({ device_id: before.id, field: c.field, old_value: c.old, new_value: c.now }));
+  if (!lines.length) return;
+  const result = await db().from("device_changes").insert(lines);
+  if (!noChangesTable(result.error)) check(result);
+}
+
+export async function listChanges(deviceId: string): Promise<DeviceChange[]> {
+  const result = await db()
+    .from("device_changes")
+    .select("id, field, old_value, new_value, changed_at")
+    .eq("device_id", deviceId)
+    .order("changed_at", { ascending: false })
+    .limit(200);
+  if (noChangesTable(result.error)) return [];
+  return (check(result) as Row[]).map((r) => ({
+    id: r.id,
+    field: str(r.field),
+    oldValue: str(r.old_value),
+    newValue: str(r.new_value),
+    changedAt: str(r.changed_at),
+  }));
+}
+
 // ---------------------------------------------------------------- the register (IT)
 
 export async function listDevices(): Promise<Device[]> {
@@ -438,14 +489,22 @@ export async function listDevices(): Promise<Device[]> {
 /** Employees to give computers to, with the sign-in names known to be theirs. */
 export async function listHolders(): Promise<DeviceHolder[]> {
   const people = check(
-    await db().from("employees").select("id, code, name, nickname, team").order("code"),
-  ) as { id: string; code: string; name: string; nickname: string; team: string }[];
+    await db().from("employees").select("id, code, name, nickname, team, department_id").order("code"),
+  ) as {
+    id: string;
+    code: string;
+    name: string;
+    nickname: string;
+    team: string;
+    department_id: string | null;
+  }[];
   const logins = check(await db().from("device_logins").select("login_name, employee_id")) as {
     login_name: string;
     employee_id: string | null;
   }[];
-  return people.map((p) => ({
+  return people.map(({ department_id, ...p }) => ({
     ...p,
+    department: DEPARTMENTS.find((d) => d.id === department_id)?.name ?? "",
     logins: logins.filter((l) => l.employee_id === p.id).map((l) => l.login_name),
   }));
 }
@@ -663,6 +722,88 @@ export async function deleteHolding(deviceId: string, holdingId: string): Promis
     .eq("device_id", deviceId);
   if (noHistoryTable(result.error)) throw new HttpError(400, "ยังไม่ได้รัน device-history.local.sql");
   check(result);
+}
+
+export function parseHoldingInput(body: Record<string, unknown>): DeviceHoldingInput {
+  const input: DeviceHoldingInput = {
+    holderName: text(body.holderName, 120),
+    department: text(body.department, 80),
+    team: text(body.team, 80),
+    startDate: day(body.startDate),
+    endDate: day(body.endDate),
+    note: text(body.note, 200),
+  };
+  if (!input.holderName) throw new HttpError(400, "กรุณากรอกชื่อผู้ถือครอง");
+  if (!input.startDate) throw new HttpError(400, "กรุณาระบุวันที่เริ่มถือครอง");
+  if (input.endDate && input.endDate < input.startDate)
+    throw new HttpError(400, "วันที่สิ้นสุดต้องไม่ก่อนวันที่เริ่ม");
+  if (SECRET.test(input.note)) throw new HttpError(400, "อย่าเก็บรหัสผ่านหรือ Product Key ในทะเบียน");
+  return input;
+}
+
+/**
+ * A line typed in by hand, e.g. someone who held the computer before the register and has left.
+ * It only adds to the history; the computer's current holder is not changed.
+ */
+export async function addHolding(
+  deviceId: string,
+  input: DeviceHoldingInput,
+  actorId: string,
+): Promise<void> {
+  await getDevice(deviceId);
+  const result = await db().from("device_holder_history").insert({
+    device_id: deviceId,
+    holder_id: null,
+    holder_code: "",
+    holder_name: input.holderName,
+    department: input.department,
+    team: input.team,
+    start_date: input.startDate,
+    end_date: input.endDate,
+    note: input.note,
+    created_by: actorId,
+  });
+  if (noHistoryTable(result.error)) throw new HttpError(400, "ยังไม่ได้รัน device-history.local.sql");
+  check(result);
+}
+
+/** Every line of the history whose person matches `query` (name, nickname or code). */
+export async function searchHoldings(query: string): Promise<HoldingMatch[]> {
+  const words = query
+    .trim()
+    .replace(/[%_,()*\.:"]/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+  if (words.length < 2) return [];
+  const result = await db()
+    .from("device_holder_history")
+    .select(
+      "id, holder_id, holder_code, holder_name, department, team, start_date, end_date, note, device_id, " +
+        "devices(computer_name, asset_number, holder_id, holder_name)",
+    )
+    .or(`holder_name.ilike.*${words}*,holder_code.ilike.*${words}*`)
+    .order("start_date", { ascending: false })
+    .limit(200);
+  if (noHistoryTable(result.error)) return [];
+  return (check(result) as unknown as Row[]).map((r) => {
+    const d = (r.devices ?? {}) as Record<string, unknown>;
+    return {
+      id: r.id,
+      holderId: (r.holder_id as string | null) ?? null,
+      holderCode: str(r.holder_code),
+      holderName: str(r.holder_name),
+      department: str(r.department),
+      team: str(r.team),
+      startDate: str(r.start_date),
+      endDate: (r.end_date as string | null) ?? null,
+      note: str(r.note),
+      deviceId: str(r.device_id),
+      computerName: str(d.computer_name),
+      assetNumber: str(d.asset_number),
+      currentHolderId: (d.holder_id as string | null) ?? null,
+      currentHolderName: str(d.holder_name),
+    };
+  });
 }
 
 // Sign-in names that are not one person's.

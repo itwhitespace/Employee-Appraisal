@@ -23,11 +23,14 @@ import type {
 import type { HardwareLine, LicenseInput, LicenseRenewal, SoftwareLicense } from "./software";
 import type {
   Device,
+  DeviceChange,
   DeviceHandover,
   DeviceHolder,
   DeviceHolding,
+  DeviceHoldingInput,
   DeviceInput,
   DeviceProgram,
+  HoldingMatch,
 } from "./devices";
 
 /** Browser-side client for the app's own API routes. */
@@ -178,7 +181,13 @@ export const api = {
     request<{ devices: Device[] }>(`/api/devices/${id}`, "PATCH", { agentStatus }),
   deleteDevice: (id: string) => request<{ devices: Device[] }>(`/api/devices/${id}`, "DELETE"),
   deviceDetail: (id: string) =>
-    request<{ history: DeviceHolding[]; programs: DeviceProgram[] }>(`/api/devices/${id}`),
+    request<{ history: DeviceHolding[]; changes: DeviceChange[]; programs: DeviceProgram[] }>(
+      `/api/devices/${id}`,
+    ),
+  addDeviceHolding: (id: string, holding: DeviceHoldingInput) =>
+    request<{ history: DeviceHolding[] }>(`/api/devices/${id}`, "POST", { holding }),
+  searchDeviceHistory: (q: string) =>
+    request<{ matches: HoldingMatch[] }>(`/api/devices/history?q=${encodeURIComponent(q)}`),
   deleteDeviceHolding: (id: string, holdingId: string) =>
     request<{ history: DeviceHolding[] }>(
       `/api/devices/${id}?history=${encodeURIComponent(holdingId)}`,

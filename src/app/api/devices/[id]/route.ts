@@ -1,11 +1,14 @@
 import {
+  addHolding,
   deleteDevice,
   deleteHolding,
   listDevices,
+  listChanges,
   listHoldings,
   listPrograms,
   parseDeviceInput,
   parseHandover,
+  parseHoldingInput,
   setAgentStatus,
   updateDevice,
 } from "@/lib/server/devices";
@@ -17,12 +20,16 @@ interface Context {
   params: { id: string };
 }
 
-/** One computer's holders over time, and the programs from its last list. */
+/** One computer's holders over time, what changed on it, and the programs from its last list. */
 export async function GET(_request: Request, { params }: Context) {
   return handle(async () => {
     await requireUser(["admin"]);
-    const [history, programs] = await Promise.all([listHoldings(params.id), listPrograms(params.id)]);
-    return { history, programs };
+    const [history, changes, programs] = await Promise.all([
+      listHoldings(params.id),
+      listChanges(params.id),
+      listPrograms(params.id),
+    ]);
+    return { history, changes, programs };
   });
 }
 
@@ -57,6 +64,18 @@ export async function PATCH(request: Request, { params }: Context) {
     }
     await setAgentStatus(params.id, body.agentStatus, user.id);
     return { devices: await listDevices() };
+  });
+}
+
+/** Body: `{ holding }`: a line of the holder history typed in by hand. */
+export async function POST(request: Request, { params }: Context) {
+  return handle(async () => {
+    const user = await requireUser(["admin"]);
+    const body = await readJson(request);
+    const raw =
+      body.holding && typeof body.holding === "object" ? (body.holding as Record<string, unknown>) : {};
+    await addHolding(params.id, parseHoldingInput(raw), user.id);
+    return { history: await listHoldings(params.id) };
   });
 }
 

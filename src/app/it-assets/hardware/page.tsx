@@ -1,10 +1,12 @@
 "use client";
 
-import { Download, Laptop, Monitor, Plus } from "lucide-react";
+import { Download, FileSpreadsheet, Laptop, Monitor, Plus } from "lucide-react";
 import { useEffect, useState } from "react";
 import { DiskBar } from "@/components/DiskBar";
 import { DeviceDialog, holderLabel } from "@/components/DeviceDialog";
+import { DeviceHistorySearch } from "@/components/DeviceHistorySearch";
 import { api, errorMessage } from "@/lib/api";
+import { exportDevices } from "@/lib/device-export";
 import {
   DEVICE_STATUS,
   DEVICE_TYPES,
@@ -18,7 +20,7 @@ import {
   type DeviceHolder,
 } from "@/lib/devices";
 
-type Tab = "register" | "pending" | "blocked";
+type Tab = "register" | "pending" | "blocked" | "history";
 
 function Tile({ label, value, tone, note }: { label: string; value: number; tone: string; note?: string }) {
   return (
@@ -38,6 +40,7 @@ export default function HardwarePage() {
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("register");
   const [type, setType] = useState("all");
+  const [team, setTeam] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<Device | "new" | null>(null);
   const [now, setNow] = useState(() => Date.now());
@@ -78,9 +81,19 @@ export default function HardwarePage() {
   const outdated = withAgent.filter((d) => isOlderVersion(d.agentVersion, agentVersion));
   const holderOf = (d: Device) => holders.find((h) => h.id === d.holderId);
 
+  const teamOf = (d: Device) => holderOf(d)?.team || "";
+  const inTab = tab === "pending" ? pending : tab === "blocked" ? blocked : register;
+  // Studio / team buttons: the teams of the computers in this tab, most computers first.
+  const teamCounts = new Map<string, number>();
+  for (const d of inTab) teamCounts.set(teamOf(d), (teamCounts.get(teamOf(d)) ?? 0) + 1);
+  const teams = [...teamCounts.entries()].sort((a, b) =>
+    !a[0] ? 1 : !b[0] ? -1 : a[0].localeCompare(b[0], "th", { numeric: true }),
+  );
+
   const words = search.trim().toLowerCase();
-  const rows = (tab === "pending" ? pending : tab === "blocked" ? blocked : register).filter((d) => {
+  const rows = inTab.filter((d) => {
     if (type !== "all" && typeOf(d) !== type) return false;
+    if (team !== null && teamOf(d) !== team) return false;
     if (!words) return true;
     const holder = holderOf(d);
     return [
@@ -106,6 +119,7 @@ export default function HardwarePage() {
     ["register", "ทะเบียนเครื่อง", register.length],
     ["pending", "รออนุมัติ", pending.length],
     ...(blocked.length ? ([["blocked", "บล็อก", blocked.length]] as [Tab, string, number][]) : []),
+    ["history", "ค้นหาประวัติ", -1],
   ];
 
   return (
@@ -134,6 +148,14 @@ export default function HardwarePage() {
           >
             <Download className="h-4 w-4" /> uninstall_agent.cmd
           </a>
+          <button
+            type="button"
+            className="btn-secondary inline-flex items-center gap-1.5 py-1.5 text-sm"
+            onClick={() => void exportDevices(register, holders)}
+            disabled={!register.length}
+          >
+            <FileSpreadsheet className="h-4 w-4" /> Export Excel
+          </button>
           <button
             type="button"
             className="btn-primary inline-flex items-center gap-1.5 py-1.5 text-sm"
@@ -183,199 +205,240 @@ export default function HardwarePage() {
               <button
                 key={key}
                 type="button"
-                onClick={() => setTab(key)}
+                onClick={() => {
+                  setTab(key);
+                  setTeam(null);
+                }}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
                   tab === key ? "bg-emerald-600 text-white" : "text-muted hover:bg-emerald-50"
                 }`}
               >
                 {label}
-                <span
-                  className={`ml-1.5 rounded-full px-1.5 text-xs ${
-                    tab === key
-                      ? "bg-white/25"
-                      : key === "pending" && count
-                        ? "bg-amber-500 text-white"
-                        : "bg-slate-100"
-                  }`}
-                >
-                  {count}
-                </span>
+                {count >= 0 && (
+                  <span
+                    className={`ml-1.5 rounded-full px-1.5 text-xs ${
+                      tab === key
+                        ? "bg-white/25"
+                        : key === "pending" && count
+                          ? "bg-amber-500 text-white"
+                          : "bg-slate-100"
+                    }`}
+                  >
+                    {count}
+                  </span>
+                )}
               </button>
             ))}
           </div>
-          <select
-            className="field !w-auto bg-white"
-            aria-label="ประเภท"
-            value={type}
-            onChange={(e) => setType(e.target.value)}
-          >
-            <option value="all">ทุกประเภท</option>
-            {Object.entries(DEVICE_TYPES).map(([key, label]) => (
-              <option key={key} value={key}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <input
-            className="field !w-72 bg-white"
-            placeholder="ค้นหาชื่อเครื่อง / ผู้ถือครอง / Serial / IP…"
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-          />
-          <span className="text-xs text-muted">{rows.length} เครื่อง</span>
+          {tab !== "history" && (
+            <>
+              <select
+                className="field !w-auto bg-white"
+                aria-label="ประเภท"
+                value={type}
+                onChange={(e) => setType(e.target.value)}
+              >
+                <option value="all">ทุกประเภท</option>
+                {Object.entries(DEVICE_TYPES).map(([key, label]) => (
+                  <option key={key} value={key}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="field !w-72 bg-white"
+                placeholder="ค้นหาชื่อเครื่อง / ผู้ถือครอง / Serial / IP…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </>
+          )}
+          {tab !== "history" && (
+            <span className="ml-auto pr-1 text-sm text-muted">
+              <b className="text-2xl font-bold tabular-nums text-emerald-700">{rows.length}</b> เครื่อง
+            </span>
+          )}
         </div>
 
-        <div className="w-fit max-w-full overflow-x-auto rounded-2xl bg-white shadow-sm">
-          {/* As wide as its content (not the page), with tighter cells. */}
-          <table className="sheet !w-auto text-[12.5px] [&_td]:!px-2.5 [&_td]:whitespace-nowrap [&_th]:!px-2.5 [&_th]:whitespace-nowrap">
-            <thead>
-              <tr className="[&>th]:bg-gradient-to-r [&>th]:from-emerald-600 [&>th]:to-teal-500">
-                <th>สถานะ</th>
-                <th>เครื่อง</th>
-                <th>ผู้ถือครอง</th>
-                <th>Studio / ทีม</th>
-                <th>ยี่ห้อ / รุ่น</th>
-                <th>CPU</th>
-                <th className="text-right">RAM</th>
-                <th>ฮาร์ดดิสก์ / พื้นที่ว่าง</th>
-                <th>OS</th>
-                <th>IP</th>
-                <th>Agent</th>
-                {tab === "pending" && <th />}
-              </tr>
-            </thead>
-            <tbody>
-              {rows.length === 0 && (
-                <tr>
-                  <td colSpan={tab === "pending" ? 12 : 11} className="py-10 text-center text-muted">
-                    {tab === "pending"
-                      ? "ไม่มีเครื่องรออนุมัติ · ดาวน์โหลด install.cmd แล้วรันที่เครื่อง client (Run as administrator)"
-                      : devices.length === 0
-                        ? "ยังไม่มีเครื่อง · ดาวน์โหลด install.cmd แล้วรันที่เครื่อง client เครื่องจะขึ้นในแท็บ “รออนุมัติ”"
-                        : "ไม่พบรายการ"}
-                  </td>
+        {tab !== "history" && teams.length > 1 && (
+          <div className="mb-3 flex flex-wrap gap-1.5 px-1">
+            {[
+              [null, "ทุก Studio / ทีม", inTab.length] as const,
+              ...teams.map(([t, n]) => [t, t || "ไม่มีทีม / ส่วนกลาง", n] as const),
+            ].map(([key, label, n]) => (
+              <button
+                key={key ?? "__all"}
+                type="button"
+                onClick={() => setTeam(key)}
+                className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
+                  team === key
+                    ? "border-emerald-600 bg-emerald-600 text-white"
+                    : "border-emerald-200 bg-white text-slate-700 hover:bg-emerald-50"
+                }`}
+              >
+                {label} <span className={team === key ? "text-white/80" : "text-faint"}>{n}</span>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {tab === "history" ? (
+          <DeviceHistorySearch
+            devices={devices}
+            holders={holders}
+            onOpen={(id) => setOpen(devices.find((d) => d.id === id) ?? null)}
+          />
+        ) : (
+          <div className="w-fit max-w-full overflow-x-auto rounded-2xl bg-white shadow-sm">
+            {/* As wide as its content (not the page), with tighter cells. */}
+            <table className="sheet !w-auto text-[12.5px] [&_td]:!px-2.5 [&_td]:whitespace-nowrap [&_th]:!px-2.5 [&_th]:whitespace-nowrap">
+              <thead>
+                <tr className="[&>th]:bg-gradient-to-r [&>th]:from-emerald-600 [&>th]:to-teal-500">
+                  <th>สถานะ</th>
+                  <th>เครื่อง</th>
+                  <th>ผู้ถือครอง</th>
+                  <th>Studio / ทีม</th>
+                  <th>ยี่ห้อ / รุ่น</th>
+                  <th>CPU</th>
+                  <th className="text-right">RAM</th>
+                  <th>ฮาร์ดดิสก์ / พื้นที่ว่าง</th>
+                  <th>OS</th>
+                  <th>Agent</th>
+                  {tab === "pending" && <th />}
                 </tr>
-              )}
-              {rows.map((d) => {
-                const holder = holderOf(d);
-                const login = d.loginUser || d.lastLoginUser;
-                const suggestion = !holder && login ? guessHolder(login, holders) : null;
-                const live = d.agentStatus !== "none" && isOnline(d, now);
-                const Icon = typeOf(d) === "workstation" ? Monitor : Laptop;
-                return (
-                  <tr
-                    key={d.id}
-                    className="cursor-pointer transition-colors hover:bg-emerald-100"
-                    onClick={() => setOpen(d)}
-                  >
-                    <td className="whitespace-nowrap">
-                      {d.agentStatus === "none" ? (
-                        <span className="text-xs text-faint">ไม่มี agent</span>
-                      ) : (
-                        <>
-                          <span
-                            className={`inline-flex items-center gap-1.5 text-xs font-semibold ${live ? "text-emerald-700" : "text-slate-500"}`}
-                          >
-                            <span
-                              className={`h-2.5 w-2.5 rounded-full ${live ? "bg-emerald-500 shadow-[0_0_0_3px] shadow-emerald-200" : "bg-slate-300"}`}
-                            />
-                            {live ? "Online" : "Offline"}
-                          </span>
-                          <div className="text-[11px] text-faint">{seenAgo(d.lastSeenAt, now)}</div>
-                        </>
-                      )}
+              </thead>
+              <tbody>
+                {rows.length === 0 && (
+                  <tr>
+                    <td colSpan={tab === "pending" ? 11 : 10} className="py-10 text-center text-muted">
+                      {tab === "pending"
+                        ? "ไม่มีเครื่องรออนุมัติ · ดาวน์โหลด install.cmd แล้วรันที่เครื่อง client (Run as administrator)"
+                        : devices.length === 0
+                          ? "ยังไม่มีเครื่อง · ดาวน์โหลด install.cmd แล้วรันที่เครื่อง client เครื่องจะขึ้นในแท็บ “รออนุมัติ”"
+                          : "ไม่พบรายการ"}
                     </td>
-                    <td>
-                      <div className="flex items-center gap-2">
-                        <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
-                          <Icon className="h-4 w-4" />
-                        </span>
-                        <div className="min-w-0">
-                          <div className="font-semibold text-slate-800">{d.computerName || "–"}</div>
+                  </tr>
+                )}
+                {rows.map((d) => {
+                  const holder = holderOf(d);
+                  const login = d.loginUser || d.lastLoginUser;
+                  const suggestion = !holder && login ? guessHolder(login, holders) : null;
+                  const live = d.agentStatus !== "none" && isOnline(d, now);
+                  const Icon = typeOf(d) === "workstation" ? Monitor : Laptop;
+                  return (
+                    <tr
+                      key={d.id}
+                      className="cursor-pointer transition-colors hover:bg-emerald-100"
+                      onClick={() => setOpen(d)}
+                    >
+                      <td className="whitespace-nowrap">
+                        {d.agentStatus === "none" ? (
+                          <span className="text-xs text-faint">ไม่มี agent</span>
+                        ) : (
+                          <>
+                            <span
+                              className={`inline-flex items-center gap-1.5 text-xs font-semibold ${live ? "text-emerald-700" : "text-slate-500"}`}
+                            >
+                              <span
+                                className={`h-2.5 w-2.5 rounded-full ${live ? "bg-emerald-500 shadow-[0_0_0_3px] shadow-emerald-200" : "bg-slate-300"}`}
+                              />
+                              {live ? "Online" : "Offline"}
+                            </span>
+                            <div className="text-[11px] text-faint">{seenAgo(d.lastSeenAt, now)}</div>
+                          </>
+                        )}
+                      </td>
+                      <td>
+                        <div className="flex items-center gap-2">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <div className="min-w-0">
+                            <div className="font-semibold text-slate-800">{d.computerName || "–"}</div>
+                            <div className="text-[11px] text-muted">
+                              {d.assetNumber || <span className="text-faint">ยังไม่มีเลขครุภัณฑ์</span>}
+                              {d.status !== "active" && (
+                                <span className={`chip ml-1.5 !py-0 ${DEVICE_STATUS[d.status].tone}`}>
+                                  {DEVICE_STATUS[d.status].label}
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        {holder ? (
+                          <div className="font-medium">{holderLabel(holder)}</div>
+                        ) : d.holderName ? (
+                          <div className="font-medium">{d.holderName}</div>
+                        ) : (
+                          <span className="chip bg-amber-100 text-amber-800">ยังไม่ Assign</span>
+                        )}
+                        {login && (
                           <div className="text-[11px] text-muted">
-                            {d.assetNumber || <span className="text-faint">ยังไม่มีเลขครุภัณฑ์</span>}
-                            {d.status !== "active" && (
-                              <span className={`chip ml-1.5 !py-0 ${DEVICE_STATUS[d.status].tone}`}>
-                                {DEVICE_STATUS[d.status].label}
+                            <span className="font-mono">{login}</span>
+                            {suggestion && (
+                              <span className="text-emerald-700">
+                                {" "}
+                                → {suggestion.nickname || suggestion.name}?
                               </span>
                             )}
                           </div>
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      {holder ? (
-                        <div className="font-medium">{holderLabel(holder)}</div>
-                      ) : d.holderName ? (
-                        <div className="font-medium">{d.holderName}</div>
-                      ) : (
-                        <span className="chip bg-amber-100 text-amber-800">ยังไม่ Assign</span>
-                      )}
-                      {login && (
-                        <div className="text-[11px] text-muted">
-                          <span className="font-mono">{login}</span>
-                          {suggestion && (
-                            <span className="text-emerald-700">
-                              {" "}
-                              → {suggestion.nickname || suggestion.name}?
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </td>
-                    <td>{holder?.team || <span className="text-faint">–</span>}</td>
-                    <td>
-                      <div>{d.manufacturer || "–"}</div>
-                      <div className="text-[11px] text-muted">{d.model}</div>
-                    </td>
-                    <td className="max-w-[220px] truncate" title={d.cpu}>
-                      {d.cpu
-                        .replace(/\(R\)|\(TM\)|CPU|@.*$/g, "")
-                        .replace(/\s+/g, " ")
-                        .trim() || "–"}
-                    </td>
-                    <td className="whitespace-nowrap text-right tabular-nums">
-                      {d.ramGb !== null ? `${d.ramGb} GB` : d.ramText || "–"}
-                    </td>
-                    <td>
-                      <DiskBar device={d} />
-                    </td>
-                    <td className="whitespace-nowrap">
-                      {d.osName.replace(/^Microsoft\s+/, "") || "–"}
-                      {d.osActivated === false && (
-                        <span className="chip ml-1 bg-red-100 !py-0 text-red-700">ไม่ Activate</span>
-                      )}
-                    </td>
-                    <td className="whitespace-nowrap tabular-nums text-muted">{d.ipAddress || "–"}</td>
-                    <td className="whitespace-nowrap text-[11px]">
-                      {!d.agentVersion ? (
-                        <span className="text-faint">–</span>
-                      ) : isOlderVersion(d.agentVersion, agentVersion) ? (
-                        <span
-                          className="font-semibold text-amber-700"
-                          title={`รุ่นล่าสุดคือ ${agentVersion}: ดาวน์โหลด install_agent แล้วรันซ้ำ`}
-                        >
-                          {d.agentVersion}
-                          <br />
-                          <span className="font-normal">ต้องอัปเดต</span>
-                        </span>
-                      ) : (
-                        <span className="text-muted" title="agent รุ่นล่าสุด">
-                          {d.agentVersion}
-                        </span>
-                      )}
-                    </td>
-                    {tab === "pending" && (
-                      <td className="whitespace-nowrap text-right">
-                        <span className="btn-primary !px-2.5 !py-1 text-xs">อนุมัติ / Assign</span>
+                        )}
                       </td>
-                    )}
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        </div>
+                      <td>{holder?.team || <span className="text-faint">–</span>}</td>
+                      <td>
+                        <div>{d.manufacturer || "–"}</div>
+                        <div className="text-[11px] text-muted">{d.model}</div>
+                      </td>
+                      <td className="max-w-[220px] truncate" title={d.cpu}>
+                        {d.cpu
+                          .replace(/\(R\)|\(TM\)|CPU|@.*$/g, "")
+                          .replace(/\s+/g, " ")
+                          .trim() || "–"}
+                      </td>
+                      <td className="whitespace-nowrap text-right tabular-nums">
+                        {d.ramGb !== null ? `${d.ramGb} GB` : d.ramText || "–"}
+                      </td>
+                      <td>
+                        <DiskBar device={d} />
+                      </td>
+                      <td className="whitespace-nowrap">
+                        {d.osName.replace(/^Microsoft\s+/, "") || "–"}
+                        {d.osActivated === false && (
+                          <span className="chip ml-1 bg-red-100 !py-0 text-red-700">ไม่ Activate</span>
+                        )}
+                      </td>
+                      <td className="whitespace-nowrap text-[11px]">
+                        {!d.agentVersion ? (
+                          <span className="text-faint">–</span>
+                        ) : isOlderVersion(d.agentVersion, agentVersion) ? (
+                          <span
+                            className="font-semibold text-amber-700"
+                            title={`รุ่นล่าสุดคือ ${agentVersion}: ดาวน์โหลด install_agent แล้วรันซ้ำ`}
+                          >
+                            {d.agentVersion}
+                            <br />
+                            <span className="font-normal">ต้องอัปเดต</span>
+                          </span>
+                        ) : (
+                          <span className="text-muted" title="agent รุ่นล่าสุด">
+                            {d.agentVersion}
+                          </span>
+                        )}
+                      </td>
+                      {tab === "pending" && (
+                        <td className="whitespace-nowrap text-right">
+                          <span className="btn-primary !px-2.5 !py-1 text-xs">อนุมัติ / Assign</span>
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        )}
       </section>
 
       {open && (

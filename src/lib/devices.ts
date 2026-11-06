@@ -158,6 +158,46 @@ export interface DeviceHolding {
   note: string;
 }
 
+/** A line typed into the history by hand (e.g. someone who left before the register). */
+export interface DeviceHoldingInput {
+  holderName: string;
+  department: string;
+  team: string;
+  startDate: string | null;
+  endDate: string | null;
+  note: string;
+}
+
+/** A line of the holder history found by a search, with the computer and who has it now. */
+export interface HoldingMatch extends DeviceHolding {
+  deviceId: string;
+  computerName: string;
+  assetNumber: string;
+  currentHolderId: string | null;
+  currentHolderName: string;
+}
+
+/** Something about a computer its agent reported differently from before. */
+export interface DeviceChange {
+  id: string;
+  field: string;
+  oldValue: string;
+  newValue: string;
+  changedAt: string;
+}
+
+/** The fields whose changes are kept, and their names on screen. */
+export const TRACKED_FIELDS: Record<string, string> = {
+  computer_name: "ชื่อเครื่อง",
+  serial_number: "Serial",
+  cpu: "CPU",
+  ram_text: "RAM",
+  disk_text: "Disk",
+  gpu: "การ์ดจอ",
+  mainboard: "เมนบอร์ด",
+  os_name: "OS",
+};
+
 /** When the holder changes: the day the computer was handed over, and why. */
 export interface DeviceHandover {
   date: string | null;
@@ -171,6 +211,8 @@ export interface DeviceHolder {
   name: string;
   nickname: string;
   team: string;
+  /** Department name ("3D Visualizer"), "" when none. */
+  department: string;
   /** Sign-in names already known to be this person's (lower case). */
   logins: string[];
 }

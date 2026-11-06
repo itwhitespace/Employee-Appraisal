@@ -10,6 +10,7 @@ import {
   DEVICE_TYPES,
   diskSize,
   LICENSE_CHANNELS,
+  TRACKED_FIELDS,
   maskedKey,
   EMPTY_DEVICE,
   guessHolder,
@@ -18,7 +19,9 @@ import {
   typeOf,
   type Device,
   type DeviceHolder,
+  type DeviceChange,
   type DeviceHolding,
+  type DeviceHoldingInput,
   type DeviceInput,
   type DeviceProgram,
   type DeviceStatus,
@@ -127,6 +130,8 @@ export function DeviceDialog({
   const [form, setForm] = useState<DeviceInput>(() => inputOf(device));
   const [programs, setPrograms] = useState<DeviceProgram[] | null>(null);
   const [history, setHistory] = useState<DeviceHolding[] | null>(device ? null : []);
+  const [changes, setChanges] = useState<DeviceChange[]>([]);
+  const [adding, setAdding] = useState<DeviceHoldingInput | null>(null);
   const [handover, setHandover] = useState({ date: todayISO(), note: "" });
   const [showPrograms, setShowPrograms] = useState(false);
   const [programSearch, setProgramSearch] = useState("");
@@ -152,6 +157,7 @@ export function DeviceDialog({
       .deviceDetail(device.id)
       .then((r) => {
         setHistory(r.history);
+        setChanges(r.changes);
         setPrograms(r.programs);
       })
       .catch(() => {
@@ -213,6 +219,17 @@ export function DeviceDialog({
       tone: blocking ? "danger" : "default",
     });
     if (sure) await run(() => api.setDeviceAgent(device.id, blocking ? "blocked" : "approved"));
+  }
+
+  async function addHolding() {
+    if (!device || !adding) return;
+    setError(null);
+    try {
+      setHistory((await api.addDeviceHolding(device.id, adding)).history);
+      setAdding(null);
+    } catch (e) {
+      setError(errorMessage(e));
+    }
   }
 
   async function removeHolding(h: DeviceHolding) {
@@ -737,9 +754,98 @@ export function DeviceDialog({
         {/* ---------------------------------------------- who has held it */}
         {device && (
           <section className="lg:col-span-2">
-            <h3 className="mb-2 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
-              ประวัติผู้ถือครอง
+            <h3 className="mb-2 flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+              <span className="flex-1">ประวัติผู้ถือครอง</span>
+              {!adding && (
+                <button
+                  type="button"
+                  className="btn-text !px-1 !py-0 text-xs"
+                  onClick={() =>
+                    setAdding({
+                      holderName: "",
+                      department: "",
+                      team: "",
+                      startDate: null,
+                      endDate: null,
+                      note: "",
+                    })
+                  }
+                >
+                  + เพิ่มประวัติเอง
+                </button>
+              )}
             </h3>
+            {adding && (
+              <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
+                <p className="mb-2 text-xs text-emerald-800">
+                  สำหรับคนที่เคยใช้เครื่องนี้ก่อนมีระบบ หรือคนที่ลาออกไปแล้ว (ไม่เปลี่ยนผู้ถือครองปัจจุบัน)
+                </p>
+                <div className="grid gap-2 sm:grid-cols-3">
+                  <Field label="ชื่อผู้ถือครอง *">
+                    <input
+                      className="field bg-white"
+                      placeholder="เช่น นาย สมชาย ใจดี (ชาย)"
+                      value={adding.holderName}
+                      onChange={(e) => setAdding({ ...adding, holderName: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="แผนก">
+                    <input
+                      className="field bg-white"
+                      value={adding.department}
+                      onChange={(e) => setAdding({ ...adding, department: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="Studio / ทีม">
+                    <input
+                      className="field bg-white"
+                      value={adding.team}
+                      onChange={(e) => setAdding({ ...adding, team: e.target.value })}
+                    />
+                  </Field>
+                  <Field label="ตั้งแต่ *">
+                    <input
+                      type="date"
+                      className="field bg-white"
+                      value={adding.startDate ?? ""}
+                      onChange={(e) => setAdding({ ...adding, startDate: e.target.value || null })}
+                    />
+                  </Field>
+                  <Field label="ถึง">
+                    <input
+                      type="date"
+                      className="field bg-white"
+                      value={adding.endDate ?? ""}
+                      onChange={(e) => setAdding({ ...adding, endDate: e.target.value || null })}
+                    />
+                  </Field>
+                  <Field label="หมายเหตุ">
+                    <input
+                      className="field bg-white"
+                      placeholder="เช่น ลาออก"
+                      value={adding.note}
+                      onChange={(e) => setAdding({ ...adding, note: e.target.value })}
+                    />
+                  </Field>
+                </div>
+                <div className="mt-2 flex justify-end gap-2">
+                  <button
+                    type="button"
+                    className="btn-secondary !py-1 text-xs"
+                    onClick={() => setAdding(null)}
+                  >
+                    ยกเลิก
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-primary !py-1 text-xs"
+                    onClick={() => void addHolding()}
+                  >
+                    เพิ่มในประวัติ
+                  </button>
+                </div>
+              </div>
+            )}
             {history === null ? (
               <p className="px-2 text-xs text-muted">กำลังโหลด…</p>
             ) : history.length === 0 ? (
@@ -797,6 +903,37 @@ export function DeviceDialog({
                 </table>
               </div>
             )}
+          </section>
+        )}
+
+        {/* ---------------------------------------------- what changed on it */}
+        {device && changes.length > 0 && (
+          <section className="lg:col-span-2">
+            <h3 className="mb-2 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+              ประวัติการเปลี่ยนแปลงของเครื่อง
+            </h3>
+            <div className="overflow-x-auto rounded-lg border border-line">
+              <table className="sheet text-xs">
+                <thead>
+                  <tr>
+                    <th>วันที่</th>
+                    <th>รายการ</th>
+                    <th>เดิม</th>
+                    <th>ใหม่</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {changes.map((c) => (
+                    <tr key={c.id}>
+                      <td className="whitespace-nowrap tabular-nums">{formatDateTime(c.changedAt)}</td>
+                      <td className="whitespace-nowrap font-medium">{TRACKED_FIELDS[c.field] ?? c.field}</td>
+                      <td className="text-muted line-through decoration-slate-300">{c.oldValue}</td>
+                      <td>{c.newValue}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </section>
         )}
       </div>
