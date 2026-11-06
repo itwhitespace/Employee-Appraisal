@@ -248,7 +248,7 @@ export default function OsLicensePage() {
         </div>
       )}
 
-      <section className="rounded-3xl bg-gradient-to-br from-violet-50 via-indigo-50 to-sky-50 p-3 sm:p-4">
+      <section className="rounded-3xl bg-white/55 p-3 ring-1 ring-white/80 sm:p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2 px-1">
           <div className="flex rounded-xl bg-white p-1 shadow-sm">
             {filters.map(([key, label, count]) => (
@@ -257,7 +257,7 @@ export default function OsLicensePage() {
                 type="button"
                 onClick={() => setFilter(key)}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  filter === key ? "bg-violet-600 text-white" : "text-muted hover:bg-violet-50"
+                  filter === key ? "bg-[#2b2170] text-white" : "text-muted hover:bg-violet-50"
                 }`}
               >
                 {label}
@@ -287,7 +287,7 @@ export default function OsLicensePage() {
         <div className="overflow-x-auto rounded-2xl bg-white shadow-sm">
           <table className="sheet min-w-[1100px] text-[12.5px]">
             <thead>
-              <tr className="[&>th]:bg-gradient-to-r [&>th]:from-violet-600 [&>th]:to-indigo-500">
+              <tr className="[&>th]:!border-[#3b2f8f] [&>th]:bg-[#3b2f8f]">
                 <th>เครื่อง</th>
                 <th>ผู้ถือครอง</th>
                 <th>OS</th>

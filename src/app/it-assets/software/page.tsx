@@ -277,7 +277,7 @@ export default function SoftwarePage() {
           หรือกด + เพิ่ม License
         </div>
       ) : (
-        <section className="rounded-3xl bg-gradient-to-br from-indigo-50 via-sky-50 to-violet-50 p-3 sm:p-4">
+        <section className="rounded-3xl bg-white/55 p-3 ring-1 ring-white/80 sm:p-4">
           <div className="mb-3 flex flex-wrap items-center gap-2 px-1">
             <select
               className="field !w-auto bg-white"

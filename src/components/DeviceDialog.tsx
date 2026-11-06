@@ -69,7 +69,7 @@ function Field({ label, children, wide }: { label: string; children: React.React
 function Section({ title, rows }: { title: string; rows: [string, React.ReactNode][] }) {
   return (
     <section>
-      <h3 className="mb-1.5 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+      <h3 className="mb-1.5 rounded-md bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
         {title}
       </h3>
       <dl className="grid grid-cols-[110px_minmax(0,1fr)] gap-x-3 gap-y-1 px-2 text-[12.5px]">
@@ -282,7 +282,7 @@ export function DeviceDialog({
       onClose={onClose}
       className="w-full max-w-5xl rounded-2xl p-0 shadow-float backdrop:bg-black/30 backdrop:backdrop-blur-sm"
     >
-      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-gradient-to-r from-emerald-600 to-teal-500 px-6 py-4 text-white">
+      <header className="flex flex-wrap items-center gap-3 border-b border-line bg-gradient-to-r from-[#2e2378] to-[#4a3aa8] px-6 py-4 text-white">
         <div className="min-w-0 flex-1">
           <h2 className="truncate text-[17px] font-semibold tracking-tight">
             {device
@@ -475,13 +475,13 @@ export function DeviceDialog({
               <section>
                 <button
                   type="button"
-                  className="w-full rounded-md bg-emerald-50 px-2 py-1 text-left text-xs font-semibold text-emerald-800 hover:bg-emerald-100"
+                  className="w-full rounded-md bg-violet-50 px-2 py-1 text-left text-xs font-semibold text-violet-800 hover:bg-violet-100"
                   onClick={() => setShowPrograms((v) => !v)}
                   aria-expanded={showPrograms}
                 >
                   {showPrograms ? "▾" : "▸"} 6. โปรแกรมที่ติดตั้ง
                   {device.softwareAt && (
-                    <span className="font-normal text-emerald-700/70">
+                    <span className="font-normal text-violet-700/70">
                       {" "}
                       · อัปเดต {formatDateTime(device.softwareAt)}
                     </span>
@@ -653,8 +653,8 @@ export function DeviceDialog({
             </Field>
           )}
           {holderChanged && (
-            <div className="space-y-2 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-              <p className="text-xs font-medium text-emerald-800">
+            <div className="space-y-2 rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+              <p className="text-xs font-medium text-violet-800">
                 เปลี่ยนผู้ถือครอง: จะบันทึกลงประวัติเครื่อง
                 {history?.some((h) => !h.endDate) ? " และปิดรายการของคนเดิม" : ""}
               </p>
@@ -800,7 +800,7 @@ export function DeviceDialog({
         {/* ---------------------------------------------- who has held it */}
         {device && (
           <section className="lg:col-span-2">
-            <h3 className="mb-2 flex items-center rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+            <h3 className="mb-2 flex items-center rounded-md bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
               <span className="flex-1">ประวัติผู้ถือครอง</span>
               {!adding && (
                 <button
@@ -822,8 +822,8 @@ export function DeviceDialog({
               )}
             </h3>
             {adding && (
-              <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50/60 p-3">
-                <p className="mb-2 text-xs text-emerald-800">
+              <div className="mb-3 rounded-lg border border-violet-200 bg-violet-50/60 p-3">
+                <p className="mb-2 text-xs text-violet-800">
                   สำหรับคนที่เคยใช้เครื่องนี้ก่อนมีระบบ หรือคนที่ลาออกไปแล้ว (ไม่เปลี่ยนผู้ถือครองปัจจุบัน)
                 </p>
                 <div className="grid gap-2 sm:grid-cols-3">
@@ -915,7 +915,7 @@ export function DeviceDialog({
                   </thead>
                   <tbody>
                     {history.map((h) => (
-                      <tr key={h.id} className={h.endDate ? "" : "bg-emerald-50/50"}>
+                      <tr key={h.id} className={h.endDate ? "" : "bg-violet-50/60"}>
                         <td>
                           {h.holderCode && <span className="text-muted">{h.holderCode} · </span>}
                           {h.holderName || "–"}
@@ -927,7 +927,7 @@ export function DeviceDialog({
                           {h.endDate ? (
                             formatDate(h.endDate)
                           ) : (
-                            <span className="chip bg-emerald-100 text-emerald-800">ปัจจุบัน</span>
+                            <span className="chip bg-violet-100 text-violet-800">ปัจจุบัน</span>
                           )}
                         </td>
                         <td className="whitespace-nowrap tabular-nums">{heldFor(h.startDate, h.endDate)}</td>
@@ -955,7 +955,7 @@ export function DeviceDialog({
         {/* ---------------------------------------------- what changed on it */}
         {device && changes.length > 0 && (
           <section className="lg:col-span-2">
-            <h3 className="mb-2 rounded-md bg-emerald-50 px-2 py-1 text-xs font-semibold text-emerald-800">
+            <h3 className="mb-2 rounded-md bg-violet-50 px-2 py-1 text-xs font-semibold text-violet-800">
               ประวัติการเปลี่ยนแปลงของเครื่อง
             </h3>
             <div className="overflow-x-auto rounded-lg border border-line">

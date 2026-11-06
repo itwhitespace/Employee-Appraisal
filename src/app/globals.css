@@ -45,7 +45,7 @@ body {
   /* Compensation pages: compact teal tables and outlined inputs, set apart from the appraisal. */
   /* IT Assets: dark indigo table headings; a program's row is a band above its lots. */
   .it-assets .sheet th {
-    @apply border-indigo-900 bg-indigo-900 font-semibold text-white;
+    @apply border-[#3b2f8f] bg-[#3b2f8f] font-semibold text-white;
   }
   .it-assets .sheet tr.program td {
     @apply border-indigo-100 bg-indigo-50/80 transition-colors;
@@ -82,7 +82,7 @@ body {
     @apply sticky top-0 z-10 shadow-md;
   }
   .it-assets .sheet.budget thead tr {
-    @apply bg-gradient-to-r from-indigo-600 via-violet-500 to-sky-500;
+    @apply bg-[#3b2f8f];
   }
   .it-assets .sheet.budget th {
     @apply border-transparent bg-transparent;
@@ -117,6 +117,9 @@ body {
   }
   .compensation .page-title {
     @apply text-teal-900;
+  }
+  .it-assets .btn-primary {
+    @apply bg-[#3b2f8f] hover:bg-[#2b2170] focus-visible:ring-violet-500/25;
   }
   .compensation .btn-primary {
     @apply bg-teal-600 hover:bg-teal-700 focus-visible:ring-teal-500/25;

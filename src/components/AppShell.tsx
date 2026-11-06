@@ -44,11 +44,21 @@ const TONES = {
 
 type Tone = keyof typeof TONES;
 
-function ToneIcon({ path, tone = "slate", active = false }: { path: string; tone?: Tone; active?: boolean }) {
+function ToneIcon({
+  path,
+  tone = "slate",
+  active = false,
+  dark = false,
+}: {
+  path: string;
+  tone?: Tone;
+  active?: boolean;
+  dark?: boolean;
+}) {
   return (
     <span
       className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
-        active ? "bg-white/20 text-white" : TONES[tone]
+        active ? "bg-white/20 text-white" : dark ? "bg-white/10 text-violet-100" : TONES[tone]
       }`}
     >
       <NavIcon path={path} className="!h-4 !w-4" />
@@ -85,10 +95,12 @@ const NEW_TAB = "M8.5 4.5h-4v11h11v-4M11.5 3.5h5v5M16.5 3.5l-7 7";
 
 function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const active = isActive(pathname, item.href);
+  // IT Assets has a dark purple menu: the open page is a lighter band on it.
+  const dark = pathname.startsWith("/it-assets");
   const activeColor = pathname.startsWith("/compensation")
     ? "bg-teal-600"
-    : pathname.startsWith("/it-assets")
-      ? "bg-indigo-600"
+    : dark
+      ? "bg-white/15"
       : "bg-accent";
   return (
     <Link
@@ -96,9 +108,15 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
       target={item.newTab ? "_blank" : undefined}
       rel={item.newTab ? "noopener" : undefined}
       aria-current={active ? "page" : undefined}
-      className={`${ROW} ${active ? `${activeColor} font-medium text-white` : "text-ink hover:bg-black/5"}`}
+      className={`${ROW} ${
+        active
+          ? `${activeColor} font-medium text-white`
+          : dark
+            ? "text-violet-100/80 hover:bg-white/10 hover:text-white"
+            : "text-ink hover:bg-black/5"
+      }`}
     >
-      <ToneIcon path={item.icon} tone={item.tone} active={active} />
+      <ToneIcon path={item.icon} tone={item.tone} active={active} dark={dark} />
       <span className="flex-1">{item.label}</span>
       {item.newTab && (
         <>
@@ -275,17 +293,31 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const department = DEPARTMENTS.find((d) => d.id === user.departmentId)?.name;
 
   return (
-    <div className="min-h-screen lg:pl-64 print:pl-0">
-      <aside className="z-30 flex flex-col border-b border-black/10 bg-white/80 backdrop-blur-xl print:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 lg:border-b-0 lg:border-r">
+    <div
+      className={`min-h-screen lg:pl-64 print:pl-0 ${
+        inItAssets ? "bg-gradient-to-br from-[#f4f1fd] via-[#f6f5fb] to-[#eeeafc] print:bg-none" : ""
+      }`}
+    >
+      <aside
+        className={`z-30 flex flex-col print:hidden lg:fixed lg:inset-y-0 lg:left-0 lg:w-64 ${
+          inItAssets
+            ? "bg-gradient-to-b from-[#2e2378] to-[#251b5e] text-white"
+            : "border-b border-black/10 bg-white/80 backdrop-blur-xl lg:border-b-0 lg:border-r"
+        }`}
+      >
         <div className="px-5 pb-2 pt-5 lg:pb-6 lg:pt-7">
-          <div className="text-[15px] font-semibold tracking-tight text-ink">{COMPANY_NAME}</div>
+          <div
+            className={`text-[15px] font-semibold tracking-tight ${inItAssets ? "text-white" : "text-ink"}`}
+          >
+            {COMPANY_NAME}
+          </div>
           {inCompensation ? (
             <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-teal-50 px-2.5 py-0.5 text-xs font-medium text-teal-700">
               <NavIcon path={ICONS.money} className="!h-3.5 !w-3.5" />
               Compensation
             </div>
           ) : inItAssets ? (
-            <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-indigo-50 px-2.5 py-0.5 text-xs font-medium text-indigo-700">
+            <div className="mt-1 inline-flex items-center gap-1.5 rounded-full bg-white/15 px-2.5 py-0.5 text-xs font-medium text-violet-100">
               <NavIcon path={ICONS.computer} className="!h-3.5 !w-3.5" />
               IT Assets
             </div>
@@ -304,14 +336,30 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
           )}
         </nav>
 
-        <div className="flex items-center justify-between gap-3 border-t border-black/5 px-5 py-3 lg:flex-col lg:items-stretch lg:py-4">
+        <div
+          className={`flex items-center justify-between gap-3 px-5 py-3 lg:flex-col lg:items-stretch lg:py-4 ${
+            inItAssets
+              ? "m-3 rounded-2xl bg-white/10 ring-1 ring-white/10 [&_.btn-secondary]:border-white/15 [&_.btn-secondary]:bg-white/10 [&_.btn-secondary]:text-white [&_.btn-secondary:hover]:bg-white/20"
+              : "border-t border-black/5"
+          }`}
+        >
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium text-ink">{user.name}</div>
-            <div className="truncate text-xs text-faint">
+            <div className={`truncate text-sm font-medium ${inItAssets ? "text-white" : "text-ink"}`}>
+              {user.name}
+            </div>
+            <div className={`truncate text-xs ${inItAssets ? "text-violet-200/80" : "text-faint"}`}>
               {ROLE_NAMES[user.role]} · รหัส {user.code}
             </div>
-            {user.team && <div className="truncate text-xs text-faint">{user.team}</div>}
-            {department && <div className="truncate text-xs text-faint">{department}</div>}
+            {user.team && (
+              <div className={`truncate text-xs ${inItAssets ? "text-violet-200/80" : "text-faint"}`}>
+                {user.team}
+              </div>
+            )}
+            {department && (
+              <div className={`truncate text-xs ${inItAssets ? "text-violet-200/80" : "text-faint"}`}>
+                {department}
+              </div>
+            )}
           </div>
           <div className="flex shrink-0 gap-2 lg:flex-col">
             {inCompensation && (

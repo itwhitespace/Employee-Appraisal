@@ -165,7 +165,7 @@ export default function HardwarePage() {
                 <a
                   key={file}
                   href={`/api/devices/installer?file=${file}`}
-                  className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm hover:bg-emerald-50 ${
+                  className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm hover:bg-violet-50 ${
                     needsKey && !installerReady ? "pointer-events-none opacity-40" : ""
                   }`}
                 >
@@ -216,7 +216,7 @@ export default function HardwarePage() {
       )}
 
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Tile label="เครื่องในทะเบียน" value={register.length} tone="border-t-emerald-500" />
+        <Tile label="เครื่องในทะเบียน" value={register.length} tone="border-t-violet-500" />
         <Tile
           label="🟢 Online"
           value={online}
@@ -232,7 +232,7 @@ export default function HardwarePage() {
         />
       </div>
 
-      <section className="rounded-3xl bg-gradient-to-br from-emerald-50 via-teal-50 to-sky-50 p-3 sm:p-4">
+      <section className="rounded-3xl bg-white/55 p-3 ring-1 ring-white/80 sm:p-4">
         <div className="mb-3 flex flex-wrap items-center gap-2 px-1">
           <div className="flex rounded-xl bg-white p-1 shadow-sm">
             {tabs.map(([key, label, count]) => (
@@ -244,7 +244,7 @@ export default function HardwarePage() {
                   setTeam(null);
                 }}
                 className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-colors ${
-                  tab === key ? "bg-emerald-600 text-white" : "text-muted hover:bg-emerald-50"
+                  tab === key ? "bg-[#2b2170] text-white" : "text-muted hover:bg-violet-50"
                 }`}
               >
                 {label}
@@ -289,7 +289,7 @@ export default function HardwarePage() {
           )}
           {tab !== "history" && (
             <span className="ml-auto pr-1 text-sm text-muted">
-              <b className="text-2xl font-bold tabular-nums text-emerald-700">{rows.length}</b> เครื่อง
+              <b className="text-2xl font-bold tabular-nums text-[#2b2170]">{rows.length}</b> เครื่อง
             </span>
           )}
         </div>
@@ -306,8 +306,8 @@ export default function HardwarePage() {
                 onClick={() => setTeam(key)}
                 className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors ${
                   team === key
-                    ? "border-emerald-600 bg-emerald-600 text-white"
-                    : "border-emerald-200 bg-white text-slate-700 hover:bg-emerald-50"
+                    ? "border-[#2b2170] bg-[#2b2170] text-white"
+                    : "border-violet-200 bg-white text-slate-700 hover:bg-violet-50"
                 }`}
               >
                 {label} <span className={team === key ? "text-white/80" : "text-faint"}>{n}</span>
@@ -327,7 +327,7 @@ export default function HardwarePage() {
             {/* As wide as its content (not the page), with tighter cells. */}
             <table className="sheet !w-auto text-[12.5px] [&_td]:!px-2.5 [&_td]:whitespace-nowrap [&_th]:!px-2.5 [&_th]:whitespace-nowrap">
               <thead>
-                <tr className="[&>th]:bg-gradient-to-r [&>th]:from-emerald-600 [&>th]:to-teal-500">
+                <tr className="[&>th]:!border-[#3b2f8f] [&>th]:bg-[#3b2f8f]">
                   <th>สถานะ</th>
                   <th>เครื่อง</th>
                   <th>ผู้ถือครอง</th>
@@ -362,7 +362,7 @@ export default function HardwarePage() {
                   return (
                     <tr
                       key={d.id}
-                      className="cursor-pointer transition-colors hover:bg-emerald-100"
+                      className="cursor-pointer transition-colors hover:bg-violet-100/70"
                       onClick={() => setOpen(d)}
                     >
                       <td className="whitespace-nowrap">
@@ -384,7 +384,7 @@ export default function HardwarePage() {
                       </td>
                       <td>
                         <div className="flex items-center gap-2">
-                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-emerald-100 text-emerald-700">
+                          <span className="grid h-7 w-7 shrink-0 place-items-center rounded-lg bg-violet-100 text-violet-700">
                             <Icon className="h-4 w-4" />
                           </span>
                           <div className="min-w-0">

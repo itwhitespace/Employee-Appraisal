@@ -73,7 +73,7 @@ export function DeviceHistorySearch({
         <div className="w-fit max-w-full overflow-x-auto rounded-2xl bg-white shadow-sm">
           <table className="sheet !w-auto text-[12.5px] [&_td]:!px-2.5 [&_td]:whitespace-nowrap [&_th]:!px-2.5 [&_th]:whitespace-nowrap">
             <thead>
-              <tr className="[&>th]:bg-gradient-to-r [&>th]:from-emerald-600 [&>th]:to-teal-500">
+              <tr className="[&>th]:!border-[#3b2f8f] [&>th]:bg-[#3b2f8f]">
                 <th>ผู้ถือครอง (ตามประวัติ)</th>
                 <th>แผนก</th>
                 <th>Studio / ทีม</th>
@@ -90,7 +90,7 @@ export function DeviceHistorySearch({
                 return (
                   <tr
                     key={m.id}
-                    className="cursor-pointer transition-colors hover:bg-emerald-100"
+                    className="cursor-pointer transition-colors hover:bg-violet-100/70"
                     onClick={() => onOpen(m.deviceId)}
                   >
                     <td>
@@ -102,7 +102,7 @@ export function DeviceHistorySearch({
                     <td className="tabular-nums">{formatDate(m.startDate)}</td>
                     <td className="tabular-nums">
                       {current ? (
-                        <span className="chip bg-emerald-100 text-emerald-800">ปัจจุบัน</span>
+                        <span className="chip bg-violet-100 text-violet-800">ปัจจุบัน</span>
                       ) : (
                         formatDate(m.endDate)
                       )}
