@@ -156,7 +156,7 @@ export default function HardwarePage() {
                     "macOS",
                     "install-mac",
                     `install_agent_mac_${macAgentVersion.replace(/\./g, "_")}.sh`,
-                    "Terminal: sudo bash <ไฟล์>",
+                    "Terminal: พิมพ์ bash␣ แล้วลากไฟล์มาวาง กด Return",
                     true,
                   ],
                   ["macOS", "uninstall-mac", "uninstall_agent_mac.sh", "ถอนการติดตั้ง", false],

@@ -654,3 +654,8 @@ create table if not exists public.device_changes (
 create index if not exists device_changes_device_idx on public.device_changes (device_id, changed_at desc);
 
 alter table public.device_changes enable row level security;
+
+-- ── A link to the computer's documents (bill, warranty, … on Google Drive). ───────────────
+alter table public.devices
+  add column if not exists document_url text not null default ''
+    check (document_url = '' or document_url ~ '^https://');

@@ -98,7 +98,7 @@ const MAC_PLIST = `/Library/LaunchDaemons/${MAC_LABEL}.plist`;
 const lf = (lines: string[]) => lines.join("\n") + "\n";
 
 /**
- * install_agent_mac.sh: run in Terminal with `sudo bash install_agent_mac_….sh`. Puts the agent,
+ * install_agent_mac.sh: run in Terminal with `bash install_agent_mac_….sh` (it asks for sudo itself). Puts the agent,
  * this site's address and the enrolment key in /Library/WS-Agent (root only) and a LaunchDaemon
  * that runs it every 10 minutes and at start-up.
  */
@@ -111,13 +111,14 @@ export function installMac(server: string, enrollKey: string): string {
   return lf([
     "#!/bin/bash",
     "# WS-Agent installer for macOS - IT Assets register, Whitespace Partners.",
-    "# Run in Terminal:  sudo bash ~/Downloads/<this file>",
+    "# Run in Terminal: type  bash  and a space, drag this file into the window, press Return.",
     `# Installs ${MAC_DIR} and a LaunchDaemon (root): every 10 minutes and at start-up.`,
     "# It reports hardware, macOS, network, signed-in user, security on/off and installed apps.",
     "# It never reads passwords, keys, files, mail or browsing. Remove with uninstall_agent_mac.sh.",
+    "# Not root: ask for the Mac's admin password here and run again (no need to type sudo).",
     'if [ "$(id -u)" != "0" ]; then',
-    '  echo "Please run:  sudo bash \\"$0\\""',
-    "  exit 1",
+    '  echo "Enter the password of this Mac (an administrator account):"',
+    '  exec sudo /bin/bash "$0" "$@"',
     "fi",
     `DIR=${MAC_DIR}`,
     'mkdir -p "$DIR" && chown root:wheel "$DIR" && chmod 700 "$DIR"',
@@ -158,10 +159,11 @@ export function installMac(server: string, enrollKey: string): string {
 export function uninstallMac(): string {
   return lf([
     "#!/bin/bash",
-    "# Removes WS-Agent (IT Assets register) from this Mac. Run:  sudo bash <this file>",
+    "# Removes WS-Agent (IT Assets register) from this Mac. In Terminal: bash <drag this file>",
+    "# Not root: ask for the Mac's admin password here and run again (no need to type sudo).",
     'if [ "$(id -u)" != "0" ]; then',
-    '  echo "Please run:  sudo bash \\"$0\\""',
-    "  exit 1",
+    '  echo "Enter the password of this Mac (an administrator account):"',
+    '  exec sudo /bin/bash "$0" "$@"',
     "fi",
     `launchctl bootout system/${MAC_LABEL} 2>/dev/null`,
     `rm -f ${MAC_PLIST}`,

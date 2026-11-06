@@ -51,6 +51,7 @@ export async function exportDevices(devices: Device[], holders: DeviceHolder[]) 
     ["ส่งข้อมูลล่าสุด", 17],
     ["Agent", 8],
     ["หมายเหตุ", 30],
+    ["เอกสารแนบ", 40],
   ];
   heads.forEach(([title, width], i) => {
     sheet.getColumn(i + 1).width = width;
@@ -103,6 +104,7 @@ export async function exportDevices(devices: Device[], holders: DeviceHolder[]) 
       d.lastSeenAt ? new Date(d.lastSeenAt) : null,
       d.agentVersion || null,
       d.remark || null,
+      d.documentUrl ? { text: "เปิดเอกสาร", hyperlink: d.documentUrl } : null,
     ]);
     row.getCell(9).numFmt = row.getCell(11).numFmt = "dd/mm/yyyy";
     row.getCell(10).numFmt = "#,##0.00";

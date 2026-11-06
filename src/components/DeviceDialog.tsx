@@ -1,5 +1,6 @@
 "use client";
 
+import { Pencil } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { DiskBar } from "@/components/DiskBar";
@@ -93,6 +94,7 @@ function inputOf(device: Device | null): DeviceInput {
     holderName: device.holderName,
     purchaseDate: device.purchaseDate,
     purchaseDoc: device.purchaseDoc,
+    documentUrl: device.documentUrl,
     purchasePrice: device.purchasePrice,
     vendor: device.vendor,
     warrantyExpire: device.warrantyExpire,
@@ -137,6 +139,7 @@ export function DeviceDialog({
   const [programSearch, setProgramSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [editingUrl, setEditingUrl] = useState(false);
   const set = (patch: Partial<DeviceInput>) => setForm((f) => ({ ...f, ...patch }));
 
   const manual = !device || device.agentStatus === "none";
@@ -741,6 +744,37 @@ export function DeviceDialog({
                 onChange={(e) => set({ vendor: e.target.value })}
               />
             </Field>
+          </div>
+          <div>
+            <span className="mb-1 block text-xs font-medium text-muted">เอกสารแนบ (ลิงก์ Google Drive)</span>
+            {device?.documentUrl && !editingUrl && form.documentUrl === device.documentUrl ? (
+              <div className="flex items-center gap-1 rounded-lg bg-white px-2.5 py-1.5">
+                <a
+                  href={device.documentUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="min-w-0 flex-1 truncate text-[13px] text-accent hover:underline"
+                  title={device.documentUrl}
+                >
+                  🔗 {device.documentUrl.replace(/^https:\/\//, "")}
+                </a>
+                <button
+                  type="button"
+                  className="shrink-0 rounded p-1 text-muted hover:bg-canvas hover:text-ink"
+                  title="แก้ไขลิงก์"
+                  onClick={() => setEditingUrl(true)}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ) : (
+              <input
+                className="field bg-white"
+                placeholder="https://drive.google.com/…"
+                value={form.documentUrl}
+                onChange={(e) => set({ documentUrl: e.target.value.trim() })}
+              />
+            )}
           </div>
           <Field label="หมายเหตุ (ห้ามใส่รหัสผ่าน / Product Key)">
             <textarea

@@ -42,6 +42,8 @@ export interface Device {
   holderName: string;
   purchaseDate: string | null;
   purchaseDoc: string;
+  /** A link to the documents (bill, warranty, …), e.g. a Google Drive folder; "" when none. */
+  documentUrl: string;
   purchasePrice: number | null;
   vendor: string;
   warrantyExpire: string | null;
@@ -120,6 +122,8 @@ export interface DeviceInput {
   holderName: string;
   purchaseDate: string | null;
   purchaseDoc: string;
+  /** A link to the documents (bill, warranty, …), e.g. a Google Drive folder; "" when none. */
+  documentUrl: string;
   purchasePrice: number | null;
   vendor: string;
   warrantyExpire: string | null;
@@ -224,6 +228,7 @@ export const EMPTY_DEVICE: DeviceInput = {
   holderName: "",
   purchaseDate: null,
   purchaseDoc: "",
+  documentUrl: "",
   purchasePrice: null,
   vendor: "",
   warrantyExpire: null,

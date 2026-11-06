@@ -52,6 +52,7 @@ const toDevice = (r: Row): Device => ({
   holderName: str(r.holder_name),
   purchaseDate: (r.purchase_date as string | null) ?? null,
   purchaseDoc: str(r.purchase_doc),
+  documentUrl: str(r.document_url),
   purchasePrice: num(r.purchase_price),
   vendor: str(r.vendor),
   warrantyExpire: (r.warranty_expire as string | null) ?? null,
@@ -112,7 +113,8 @@ const toDevice = (r: Row): Device => ({
 
 // Everything but the token hash and the extra JSON.
 const COLUMNS =
-  "id, asset_number, device_type, holder_id, holder_name, purchase_date, purchase_doc, purchase_price, vendor, " +
+  "id, asset_number, device_type, holder_id, holder_name, purchase_date, purchase_doc, document_url, purchase_price, " +
+  "vendor, " +
   "warranty_expire, status, remark, computer_name, serial_number, manufacturer, model, chassis, cpu, cpu_cores, " +
   "ram_text, ram_gb, disks, disk_text, disk_total_gb, disk_free_gb, volumes, gpu, gpu_memory_gb, monitors, battery_health, " +
   "mainboard, bios_version, bios_date, os_name, os_version, os_install_date, os_activated, os_partial_key, " +
@@ -545,6 +547,7 @@ export function parseDeviceInput(body: Record<string, unknown>): DeviceInput {
     holderName: text(body.holderName, 120),
     purchaseDate: day(body.purchaseDate),
     purchaseDoc: text(body.purchaseDoc, 120),
+    documentUrl: text(body.documentUrl, 500),
     purchasePrice,
     vendor: text(body.vendor, 120),
     warrantyExpire: day(body.warrantyExpire),
@@ -560,6 +563,9 @@ export function parseDeviceInput(body: Record<string, unknown>): DeviceInput {
     gpu: text(body.gpu, 200),
     osName: text(body.osName, 80),
   };
+  if (input.documentUrl && !/^https:\/\/[^\s]+$/.test(input.documentUrl)) {
+    throw new HttpError(400, "ลิงก์เอกสารต้องขึ้นต้นด้วย https:// (เช่น ลิงก์ Google Drive)");
+  }
   if ([input.remark, input.purchaseDoc, input.holderName].some((t) => SECRET.test(t))) {
     throw new HttpError(400, "อย่าเก็บรหัสผ่านหรือ Product Key ในทะเบียน ให้เก็บใน Password Manager แทน");
   }
@@ -574,6 +580,7 @@ function registerColumns(input: DeviceInput) {
     holder_name: input.holderId ? "" : input.holderName,
     purchase_date: input.purchaseDate,
     purchase_doc: input.purchaseDoc,
+    document_url: input.documentUrl,
     purchase_price: input.purchasePrice,
     vendor: input.vendor,
     warranty_expire: input.warrantyExpire,
