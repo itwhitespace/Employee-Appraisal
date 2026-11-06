@@ -37,6 +37,7 @@ export default function HardwarePage() {
   const [holders, setHolders] = useState<DeviceHolder[]>([]);
   const [installerReady, setInstallerReady] = useState(true);
   const [agentVersion, setAgentVersion] = useState("");
+  const [macAgentVersion, setMacAgentVersion] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("register");
   const [type, setType] = useState("all");
@@ -57,6 +58,7 @@ export default function HardwarePage() {
           setHolders(r.holders);
           setInstallerReady(r.installerReady);
           setAgentVersion(r.agentVersion);
+          setMacAgentVersion(r.macAgentVersion);
           setNow(Date.now());
         })
         .catch((e) => alive && setError(errorMessage(e)));
@@ -78,7 +80,9 @@ export default function HardwarePage() {
   const register = devices.filter((d) => d.agentStatus === "approved" || d.agentStatus === "none");
   const withAgent = register.filter((d) => d.agentStatus === "approved");
   const online = withAgent.filter((d) => isOnline(d, now)).length;
-  const outdated = withAgent.filter((d) => isOlderVersion(d.agentVersion, agentVersion));
+  // The newest agent for the computer's system: Windows and Mac agents have their own versions.
+  const latestFor = (d: Device) => (/macos/i.test(d.osName) ? macAgentVersion : agentVersion);
+  const outdated = withAgent.filter((d) => isOlderVersion(d.agentVersion, latestFor(d)));
   const holderOf = (d: Device) => holders.find((h) => h.id === d.holderId);
 
   const teamOf = (d: Device) => holderOf(d)?.team || "";
@@ -133,21 +137,51 @@ export default function HardwarePage() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
-          <a
-            href="/api/devices/installer?file=install"
-            className={`btn-secondary inline-flex items-center gap-1.5 py-1.5 text-sm ${
-              installerReady ? "" : "pointer-events-none opacity-50"
-            }`}
-            aria-disabled={!installerReady}
-          >
-            <Download className="h-4 w-4" /> install_agent {agentVersion}.cmd
-          </a>
-          <a
-            href="/api/devices/installer?file=uninstall"
-            className="btn-secondary inline-flex items-center gap-1.5 py-1.5 text-sm"
-          >
-            <Download className="h-4 w-4" /> uninstall_agent.cmd
-          </a>
+          <details className="relative">
+            <summary className="btn-secondary inline-flex cursor-pointer list-none items-center gap-1.5 py-1.5 text-sm">
+              <Download className="h-4 w-4" /> ดาวน์โหลด Agent ▾
+            </summary>
+            <div className="absolute right-0 z-20 mt-1 w-[330px] rounded-xl border border-line bg-white p-2 shadow-float">
+              {(
+                [
+                  [
+                    "Windows",
+                    "install",
+                    `install_agent_${agentVersion.replace(/\./g, "_")}.cmd`,
+                    "คลิกขวา > Run as administrator",
+                    true,
+                  ],
+                  ["Windows", "uninstall", "uninstall_agent.cmd", "ถอนการติดตั้ง", false],
+                  [
+                    "macOS",
+                    "install-mac",
+                    `install_agent_mac_${macAgentVersion.replace(/\./g, "_")}.sh`,
+                    "Terminal: sudo bash <ไฟล์>",
+                    true,
+                  ],
+                  ["macOS", "uninstall-mac", "uninstall_agent_mac.sh", "ถอนการติดตั้ง", false],
+                ] as const
+              ).map(([os, file, name, how, needsKey]) => (
+                <a
+                  key={file}
+                  href={`/api/devices/installer?file=${file}`}
+                  className={`flex items-center gap-2 rounded-lg px-2.5 py-2 text-sm hover:bg-emerald-50 ${
+                    needsKey && !installerReady ? "pointer-events-none opacity-40" : ""
+                  }`}
+                >
+                  <span
+                    className={`chip !py-0 text-[11px] ${os === "macOS" ? "bg-slate-800 text-white" : "bg-sky-100 text-sky-800"}`}
+                  >
+                    {os}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate font-medium">{name}</span>
+                    <span className="block text-[11px] text-muted">{how}</span>
+                  </span>
+                </a>
+              ))}
+            </div>
+          </details>
           <button
             type="button"
             className="btn-secondary inline-flex items-center gap-1.5 py-1.5 text-sm"
@@ -169,8 +203,8 @@ export default function HardwarePage() {
       {outdated.length > 0 && (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
           มี {outdated.length} เครื่องที่ยังใช้ agent รุ่นเก่า (
-          {outdated.map((d) => d.computerName).join(", ")}): ดาวน์โหลด install_agent {agentVersion}.cmd
-          แล้วรันซ้ำที่เครื่องนั้น (Run as administrator) ข้อมูลและผู้ถือครองเดิมยังอยู่ครบ
+          {outdated.map((d) => d.computerName).join(", ")}): ดาวน์โหลดไฟล์ติดตั้งรุ่นล่าสุดจากปุ่ม “ดาวน์โหลด
+          Agent” แล้วรันซ้ำที่เครื่องนั้น ข้อมูลและผู้ถือครองเดิมยังอยู่ครบ
         </div>
       )}
 
@@ -412,10 +446,10 @@ export default function HardwarePage() {
                       <td className="whitespace-nowrap text-[11px]">
                         {!d.agentVersion ? (
                           <span className="text-faint">–</span>
-                        ) : isOlderVersion(d.agentVersion, agentVersion) ? (
+                        ) : isOlderVersion(d.agentVersion, latestFor(d)) ? (
                           <span
                             className="font-semibold text-amber-700"
-                            title={`รุ่นล่าสุดคือ ${agentVersion}: ดาวน์โหลด install_agent แล้วรันซ้ำ`}
+                            title={`รุ่นล่าสุดคือ ${latestFor(d)}: ดาวน์โหลดไฟล์ติดตั้งแล้วรันซ้ำ`}
                           >
                             {d.agentVersion}
                             <br />

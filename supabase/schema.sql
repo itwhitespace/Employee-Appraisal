@@ -641,3 +641,16 @@ alter table public.devices
 comment on column public.devices.os_partial_key is 'Last 5 characters of the Windows key only (never the whole key)';
 comment on column public.devices.os_bios_key is 'The computer has a Windows key in its firmware (OEM); the key itself is not read out';
 comment on column public.devices.os_bios_key_match is 'The installed key is the firmware key';
+
+-- ── What changed on a computer (renamed, RAM, disk, CPU, OS edition), from its agent. ──────
+create table if not exists public.device_changes (
+  id          uuid primary key default gen_random_uuid(),
+  device_id   uuid not null references public.devices (id) on delete cascade,
+  field       text not null,
+  old_value   text not null default '',
+  new_value   text not null default '',
+  changed_at  timestamptz not null default now()
+);
+create index if not exists device_changes_device_idx on public.device_changes (device_id, changed_at desc);
+
+alter table public.device_changes enable row level security;

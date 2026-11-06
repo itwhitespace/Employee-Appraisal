@@ -188,7 +188,8 @@ function reportColumns(body: Record<string, unknown>): Record<string, unknown> {
         totalGb: number(v?.totalGb, 0, 1e6),
         freeGb: number(v?.freeGb, 0, 1e6),
       }))
-      .filter((v) => /^[A-Z]:$/i.test(v.drive)),
+      // Windows drive letters; "HD" for the startup disk of a Mac.
+      .filter((v) => /^[A-Z]:$|^[A-Za-z0-9 ._-]{1,12}$/i.test(v.drive)),
   );
   put("gpu", "gpu", text(body.gpu, 200));
   put("gpuMemoryGb", "gpu_memory_gb", number(body.gpuMemoryGb, 0, 9999));

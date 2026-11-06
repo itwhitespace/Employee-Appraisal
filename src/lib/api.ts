@@ -170,9 +170,13 @@ export const api = {
 
   /** IT Assets: the computer register (admin only). */
   devices: () =>
-    request<{ devices: Device[]; holders: DeviceHolder[]; installerReady: boolean; agentVersion: string }>(
-      "/api/devices",
-    ),
+    request<{
+      devices: Device[];
+      holders: DeviceHolder[];
+      installerReady: boolean;
+      agentVersion: string;
+      macAgentVersion: string;
+    }>("/api/devices"),
   addDevice: (device: DeviceInput, handover?: DeviceHandover) =>
     request<{ devices: Device[] }>("/api/devices", "POST", { device, handover }),
   saveDevice: (id: string, device: DeviceInput, approve = false, handover?: DeviceHandover) =>
